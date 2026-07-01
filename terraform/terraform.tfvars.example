@@ -1,0 +1,22 @@
+# Copy to terraform.tfvars and fill in. DO NOT commit terraform.tfvars.
+pm_api_url = "https://<INSERT_IP>:8006/api2/json"
+
+# API token (see README for creation). Format: user@realm!tokenname
+pm_api_token_id     = "<ACCOUNT>@pam!terraform"
+pm_api_token_secret = "<SECRET>"
+
+target_node   = "<TARGET_NODE>"
+template_name = "<TEMPLATE_NAME>
+storage       = "<STORAGE_NAME>"
+
+network_bridge = "<NETWORK>"
+gateway        = "<INSERT_IP>"
+nameserver     = "<INSERT_IP>"
+
+ci_user = "<CI_USER>"
+
+# Your SSH public key (single line)
+ssh_public_key = "ssh-rsa AAAAB3Nza...Macbook.local"
+
+# Set to 1 only if the template has qemu-guest-agent installed.
+qemu_agent = 0

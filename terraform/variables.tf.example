@@ -1,0 +1,128 @@
+# ---------------------------------------------------------------------------
+# Connection / provider
+# ---------------------------------------------------------------------------
+variable "pm_api_url" {
+  type        = string
+  description = "Proxmox API URL, e.g. https://<INSERT_IP>:8006/api2/json"
+}
+
+variable "pm_api_token_id" {
+  type        = string
+  description = "Proxmox API token id, format: user@realm!tokenname (e.g. terraform@pve!tf)"
+}
+
+variable "pm_api_token_secret" {
+  type        = string
+  sensitive   = true
+  description = "Proxmox API token secret (UUID shown once at creation). Set via terraform.tfvars or TF_VAR_pm_api_token_secret."
+}
+
+variable "pm_tls_insecure" {
+  type        = bool
+  default     = true
+  description = "Skip TLS verification (self-signed Proxmox cert)"
+}
+
+# ---------------------------------------------------------------------------
+# Cluster-wide defaults
+# ---------------------------------------------------------------------------
+variable "target_node" {
+  type        = string
+  description = "Proxmox node name to create the VMs on"
+}
+
+variable "template_name" {
+  type        = string
+  description = "Name of the Rocky Linux cloud-init template to clone"
+}
+
+variable "storage" {
+  type        = string
+  description = "Storage pool for VM disks"
+}
+
+variable "network_bridge" {
+  type        = string
+  description = "Proxmox network bridge"
+}
+
+variable "gateway" {
+  type        = string
+  description = "Default gateway for static IPs"
+}
+
+variable "nameserver" {
+  type        = string
+  description = "DNS server pushed via cloud-init"
+}
+
+variable "ci_user" {
+  type        = string
+  description = "cloud-init default user"
+}
+
+variable "ssh_public_key" {
+  type        = string
+  description = "SSH public key injected into the cloud-init user"
+}
+
+variable "qemu_agent" {
+  type        = number
+  default     = 0
+  description = <<-EOT
+    Enable the QEMU guest agent (1) or not (0).
+    Set to 1 ONLY if the template has qemu-guest-agent installed and enabled,
+    otherwise Terraform will hang waiting for the agent. Enabling it lets
+    Terraform discover VM IPs.
+  EOT
+}
+
+# ---------------------------------------------------------------------------
+# VM definitions  (spec table)
+# ---------------------------------------------------------------------------
+variable "vms" {
+  description = "Per-VM definitions"
+  type = map(object({
+    vmid   = number
+    cores  = number
+    memory = number # MB
+    disk   = string # e.g. "40G"
+    ip     = string # CIDR e.g. "192.168.1.11/24", or "dhcp"
+    tags   = string # semicolon-separated
+  }))
+
+  default = {
+    "infra-bastion" = {
+      vmid   = 100
+      cores  = 2
+      memory = 6144
+      disk   = "40G"
+      ip     = "<INSERT_IP>"
+      tags   = "bastion"
+    }
+    "k8s-master" = {
+      vmid   = 101
+      cores  = 2
+      memory = 8192
+      disk   = "80G"
+      ip     = "<INSERT_IP>"
+      tags   = "k8s;control-plane"
+    }
+    "k8s-worker-prod" = {
+      vmid   = 102
+      cores  = 4
+      memory = 24576
+      disk   = "400G"
+      ip     = "<INSERT_IP>"
+      tags   = "k8s;worker;pool-prod"
+    }
+    "k8s-worker-dev" = {
+      vmid   = 103
+      cores  = 4
+      memory = 20480
+      disk   = "300G"
+      ip     = "<INSERT_IP>"
+      tags   = "k8s;worker;pool-dev"
+    }
+  }
+}
