@@ -1,5 +1,5 @@
 # REPO Structure
-/ansible/**
+# ansible/ 는 공개 추적. 민감 파일(secrets.yml, hosts.yml 등)은 ansible/.gitignore 가 처리.
 /_test/**
 /.claude/**
 

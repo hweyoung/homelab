@@ -1,0 +1,65 @@
+---
+# 홈랩 부트스트랩 진입점.
+#
+# 전체 실행:
+#   ansible-playbook site.yml -e @secrets.yml --ask-vault-pass
+#
+# 특정 단계만 실행 (tag 활용):
+#   ansible-playbook site.yml --tags bastion_ssh
+#   ansible-playbook site.yml --tags kubespray
+#   ansible-playbook site.yml --tags argocd
+
+- name: 1. Bastion SSH 포트/방화벽/SELinux 구성
+  hosts: bastion
+  become: true
+  roles: [ bastion_ssh ]
+  tags: [ bastion, bastion_ssh ]
+
+- name: 2. Bastion /etc/hosts 매핑 설치
+  hosts: bastion
+  become: true
+  roles: [ bastion_hosts ]
+  tags: [ bastion, bastion_hosts ]
+
+- name: 3. Tailscale 설치 및 Tailnet 조인
+  hosts: tailscale_nodes
+  become: true
+  roles: [ tailscale ]
+  tags: [ tailscale, management ]
+
+- name: 4. Kubespray 실행 (localhost 래퍼)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles: [ kubespray_runner ]
+  tags: [ kubespray ]
+
+- name: 5. Post-Kubespray (kubeconfig, 노드 라벨, taint)
+  hosts: k8s_master
+  become: true
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  roles: [ k8s_node_config ]
+  tags: [ post_kubespray, kubernetes ]
+
+- name: 6. Helm CLI 설치
+  hosts: k8s_master
+  become: true
+  roles: [ helm ]
+  tags: [ helm ]
+
+- name: 7. SOPS age key 를 argocd ns Secret 으로 주입
+  hosts: k8s_master
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  roles: [ sops_bootstrap ]
+  tags: [ sops, gitops ]
+
+- name: 8. ArgoCD 배포 + root.yaml 적용 (App-of-Apps 발화)
+  hosts: k8s_master
+  become: false
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  roles: [ argocd ]
+  tags: [ argocd, gitops ]

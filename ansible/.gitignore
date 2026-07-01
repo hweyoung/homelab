@@ -1,0 +1,11 @@
+# 런타임/로컬 상태
+kubespray/
+.ansible/
+.venv/
+*.retry
+
+# 외부 노출 금지 — 실제 값 파일. 커밋되는 건 *.example 뿐.
+#   secrets.yml            <- secrets.example.yml
+#   hosts.yml              <- hosts.yml.example
+secrets.yml
+inventories/homelab/hosts.yml
