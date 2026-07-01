@@ -4,11 +4,11 @@
 /.claude/**
 
 # Terraform 
-/terraform/**
-# /terraform/terraform.tfstate
-# /terraform/.terraform*
-# /terraform/terraform.tfvars
-# /terraform/variables.tf
+# /terraform/**
+/terraform/terraform.tfstate
+/terraform/.terraform*
+/terraform/terraform.tfvars
+/terraform/variables.tf
 
 # MAC Resource
 .DS_Store
