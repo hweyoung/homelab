@@ -1,0 +1,33 @@
+---
+- name: SELinux 포트 관리 패키지 설치
+  ansible.builtin.dnf:
+    name: policycoreutils-python-utils
+    state: present
+
+- name: 커스텀 SSH 포트의 SELinux 컨텍스트 조회
+  ansible.builtin.shell: >-
+    semanage port -l |
+    awk '$1 == "ssh_port_t" && $2 == "tcp" { print $4 }' |
+    tr ',' '\n' |
+    grep -Fx {{ bastion_ssh_port }}
+  args:
+    executable: /bin/bash
+  register: selinux_ssh_port_check
+  changed_when: false
+  failed_when: false
+
+- name: SELinux ssh_port_t 컨텍스트 추가
+  ansible.builtin.command: >-
+    semanage port -a -t ssh_port_t -p tcp {{ bastion_ssh_port }}
+  register: selinux_ssh_port_add
+  changed_when: selinux_ssh_port_add.rc == 0
+  failed_when: selinux_ssh_port_add.rc not in [0, 1]
+  when: selinux_ssh_port_check.rc != 0
+
+- name: SELinux ssh_port_t 컨텍스트 갱신
+  ansible.builtin.command: >-
+    semanage port -m -t ssh_port_t -p tcp {{ bastion_ssh_port }}
+  register: selinux_ssh_port_modify
+  changed_when: selinux_ssh_port_modify.rc == 0
+  failed_when: selinux_ssh_port_modify.rc != 0
+  when: selinux_ssh_port_check.rc == 0

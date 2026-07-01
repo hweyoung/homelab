@@ -1,0 +1,28 @@
+---
+# kubectl 경로는 모든 하위 task 에서 참조하므로 항상 먼저 잡아 둡니다.
+- name: kubectl 경로 탐색
+  ansible.builtin.shell: >-
+    command -v kubectl
+    || { test -x /usr/local/bin/kubectl && echo /usr/local/bin/kubectl; }
+    || { test -x /usr/bin/kubectl && echo /usr/bin/kubectl; }
+  args:
+    executable: /bin/bash
+  register: kubectl_path
+  changed_when: false
+  tags: always
+
+- name: kubectl 존재 보장
+  ansible.builtin.assert:
+    that:
+      - kubectl_path.stdout | length > 0
+    fail_msg: "kubectl 을 찾을 수 없습니다. Kubespray 클라이언트 설치 단계를 확인하세요."
+  tags: always
+
+- import_tasks: kubeconfig.yml
+  tags: ['post_kubespray', 'kubeconfig']
+
+- import_tasks: labels.yml
+  tags: ['post_kubespray', 'labels']
+
+- import_tasks: taints.yml
+  tags: ['post_kubespray', 'taints']

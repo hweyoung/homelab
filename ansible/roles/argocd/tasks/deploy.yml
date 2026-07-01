@@ -1,0 +1,60 @@
+---
+# 사전 체크: 같은 차트 버전이 이미 deployed 상태면 helm upgrade --wait 자체를 스킵.
+# 강제 재실행이 필요할 땐 `-e argocd_force=true` 로 실행.
+- name: 기존 ArgoCD 릴리즈 상태 조회
+  ansible.builtin.command: >-
+    {{ helm_install_path }} status argocd
+    -n {{ argocd_namespace }}
+    -o json
+  register: argocd_status
+  changed_when: false
+  failed_when: false
+
+- name: 기존 릴리즈 메타데이터 파싱
+  ansible.builtin.set_fact:
+    argocd_current_version: "{{ (argocd_status.stdout | from_json).chart.metadata.version }}"
+    argocd_release_status: "{{ (argocd_status.stdout | from_json).info.status }}"
+  when: argocd_status.rc == 0
+
+- name: 설치/업그레이드 필요 여부 판정
+  ansible.builtin.set_fact:
+    argocd_needs_install: >-
+      {{ argocd_status.rc != 0
+         or argocd_release_status | default('') != 'deployed'
+         or argocd_current_version | default('') != argocd_chart_version
+         or (argocd_force | default(false) | bool) }}
+
+- name: ArgoCD 가 이미 동일 버전으로 deployed — helm upgrade 스킵
+  ansible.builtin.debug:
+    msg: >-
+      ArgoCD {{ argocd_current_version }} 이 deployed 상태입니다.
+      강제 재실행이 필요하면 `-e argocd_force=true` 를 추가하세요.
+  when: not argocd_needs_install
+
+- when: argocd_needs_install
+  block:
+    - name: argocd 네임스페이스 생성
+      ansible.builtin.command: "kubectl create namespace {{ argocd_namespace }}"
+      register: ns_create
+      failed_when:
+        - ns_create.rc != 0
+        - "'already exists' not in ns_create.stderr"
+      changed_when: ns_create.rc == 0
+
+    - name: argocd-values.yaml 렌더링
+      ansible.builtin.template:
+        src: argocd-values.yaml.j2
+        dest: "/home/{{ ansible_user }}/argocd-values.yaml"
+        mode: "0644"
+
+    # helm upgrade --install 은 최초 설치와 업그레이드를 동시에 처리합니다.
+    - name: ArgoCD 배포 (설치 또는 업그레이드)
+      ansible.builtin.command: >
+        {{ helm_install_path }} upgrade --install argocd argo/argo-cd
+        -n {{ argocd_namespace }}
+        --version {{ argocd_chart_version }}
+        -f /home/{{ ansible_user }}/argocd-values.yaml
+        --create-namespace
+        --wait
+        --timeout 5m
+      changed_when: true
