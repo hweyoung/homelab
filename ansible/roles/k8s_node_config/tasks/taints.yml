@@ -1,0 +1,20 @@
+---
+- name: prod 풀 노드에 taint 적용
+  ansible.builtin.command: >-
+    {{ kubectl_path.stdout }} taint node {{ item }}
+    {{ prod_taint_key }}={{ prod_taint_value }}:{{ prod_taint_effect }} --overwrite
+  loop: "{{ groups['k8s_workers'] }}"
+  when: hostvars[item].kube_node_pool == prod_taint_value
+  changed_when: false
+
+- name: 비-prod 노드에서 prod taint 제거
+  ansible.builtin.command: >-
+    {{ kubectl_path.stdout }} taint node {{ item }}
+    {{ prod_taint_key }}={{ prod_taint_value }}:{{ prod_taint_effect }}-
+  loop: "{{ groups['k8s_workers'] }}"
+  when: hostvars[item].kube_node_pool != prod_taint_value
+  register: remove_prod_taint
+  changed_when: "'untainted' in remove_prod_taint.stdout"
+  failed_when:
+    - remove_prod_taint.rc != 0
+    - "'not found' not in remove_prod_taint.stderr"

@@ -1,0 +1,15 @@
+---
+# Argo Helm 저장소 추가 및 업데이트.
+# 이 play 는 become: false 로 실행되므로 일반 SSH 사용자의 ~/.kube/config 를 그대로 사용합니다.
+
+- name: argo helm repo 추가
+  ansible.builtin.command: "{{ helm_install_path }} repo add argo https://argoproj.github.io/argo-helm"
+  register: repo_add
+  failed_when:
+    - repo_add.rc != 0
+    - "'already exists' not in repo_add.stderr"
+  changed_when: repo_add.rc == 0
+
+- name: helm repo update
+  ansible.builtin.command: "{{ helm_install_path }} repo update"
+  changed_when: false

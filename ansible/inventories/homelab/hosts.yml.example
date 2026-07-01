@@ -1,0 +1,61 @@
+---
+all:
+  hosts:
+    infra-bastion:
+      ansible_host: <INSERT_NODE_IP>
+      ansible_user: <ANSIBLE_USER>
+      ansible_connection: local
+    k8s-master:
+      ansible_host: <INSERT_NODE_IP>
+      ansible_user: <ANSIBLE_USER>
+    k8s-worker-prod:
+      ansible_host: <INSERT_NODE_IP>
+      ansible_user: <ANSIBLE_USER>
+      kube_node_pool: prod
+      platform_tier: stable
+    k8s-worker-dev:
+      ansible_host: <INSERT_NODE_IP>
+      ansible_user: <ANSIBLE_USER>
+      kube_node_pool: dev
+      platform_tier: mutable
+
+  children:
+    bastion:
+      hosts:
+        infra-bastion:
+
+    tailscale_nodes:
+      children:
+        bastion:
+
+    k8s_master:
+      hosts:
+        k8s-master:
+
+    k8s_workers:
+      hosts:
+        k8s-worker-prod:
+        k8s-worker-dev:
+
+    k8s_nodes:
+      children:
+        k8s_master:
+        k8s_workers:
+
+    kube_control_plane:
+      hosts:
+        k8s-master:
+
+    kube_node:
+      hosts:
+        k8s-worker-prod:
+        k8s-worker-dev:
+
+    etcd:
+      hosts:
+        k8s-master:
+
+    k8s_cluster:
+      children:
+        kube_control_plane:
+        kube_node:

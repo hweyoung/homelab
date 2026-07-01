@@ -1,0 +1,24 @@
+---
+- name: ArgoCD Ingress 조회
+  ansible.builtin.command: "kubectl get ingress -n {{ argocd_namespace }}"
+  register: ingress_output
+  changed_when: false
+
+- name: Ingress 정보 출력
+  ansible.builtin.debug:
+    msg: "{{ ingress_output.stdout_lines }}"
+
+- name: 초기 admin 비밀번호 추출
+  ansible.builtin.shell: >
+    kubectl -n {{ argocd_namespace }}
+    get secret argocd-initial-admin-secret
+    -o jsonpath="{.data.password}" | base64 -d
+  register: argocd_password
+  changed_when: false
+
+- name: ArgoCD 접속 정보 출력
+  ansible.builtin.debug:
+    msg:
+      - "URL      : http://{{ argocd_domain }}"
+      - "ID       : admin"
+      - "Password : {{ argocd_password.stdout }}"

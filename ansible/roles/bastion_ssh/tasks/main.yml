@@ -1,0 +1,9 @@
+---
+- import_tasks: configure.yml
+  tags: ['bastion_ssh', 'configure']
+
+- import_tasks: selinux.yml
+  tags: ['bastion_ssh', 'selinux']
+
+- import_tasks: firewall.yml
+  tags: ['bastion_ssh', 'firewall']
