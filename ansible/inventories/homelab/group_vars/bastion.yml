@@ -1,6 +1,0 @@
----
-# infra-bastion 의 SSH 데몬 포트 정책.
-
-bastion_ssh_port: 1022
-# true 로 두면 22 도 함께 열린 상태로 유지합니다.
-bastion_ssh_keep_port_22: false
