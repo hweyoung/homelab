@@ -1,0 +1,20 @@
+---
+# 인벤토리 호스트명을 infra-bastion 에서 로컬로 해석할 수 있도록 /etc/hosts 에 등록.
+
+- name: /etc/hosts 블록 빌드
+  ansible.builtin.set_fact:
+    bastion_hosts_entries: |
+      {% for host in groups['all'] if host != 'ungrouped' and host != 'localhost' %}
+      {{ hostvars[host].ansible_host | default('') }} {{ host }}
+      {% endfor %}
+
+- name: /etc/hosts 에 ANSIBLE HOMELAB HOSTS 블록 적용
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    block: "{{ bastion_hosts_entries | trim }}"
+    marker: "# {mark} ANSIBLE HOMELAB HOSTS"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
