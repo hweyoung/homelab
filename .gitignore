@@ -1,0 +1,17 @@
+# REPO Structure
+/ansible/**
+/_test/**
+/.claude/**
+
+# Terraform 
+/terraform/**
+# /terraform/terraform.tfstate
+# /terraform/.terraform*
+# /terraform/terraform.tfvars
+# /terraform/variables.tf
+
+# MAC Resource
+.DS_Store
+__MACOSX/
+._*
+*.zip
