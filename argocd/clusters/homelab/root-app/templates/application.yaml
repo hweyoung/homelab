@@ -1,0 +1,85 @@
+{{- $root := . -}}
+{{- range $app := .Values.applications }}
+{{- $type := $app.type | default "directory" -}}
+
+{{/*
+  Application 이름 규칙:
+    group 이 있으면 "<group>-<name>", 없으면 "<name>". (라벨 규격상 최대 63자)
+*/}}
+{{- $fullname := $app.name -}}
+{{- if $app.group -}}
+{{- $fullname = printf "%s-%s" $app.group $app.name -}}
+{{- end -}}
+{{- $fullname = $fullname | trunc 63 | trimSuffix "-" -}}
+
+{{/*
+  syncPolicyRef -> syncPolicies 에서 실제 정책 조회.
+  createNamespace 가 지정되면 CreateNamespace=<bool> 를 syncOptions 에 병합.
+*/}}
+{{- $syncRef := $app.syncPolicyRef | default "manual" -}}
+{{- $policy := index $root.Values.syncPolicies $syncRef -}}
+{{- if not $policy -}}
+{{- fail (printf "application %q references unknown syncPolicyRef %q" $app.name $syncRef) -}}
+{{- end -}}
+{{- $policy = deepCopy $policy -}}
+{{- $syncOptions := $policy.syncOptions | default (list) -}}
+{{- if hasKey $app "createNamespace" -}}
+{{- $syncOptions = append $syncOptions (printf "CreateNamespace=%v" $app.createNamespace) -}}
+{{- end -}}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $fullname }}
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: root-app
+    {{- with $app.group }}
+    app.homelab/group: {{ . }}
+    {{- end }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "{{ $app.wave | default 0 }}"
+    {{- with $app.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $app.project | default "default" }}
+  source:
+    repoURL: {{ $app.repoURL | default $root.Values.global.repoURL }}
+    targetRevision: {{ $app.targetRevision | default $root.Values.global.targetRevision }}
+    path: {{ required (printf "application %q requires a path" $app.name) $app.path }}
+    {{- if eq $type "helm" }}
+    {{- with $app.helm }}
+    helm:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- else if eq $type "kustomize" }}
+    {{- with $app.kustomize }}
+    kustomize:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- else if eq $type "directory" }}
+    directory:
+      recurse: true
+    {{- end }}
+  destination:
+    server: {{ $app.destinationServer | default "https://kubernetes.default.svc" }}
+    namespace: {{ required (printf "application %q requires a namespace" $app.name) $app.namespace }}
+  syncPolicy:
+    {{- with $policy.automated }}
+    automated:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $syncOptions }}
+    syncOptions:
+      {{- range . }}
+      - {{ . }}
+      {{- end }}
+    {{- end }}
+    {{- with $policy.retry }}
+    retry:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{ end }}
