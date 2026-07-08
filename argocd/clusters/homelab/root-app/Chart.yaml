@@ -1,0 +1,7 @@
+apiVersion: v2
+name: root-app
+description: >-
+  App-of-Apps. values.yaml 의 applications 목록을 순회하며 ArgoCD Application 을
+  렌더링합니다. Helm / Kustomize / directory 타입과 sync-wave, 명명된 syncPolicy 를 지원.
+type: application
+version: 0.1.0
