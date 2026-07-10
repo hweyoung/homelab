@@ -23,12 +23,17 @@ argocd/
 │   └── root.yaml                     # 최초 1회 적용하는 root Application
 ├── clusters/
 │   └── homelab/
-│       └── root-app/                 # App-of-Apps Helm 차트
-│           ├── Chart.yaml
-│           ├── values.yaml           # 관리할 Application 목록 (여기만 수정)
-│           └── templates/
-│               ├── _helpers.tpl      # 이름 규칙 / syncPolicyRef 변환
-│               └── application.yaml  # applications 를 순회하며 Application 렌더링
+│       ├── root-app/                 # App-of-Apps Helm 차트
+│       │   ├── Chart.yaml
+│       │   ├── values.yaml           # 관리할 Application 목록 (여기만 수정)
+│       │   └── templates/
+│       │       └── application.yaml  # applications 순회 + 이름/syncPolicy 규칙 렌더링
+│       └── argocd-config/            # ArgoCD 자체 설정 (wave -10, project default)
+│           ├── README.md             # 권한 모델 / 설정 patch 항목
+│           └── projects/             # AppProject 권한 경계
+│               ├── platform.yaml     #   cluster-scoped 허용
+│               ├── databases.yaml    #   namespace 스코프 한정
+│               └── apps.yaml         #   namespace 스코프 한정
 └── issues/                           # 기획/이슈 참고 문서
 ```
 
@@ -36,7 +41,13 @@ argocd/
 
 1. `root.yaml` → `root-app` Application 생성 (path: `argocd/clusters/homelab/root-app`)
 2. `root-app` 이 `values.yaml` 의 `applications` 목록을 Helm 으로 렌더링
-3. 각 항목이 하나의 ArgoCD Application 이 되어 실제 서비스를 sync
+3. `argocd-config`(wave -10)가 먼저 sync 되어 AppProject(권한 경계)를 생성
+4. 나머지 항목이 각 AppProject 를 참조하는 ArgoCD Application 이 되어 서비스를 sync
+
+권한 경계는 `argocd-config` 가 관리합니다 —
+[argocd-config/README.md](clusters/homelab/argocd-config/README.md) 참고.
+`platform` 은 cluster-scoped 리소스를 허용하고, `databases`/`apps` 는 namespace
+스코프로 제한됩니다. Application 은 `values.yaml` 에서 `project` 로 이를 참조합니다.
 
 ---
 

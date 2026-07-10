@@ -1,12 +1,13 @@
-# App of Apps 패턴을 위한 root ArgoCD Application 렌더링 입력값.
-
-# 모든 하위 Application 이 공유하는 GitOps 소스 기본값.
+# ====================================
+# root-app (App-of-Apps) 의 values.yaml
+# ====================================
 global:
   repoURL: https://github.com/hweyoung/homelab.git
   targetRevision: main
 
-# syncPolicyRef 로 참조하는 명명된 sync 정책.
-# 각 Application 은 syncPolicyRef 로 아래 키 중 하나를 고릅니다.
+# ==============
+# syncPolicy
+# ==============
 syncPolicies:
   # 수동 sync (기본).
   manual:
@@ -27,31 +28,42 @@ syncPolicies:
         factor: 2
         maxDuration: 5m
 
-# root-app에서 관리하는 하위 Application 목록.
+# ==================
+# Application 목록
+# ==================
 applications:
-  # --- Helm 타입 예시 ---
-  - name: podinfo
-    group: platform
+  # --- argocd-config (부트스트랩) ---
+  - name: argocd-config
+    namespace: argocd
     project: default
-    namespace: podinfo
-    type: helm
-    wave: 0
-    path: argocd/apps/podinfo
-    createNamespace: true
-    syncPolicyRef: auto
-    helm:
-      valueFiles:
-        - values.yaml
-    annotations:
-      example.homelab/owner: platform-team
+    type: directory
+    wave: -10
+    path: argocd/clusters/homelab/argocd-config
+    syncPolicyRef: manual
+
+  # --- Helm 타입 예시 ---
+  # - name: podinfo
+  #   group: platform
+  #   project: default
+  #   namespace: podinfo
+  #   type: helm
+  #   wave: 0
+  #   path: argocd/apps/podinfo
+  #   createNamespace: true
+  #   syncPolicyRef: auto
+  #   helm:
+  #     valueFiles:
+  #       - values.yaml
+  #   annotations:
+  #     example.homelab/owner: platform-team
 
   # --- Kustomize 타입 예시 ---
-  - name: echo
-    group: platform
-    project: default
-    namespace: echo
-    type: kustomize
-    wave: 1
-    path: argocd/apps/echo
-    createNamespace: true
-    syncPolicyRef: auto
+  # - name: echo
+  #   group: platform
+  #   project: default
+  #   namespace: echo
+  #   type: kustomize
+  #   wave: 1
+  #   path: argocd/apps/echo
+  #   createNamespace: true
+  #   syncPolicyRef: auto

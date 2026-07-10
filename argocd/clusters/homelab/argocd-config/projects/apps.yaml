@@ -1,0 +1,23 @@
+---
+# 애플리케이션 AppProject
+# - 애플리케이션 워크로드를 위한 AppProject. namespace-scoped 리소스만 허용. (cluster-scoped 리소스 생성은 차단)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: 애플리케이션 워크로드 (*-prod, *-dev) — namespace 스코프 한정
+  sourceRepos:
+    - https://github.com/hweyoung/homelab.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: '*-dev'
+    - server: https://kubernetes.default.svc
+      namespace: '*-prod'
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

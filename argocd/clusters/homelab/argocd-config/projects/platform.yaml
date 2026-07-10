@@ -1,0 +1,35 @@
+---
+# platform AppProject (cluster-scoped 리소스 허용)
+# - 클러스터 기반 플랫폼 서비스. operator/CRD/ClusterRole 등 cluster-scoped 리소스를 생성해야 하므로 클러스터 리소스를 허용한다. 
+#   대상: cert-manager, traefik, gateway, CNPG, dex, minio, monitoring
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: 클러스터 플랫폼 서비스 (cert-manager, traefik, gateway, CNPG, dex, minio, monitoring)
+
+  sourceRepos:
+    - https://github.com/hweyoung/homelab.git
+    - https://charts.jetstack.io
+    - https://traefik.github.io/charts
+    - https://cloudnative-pg.github.io/charts
+    - https://charts.min.io/
+    - https://charts.dexidp.io
+    - https://argoproj.github.io/argo-helm
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+  
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: ['cert-manager', 'traefik', 'gateway', 'cnpg-system', 'dex', 'minio', 'monitoring']
+
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
