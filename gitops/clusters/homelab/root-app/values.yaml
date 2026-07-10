@@ -39,7 +39,7 @@ applications:
     type: directory
     wave: -10
     path: gitops/clusters/homelab/argocd-config
-    syncPolicyRef: manual
+    syncPolicyRef: auto
 
   # --- Helm 타입 예시 ---
   # - name: podinfo
