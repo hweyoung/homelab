@@ -1,0 +1,138 @@
+name: GitOps Validate
+
+# PR 단계에서 GitOps 오류를 사전 차단한다:
+#   - Helm/Kustomize 렌더 오류
+#   - 미암호화(*.sops.yaml) Secret
+#   - 평문 Secret / placeholder 잔존
+#   - 금지 파일(kubeconfig, private key, .env 등)
+# 경로는 하드코딩하지 않고 자동 탐색하므로 디렉토리 구조 변경과 무관하게 동작한다.
+
+on:
+  pull_request:
+    paths:
+      - "gitops/**"
+      - ".sops.yaml"
+      - ".github/workflows/gitops-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Setup kustomize & yq
+        run: |
+          set -euo pipefail
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz" \
+            | tar xz -C /usr/local/bin kustomize
+          sudo curl -sSL -o /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          kustomize version
+          yq --version
+
+      # 1. Helm template — Chart.yaml 을 가진 디렉토리를 모두 렌더링
+      - name: Helm template
+        run: |
+          set -euo pipefail
+          charts=$(find gitops -name Chart.yaml -printf '%h\n' | sort -u)
+          if [ -z "$charts" ]; then echo "렌더할 Helm 차트 없음"; exit 0; fi
+          for d in $charts; do
+            echo "::group::helm template $d"
+            helm template "$(basename "$d")" "$d"
+            echo "::endgroup::"
+          done
+
+      # 2. Kustomize build — kustomization.yaml 이 있는 디렉토리를 모두 build
+      - name: Kustomize build
+        run: |
+          set -euo pipefail
+          kdirs=$(find gitops -name 'kustomization.y*ml' -printf '%h\n' | sort -u)
+          if [ -z "$kdirs" ]; then echo "build 할 kustomize 디렉토리 없음"; exit 0; fi
+          for d in $kdirs; do
+            echo "::group::kustomize build $d"
+            kustomize build "$d" >/dev/null
+            echo "::endgroup::"
+          done
+
+      # 3. SOPS 암호화 검사 — *.sops.yaml 은 반드시 sops: 블록(암호문)을 포함해야 함
+      - name: SOPS encryption check
+        run: |
+          set -euo pipefail
+          # 시크릿은 <이름>.sops.yaml. 루트 SOPS 설정 파일(.sops.yaml)은 검사 대상 아님.
+          unencrypted=$(find . -path ./.git -prune -o \
+            -name '*.sops.yaml' ! -name '.sops.yaml' -type f -print \
+            | xargs -r grep -L '^sops:' || true)
+          if [ -n "$unencrypted" ]; then
+            echo "❌ 암호화되지 않은 *.sops.yaml 파일:"
+            echo "$unencrypted"
+            exit 1
+          fi
+          echo "✅ 모든 *.sops.yaml 이 암호화됨"
+
+      # 4. 평문 Secret 탐지
+      - name: Plaintext secret scan
+        run: |
+          set -euo pipefail
+          fail=0
+
+          # 4a) kind: Secret 인데 *.sops.yaml / *.example.yaml 이 아닌 파일
+          secret_files=$(grep -rlE '^kind:[[:space:]]*Secret' gitops/ \
+            --include='*.yaml' --include='*.yml' 2>/dev/null \
+            | grep -vE '\.sops\.ya?ml$|\.example\.ya?ml$' || true)
+          if [ -n "$secret_files" ]; then
+            echo "❌ 암호화되지 않은 Secret manifest (→ *.sops.yaml 로 암호화 필요):"
+            echo "$secret_files"
+            fail=1
+          fi
+
+          # 4b) 민감 키 패턴 스캔 (암호화/예시 파일 제외)
+          hits=$(grep -rnE '(password|token|secret|clientSecret)[[:space:]]*:' gitops/ \
+            --include='*.yaml' --include='*.yml' 2>/dev/null \
+            | grep -vE '\.sops\.ya?ml:|\.example\.ya?ml:' || true)
+          if [ -n "$hits" ]; then
+            echo "❌ 평문 민감정보 의심 (암호화하거나 *.example.yaml placeholder 사용):"
+            echo "$hits"
+            fail=1
+          fi
+
+          [ "$fail" -eq 0 ] && echo "✅ 평문 Secret 없음"
+          exit $fail
+
+      # 5. placeholder 잔존 검사 (gitops/** 한정)
+      - name: Placeholder residue check
+        run: |
+          set -euo pipefail
+          # 매니페스트(yaml) 한정 — 문서(*.md)의 설명용 표기는 제외.
+          residue=$(grep -rnE 'CHANGE_ME|REPLACE_ME|REPLACE_WITH|<TODO' gitops/ \
+            --include='*.yaml' --include='*.yml' 2>/dev/null || true)
+          if [ -n "$residue" ]; then
+            echo "❌ placeholder 가 남아 있음:"
+            echo "$residue"
+            exit 1
+          fi
+          echo "✅ placeholder 잔존 없음"
+
+      # 6. 금지 파일 검사
+      - name: Forbidden files check
+        run: |
+          set -euo pipefail
+          forbidden=$(find . -path ./.git -prune -o -type f \( \
+              -name 'kubeconfig' -o -name '*.kubeconfig' \
+              -o -name 'id_rsa' -o -name 'id_ed25519' \
+              -o -name '*.pem' -o -name '*.key' \
+              -o -name '.env' \
+            \) -print)
+          if [ -n "$forbidden" ]; then
+            echo "❌ 커밋 금지 파일:"
+            echo "$forbidden"
+            exit 1
+          fi
+          echo "✅ 금지 파일 없음"
