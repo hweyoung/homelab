@@ -9,11 +9,11 @@ global:
 # syncPolicy
 # ==============
 syncPolicies:
-  # 수동 sync (기본).
+  # 수동 sync
   manual:
     syncOptions:
       - ApplyOutOfSyncOnly=true
-  # 자동 sync — prune + selfHeal.
+  # 자동 sync — prune + selfHeal
   auto:
     automated:
       prune: true
@@ -38,7 +38,7 @@ applications:
     project: default
     type: directory
     wave: -10
-    path: argocd/clusters/homelab/argocd-config
+    path: gitops/clusters/homelab/argocd-config
     syncPolicyRef: manual
 
   # --- Helm 타입 예시 ---
