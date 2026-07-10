@@ -25,7 +25,25 @@ spec:
   
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: ['cert-manager', 'traefik', 'gateway', 'cnpg-system', 'dex', 'minio', 'monitoring']
+      namespace: cert-manager
+
+    - server: https://kubernetes.default.svc
+      namespace: traefik
+
+    - server: https://kubernetes.default.svc
+      namespace: gateway
+
+    - server: https://kubernetes.default.svc
+      namespace: cnpg-system
+
+    - server: https://kubernetes.default.svc
+      namespace: dex
+
+    - server: https://kubernetes.default.svc
+      namespace: minio
+
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
 
   clusterResourceWhitelist:
     - group: '*'
