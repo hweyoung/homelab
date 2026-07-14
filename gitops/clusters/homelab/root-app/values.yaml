@@ -48,7 +48,7 @@ applications:
   #   namespace: podinfo
   #   type: helm
   #   wave: 0
-  #   path: argocd/apps/podinfo
+  #   path: gitops/apps/podinfo
   #   createNamespace: true
   #   syncPolicyRef: auto
   #   helm:
@@ -64,6 +64,6 @@ applications:
   #   namespace: echo
   #   type: kustomize
   #   wave: 1
-  #   path: argocd/apps/echo
+  #   path: gitops/apps/echo
   #   createNamespace: true
   #   syncPolicyRef: auto

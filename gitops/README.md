@@ -1,16 +1,16 @@
-# argocd — GitOps (App-of-Apps)
+# gitops — GitOps (App-of-Apps)
 
 ArgoCD 가 소유하는 **클러스터 상태**의 진입점. Ansible 부트스트랩이 ArgoCD 를 설치하고
 `bootstrap/root.yaml` 을 최초 1회 적용하면, 그 이후의 모든 Application 은 여기(GitOps)에서
 선언적으로 관리됩니다.
 
 ```text
-terraform/  →  ansible/  →  argocd/ (이 폴더, GitOps)
+terraform/  →  ansible/  →  gitops/ (이 폴더, GitOps)
    VM        부트스트랩       클러스터 상태
 ```
 
-> 모노레포(`hweyoung/homelab`) 운영 — GitOps 콘텐츠는 이 저장소의 `argocd/` 하위에 있습니다.
-> 따라서 ArgoCD Application 의 `source.path` 는 **repo 루트 기준**(`argocd/...`)으로 지정합니다.
+> 모노레포(`hweyoung/homelab`) 운영 — GitOps 콘텐츠는 이 저장소의 `gitops/` 하위에 있습니다.
+> 따라서 ArgoCD Application 의 `source.path` 는 **repo 루트 기준**(`gitops/...`)으로 지정합니다.
 > 실제 repo URL / revision 은 `bootstrap/root.yaml` 에서 관리합니다.
 
 ---
@@ -18,7 +18,7 @@ terraform/  →  ansible/  →  argocd/ (이 폴더, GitOps)
 ## 디렉토리 구조
 
 ```text
-argocd/
+gitops/
 ├── bootstrap/
 │   └── root.yaml                     # 최초 1회 적용하는 root Application
 ├── clusters/
@@ -34,12 +34,17 @@ argocd/
 │               ├── platform.yaml     #   cluster-scoped 허용
 │               ├── databases.yaml    #   namespace 스코프 한정
 │               └── apps.yaml         #   namespace 스코프 한정
+├── SECRETS.md                        # SOPS+age Secret 관리 정책
 └── issues/                           # 기획/이슈 참고 문서
 ```
 
+> **Secret 관리 / CI**: 민감정보는 SOPS+age 로 암호화한 `*.sops.yaml` 로만 커밋합니다
+> ([SECRETS.md](SECRETS.md)). PR 시 `.github/workflows/gitops-validate.yml` 이
+> Helm/Kustomize 렌더·미암호화 Secret·평문/placeholder·금지 파일을 검증합니다.
+
 동작 흐름:
 
-1. `root.yaml` → `root-app` Application 생성 (path: `argocd/clusters/homelab/root-app`)
+1. `root.yaml` → `root-app` Application 생성 (path: `gitops/clusters/homelab/root-app`)
 2. `root-app` 이 `values.yaml` 의 `applications` 목록을 Helm 으로 렌더링
 3. `argocd-config`(wave -10)가 먼저 sync 되어 AppProject(권한 경계)를 생성
 4. 나머지 항목이 각 AppProject 를 참조하는 ArgoCD Application 이 되어 서비스를 sync
@@ -60,7 +65,7 @@ root-app 이 다음 sync 때 대응 Application 을 생성합니다.
 | --- | --- | --- |
 | `name` | ✅ | Application 기본 이름 |
 | `namespace` | ✅ | 배포 대상 네임스페이스 |
-| `path` | ✅ | repo 루트 기준 경로 (예: `argocd/apps/podinfo`) |
+| `path` | ✅ | repo 루트 기준 경로 (예: `gitops/apps/podinfo`) |
 | `group` | | 이름 접두사(`<group>-<name>`) + `app.homelab/group` 라벨 |
 | `project` | | ArgoCD AppProject (기본 `default`) |
 | `type` | | `helm` \| `kustomize` \| `directory` (기본 `directory`) |
