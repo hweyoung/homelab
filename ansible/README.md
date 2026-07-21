@@ -140,17 +140,67 @@ cd /path/to/homelab/ansible
 - `kubespray/requirements.txt` 설치
 - 인벤토리 그래프 출력으로 sanity check
 
-시크릿 파일은 처음 한 번만 만들어 두면 됩니다.
+시크릿 파일은 처음 한 번만 만들어 두면 됩니다. `secrets.yml` 은 최소 두 개의 키를
+채워야 합니다.
 
 ```bash
 cp secrets.example.yml secrets.yml
+# 평문 상태에서 값 두 개를 채운다:
+#   tailscale_auth_key   : Tailscale 재사용 auth key (tskey-auth-...)
+#   sops_age_private_key : age private key (AGE-SECRET-KEY-...)  ← 아래 주의 참고
 ansible-vault encrypt secrets.yml
-# 그리고 secrets.yml 안의 tailscale_auth_key 를 실제 키로 채움
+# 나중에 값을 고칠 때는:  ansible-vault edit secrets.yml
 ```
+
+> **`sops_age_private_key` 는 아무 키나 새로 만들면 안 됩니다.** 반드시 리포 루트
+> `.sops.yaml` 의 `age:` 공개키와 **짝이 맞는** private key 여야 합니다. 그래야 클러스터에
+> 주입된 `sops-age` Secret 으로 기존 `*.sops.yaml` 이 복호화됩니다. 새 키로 덮으면
+> 공개키가 달라져 **기존 암호문을 하나도 못 풉니다.**
+>
+> 이 값이 비어 있거나(`CHANGE_ME`) `-e @secrets.yml` 없이 실행하면 `make sops`
+> (site.yml step 7)의 `sops_age_private_key 검증` task 가 아래처럼 **fail-fast** 로 멈춥니다 —
+> 버그가 아니라 "키를 아직 안 넣었다" 는 신호입니다.
+>
+> ```text
+> sops_age_private_key 가 secrets.yml 에 설정되지 않았습니다.
+> AGE-SECRET-KEY-... 로 시작하는 키를 입력한 뒤 `-e @secrets.yml` 로 다시 실행하세요.
+> ```
+>
+> **짝 검증** — 키를 만든 곳(예: 로컬 맥북)에서 `age-keygen -y <keys.txt>` 결과가
+> `.sops.yaml` 의 `age:` 값과 같아야 한다. 값을 넣은 뒤 `make sops` 로 주입한다.
+> 키가 이미 만들어져 있으니 **k8s-master 등 노드에서 `age-keygen` 을 새로 돌리지 않는다.**
+> (키를 분실해 회전이 필요한 경우의 절차는 `../gitops/SECRETS.md` 참고.)
 
 GitOps 저장소(repo URL/revision)는 `gitops/bootstrap/root.yaml` 안에서 관리합니다.
 Ansible 은 이 파일을 그대로 클러스터에 적용하기만 하므로 인벤토리에는 경로
 (`gitops_root_app_path`) 만 둡니다.
+
+### 로컬 sops 편집 준비 (선택 — `*.sops.yaml` 을 직접 만들/편집할 때만)
+
+`gitops/` 의 `*.sops.yaml` 을 **이 컨트롤러에서 `sops` CLI 로 만들거나 편집**하려면
+age **private key** 가 로컬 파일로 있어야 합니다. 반면 **런타임 복호화(ArgoCD/KSOPS)**
+는 `sops_bootstrap` role 이 클러스터 `sops-age` Secret 으로 이미 처리하므로 —
+**k8s-master 를 포함한 어떤 노드에도 이 키 파일은 필요하지 않습니다.** 오직 사람이
+`sops` 를 실행하는 머신(여기서는 컨트롤러 `infra-bastion`) 에만 둡니다.
+
+age private key 의 유일한 출처는 Vault 로 암호화된 `secrets.yml` 이므로 거기서 꺼내 씁니다.
+
+```bash
+mkdir -p ~/.config/sops/age && chmod 700 ~/.config/sops/age
+
+# secrets.yml 에서 sops_age_private_key 값만 추출해 keys.txt 로 저장
+ansible-vault view secrets.yml \
+  | awk -F'"' '/^sops_age_private_key:/ {print $2}' \
+  > ~/.config/sops/age/keys.txt
+chmod 600 ~/.config/sops/age/keys.txt
+
+# 검증 — 여기서 나오는 공개키가 gitops/.sops.yaml 의 age: 값과 같아야 함
+age-keygen -y ~/.config/sops/age/keys.txt
+```
+
+`sops` 는 기본적으로 `~/.config/sops/age/keys.txt` 를 찾습니다. 다른 경로에 두려면
+`SOPS_AGE_KEY_FILE` 로 지정하세요. 실제 암호화/편집 절차는 `../gitops/SECRETS.md` 를
+참고합니다.
 
 ---
 
@@ -181,8 +231,13 @@ make all
 | `make kubespray`      | `kubespray`       | `./kubespray/cluster.yml` 실행                          | k8s-master 에 `admin.conf` 있으면 스킵        |
 | `make post-kubespray` | `post_kubespray`  | kubeconfig 배포, 노드 라벨, prod taint                 | `kubectl … --overwrite` 로 상태 단언          |
 | `make helm`           | `helm`            | k8s-master 에 Helm CLI 설치                             | `helm version` 으로 사전 검사                  |
-| `make sops`           | `sops`            | age 비공개키를 argocd ns `sops-age` Secret 으로 주입    | 입력 키와 동일 내용이면 Secret 변경 안 함     |
+| `make sops`           | `sops`            | age 비공개키를 argocd ns `sops-age` Secret 으로 주입 (vault 필요) | 입력 키와 동일 내용이면 Secret 변경 안 함     |
 | `make argocd`         | `argocd`          | ArgoCD Helm chart 설치 + ksops 통합 + root.yaml 적용   | 동일 차트 버전이 deployed 면 helm upgrade 스킵 |
+
+> `make sops` 는 `secrets.yml` 의 `sops_age_private_key` 를 요구합니다. 값이 비어 있거나
+> `-e @secrets.yml` 없이 돌리면 `sops_age_private_key 검증` task 가 fail-fast 로 멈춥니다.
+> 넣을 키/짝 검증 방법은 §4 를 참고하세요. (`make sops` 타깃은 `-e @secrets.yml
+> --ask-vault-pass` 를 이미 포함합니다.)
 
 `make` 를 쓰지 않고 직접 호출해도 동일합니다.
 
