@@ -1,4 +1,4 @@
-.PHONY: all prepare sync-kubespray inventory syntax ssh-check bootstrap \
+.PHONY: all prepare sync-kubespray inventory syntax ssh-check bootstrap vault \
         bastion-ssh bastion-hosts tailscale kubespray post-kubespray helm sops argocd
 
 # 기본 타깃: 컨트롤러 준비 → 인벤토리 점검 → syntax-check → tailscale → 전체 부트스트랩
@@ -18,6 +18,10 @@ syntax:
 
 ssh-check:
 	./scripts/run-adhoc.sh k8s_cluster -m ping
+
+# secrets.yml 편집 (인자 생략 시 edit). 예: make vault ARGS=view
+vault:
+	./scripts/run-vault.sh $(ARGS)
 
 bootstrap: sync-kubespray ssh-check
 	./scripts/run-ansible.sh site.yml -e @secrets.yml --ask-vault-pass
