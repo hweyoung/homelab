@@ -48,15 +48,7 @@
   roles: [ helm ]
   tags: [ helm ]
 
-- name: 7. SOPS age key 를 argocd ns Secret 으로 주입
-  hosts: k8s_master
-  become: false
-  environment:
-    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
-  roles: [ sops_bootstrap ]
-  tags: [ sops, gitops ]
-
-- name: 8. ArgoCD 배포 + root.yaml 적용 (App-of-Apps 발화)
+- name: 7. ArgoCD 부트스트랩 (시크릿 주입 + 배포 + root.yaml 적용, App-of-Apps 발화)
   hosts: k8s_master
   become: false
   environment:

@@ -21,5 +21,11 @@ argocd_chart_version: "7.7.0"
 argocd_domain: "argocd.homelab.local"
 argocd_ingress_class: "traefik"
 
+# ArgoCD private repo credential (argocd role 의 tasks/repo_credentials.yml)
+#   - PAT 값 자체는 secrets.yml 의 argocd_repo_pat (Ansible Vault) 에 둔다.
+argocd_repo_url: "https://github.com/hweyoung/homelab.git"
+argocd_repo_username: "hweyoung"
+argocd_repo_secret_name: "argocd-repo-homelab"
+
 # GitOps root Application 경로
 gitops_root_app_path: "{{ playbook_dir }}/../gitops/bootstrap/root.yaml"

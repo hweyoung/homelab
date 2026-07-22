@@ -2,6 +2,15 @@
 - import_tasks: prereq.yml
   tags: ['argocd', 'prereq']
 
+# ArgoCD 부트스트랩 시크릿을 argocd ns 에 out-of-band 로 주입한다(SOPS 로 못 넣는
+# 부트스트랩 시크릿). age 키는 helm deploy 로 repo-server 가 뜨기 전에 있어야
+# 마운트가 성공하고, repo credential 은 root.yaml 첫 sync 전에 있어야 한다.
+- import_tasks: sops_age.yml
+  tags: ['argocd', 'sops', 'gitops']
+
+- import_tasks: repo_credentials.yml
+  tags: ['argocd', 'sops', 'gitops']
+
 - import_tasks: deploy.yml
   tags: ['argocd', 'deploy']
 
