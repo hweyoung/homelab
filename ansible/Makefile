@@ -49,4 +49,4 @@ sops:
 	./scripts/run-ansible.sh site.yml --tags sops -e @secrets.yml --ask-vault-pass
 
 argocd:
-	./scripts/run-ansible.sh site.yml --tags argocd
+	./scripts/run-ansible.sh site.yml --tags argocd -e @secrets.yml --ask-vault-pass
