@@ -2,6 +2,7 @@
 # argocd ns 에 age 키쌍을 Secret 으로 주입.
 # ArgoCD repo-server 의 ksops 플러그인이 이 Secret 을 /home/argocd/.config/sops/age/keys.txt
 # 로 마운트해서 *.sops.yaml 을 sync 시점에 복호화합니다.
+# 따라서 이 Secret 은 helm deploy(repo-server 기동) 전에 존재해야 마운트가 성공합니다.
 #
 # 평시에는 idempotent — 같은 내용이면 Secret 이 changed 로 잡히지 않습니다.
 # 키 회전 시 새 키를 secrets.yml 에 넣고 다시 실행하면 Secret 이 갱신됩니다.

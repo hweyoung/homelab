@@ -16,11 +16,11 @@ argocd-repo-server (KSOPS + age key) ──복호화──▶ 클러스터 Secre
 | 항목 | 위치 | 비고 |
 | --- | --- | --- |
 | age **private key** | ansible `secrets.yml` (Ansible Vault) | 리포에 평문으로 두지 않음 |
-| age private key (런타임) | argocd ns `sops-age` Secret | `sops_bootstrap` role 이 주입 |
+| age private key (런타임) | argocd ns `sops-age` Secret | `argocd` role(`tasks/sops_age.yml`)이 주입 |
 | age **public key** (recipient) | 리포 루트 `.sops.yaml` | 암호화 대상. `age-keygen -y keys.txt` 로 추출 |
 
 - 복호화 인프라는 **ansible 이 이미 구성**한다:
-  - `ansible/roles/sops_bootstrap` → `sops-age` Secret 생성/회전
+  - `ansible/roles/argocd/tasks/sops_age.yml` → `sops-age` Secret 생성/회전
   - `ansible/roles/argocd/templates/argocd-values.yaml.j2` → repo-server 에 KSOPS
     initContainer + age 키 마운트(`SOPS_AGE_KEY_FILE=/home/argocd/.config/sops/age/keys.txt`)
 - `.sops.yaml` 규칙: 파일명이 `*.sops.yaml` 인 것만 암호화하며, Secret 의
@@ -36,7 +36,7 @@ argocd-repo-server (KSOPS + age key) ──복호화──▶ 클러스터 Secre
 
 | Secret | 용도 | 소유 namespace | 배치 위치(예) |
 | --- | --- | --- | --- |
-| ArgoCD repo credentials | private repo / helm registry 접근 | `argocd` | `clusters/homelab/argocd-config/` |
+| ArgoCD repo credentials (부가) | 추가 private repo / helm registry 접근 | `argocd` | `clusters/homelab/argocd-config/` |
 | Cloudflare API token | cert-manager DNS-01 challenge | `cert-manager` | `<cert-manager 워크로드>/` |
 | Dex client secret | OIDC client 인증 | `dex` | `<dex 워크로드>/` |
 | MinIO credentials | 오브젝트 스토리지 root 자격증명 | `minio` | `<minio 워크로드>/` |
@@ -45,6 +45,15 @@ argocd-repo-server (KSOPS + age key) ──복호화──▶ 클러스터 Secre
 | GHCR credentials | 컨테이너 이미지 pull(imagePullSecret) | 각 앱 ns | `<앱 워크로드>/` |
 
 각 Secret 은 자신을 사용하는 워크로드 디렉토리에 `<이름>.sops.yaml` 로 둔다.
+
+> **예외 — root repo credential 은 SOPS 로 관리하지 않는다.** App-of-Apps 의
+> `root.yaml` 이 가리키는 repo 가 private 이면, ArgoCD 는 그 repo 를 pull 해야
+> `*.sops.yaml` 을 복호화할 수 있는데 credential 자체가 그 repo 안에 있으면
+> 닭-달걀이 된다. 따라서 이 credential 은 age 키와 같은 **부트스트랩 시크릿**으로
+> 취급하여 ansible 이 out-of-band 로 주입한다:
+> `ansible/roles/argocd/tasks/repo_credentials.yml` (PAT 는 Ansible Vault
+> `secrets.yml` 의 `argocd_repo_pat`). 위 표의 "ArgoCD repo credentials (부가)" 는
+> root repo 가 아닌 **추가** repo / helm registry 접근용에 한한다.
 
 ---
 
@@ -69,6 +78,61 @@ git add path/to/<이름>.sops.yaml
 ```
 
 수정할 때는 `sops path/to/<이름>.sops.yaml` 로 에디터를 열어 편집하면 저장 시 재암호화된다.
+
+---
+
+## 부트스트랩 Secret 값 변경(회전) 절차
+
+`*.sops.yaml` 로 관리하는 GitOps Secret 과 달리, **age 키**와 **ArgoCD root repo
+credential(GitHub PAT)** 은 ansible 이 out-of-band 로 주입하는 부트스트랩 Secret 이다
+(값의 출처는 Ansible Vault `secrets.yml`). 두 태스크 모두 멱등적이라 —
+클러스터의 현재 Secret 값과 `secrets.yml` 값을 비교해 다를 때만 재적용한다 —
+회전의 기본형은 **① `secrets.yml` 값 교체 → ② `--tags sops` 재실행** 이다.
+
+```bash
+# secrets.yml 이 vault 암호화돼 있으면 ansible-vault edit, 아니면 직접 편집
+ansible-vault edit ansible/secrets.yml
+
+# argocd ns 의 시크릿 주입 태스크만 재실행 (암호화돼 있으면 --ask-vault-pass 추가)
+ansible-playbook ansible/site.yml -e @ansible/secrets.yml --tags sops
+```
+
+### GitHub PAT 회전 (간단)
+
+1. GitHub 에서 새 PAT 발급 (대상 repo 의 Contents:read).
+2. `secrets.yml` 의 `argocd_repo_pat` 를 새 값으로 교체.
+3. `--tags sops` 재실행 → `argocd-repo-homelab` Secret 이 갱신된다.
+4. GitHub 에서 **옛 PAT 를 revoke** 한다.
+
+> repo credential 은 ArgoCD 가 라벨(`argocd.argoproj.io/secret-type: repository`) 붙은
+> Secret 을 API 로 읽으므로 **repo-server 재시작이 필요 없다** — 다음 reconcile 에 반영된다.
+
+### age 키 회전 (변경 시 주의 ⚠️)
+
+age 키는 **키쌍**이라 private 키만 바꾸면 옛 public 키로 암호화해 둔 기존
+`*.sops.yaml` 을 복호화할 수 없다. 반드시 아래 순서를 지킨다.
+
+```bash
+# 1) 새 키쌍 생성
+age-keygen -o keys.txt
+# 2) 리포 루트 .sops.yaml 의 age: recipient 를 새 public 키로 교체
+age-keygen -y keys.txt          # age1... public 키 추출
+# 3) 기존 *.sops.yaml 을 전부 새 키로 재암호화 (이 단계를 빼먹으면 회전 후 전부 복호화 실패)
+find gitops -name '*.sops.yaml' -exec sops updatekeys -y {} \;
+# 4) secrets.yml 의 sops_age_private_key 를 새 private 키로 교체 후 주입
+ansible-playbook ansible/site.yml -e @ansible/secrets.yml --tags sops
+# 5) 재암호화 결과 커밋
+git add gitops .sops.yaml && git commit -m "chore: rotate age key"
+```
+
+> **함정 1 — 재암호화 필수**: 3번(`sops updatekeys`)을 빼먹으면 새 키로 기존 Secret 을
+> 복호화하지 못해 모든 sync 가 실패한다.
+> **함정 2 — repo-server 재시작 필요**: age 키는 `argocd-values.yaml.j2` 에서 `subPath`
+> 마운트(`subPath: keys.txt`)라 Kubernetes 특성상 Secret 이 바뀌어도 마운트 파일이
+> 자동 갱신되지 않는다. sops-age Secret 갱신 후 반드시 재시작한다:
+> ```bash
+> kubectl -n argocd rollout restart deploy/argocd-repo-server
+> ```
 
 ---
 
