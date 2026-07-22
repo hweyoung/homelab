@@ -6,7 +6,6 @@
 #
 # 평시에는 idempotent — 같은 내용이면 Secret 이 changed 로 잡히지 않습니다.
 # 키 회전 시 새 키를 secrets.yml 에 넣고 다시 실행하면 Secret 이 갱신됩니다.
----
 - name: sops_age_private_key 검증
   vars:
     normalized_sops_age_private_key: >-
