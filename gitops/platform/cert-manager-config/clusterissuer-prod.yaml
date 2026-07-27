@@ -1,0 +1,23 @@
+# 운영용 ClusterIssuer — staging 발급을 확인한 뒤 실제 Certificate 에서 사용한다.
+# Cloudflare DNS-01 방식.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  acme:
+    email: gnldud0516@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - selector:
+          dnsZones:
+            - okbear.dev
+        dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
