@@ -63,6 +63,18 @@ applications:
     path: gitops/platform/gateway-api-crds
     syncPolicyRef: platform
 
+  # --- cert-manager (Helm) ---
+  - name: cert-manager
+    group: platform
+    project: platform
+    type: helm
+    namespace: cert-manager
+    wave: -40
+    chart: cert-manager
+    chartRepo: https://charts.jetstack.io
+    chartVersion: v1.16.1
+    valuesPath: gitops/platform/cert-manager/values.yaml
+    syncPolicyRef: platform
 
 
   # --- Helm 타입 예시 ---
