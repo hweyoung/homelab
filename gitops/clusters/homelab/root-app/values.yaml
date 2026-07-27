@@ -85,6 +85,19 @@ applications:
     wave: -20
     path: gitops/platform/cert-manager-config
     syncPolicyRef: platform
+  
+  # --- Traefik (Helm, Gateway API Controller) ---
+  - name: traefik
+    group: platform
+    project: platform
+    type: helm
+    namespace: traefik
+    wave: -30
+    chart: traefik
+    chartRepo: https://traefik.github.io/charts
+    chartVersion: "33.0.0"
+    valuesPath: gitops/platform/traefik/values.yaml
+    syncPolicyRef: platform
 
   # --- Helm 타입 예시 ---
   # - name: podinfo
