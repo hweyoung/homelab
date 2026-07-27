@@ -31,7 +31,7 @@ syncPolicies:
   # platform sync — auto sync + self-heal, without auto-prune
   platform:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
