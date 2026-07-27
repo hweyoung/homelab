@@ -114,7 +114,7 @@ applications:
     type: kustomize
     namespace: traefik
     wave: -20
-    path: gitops/platform/traefik/gateway
+    path: gitops/platform/gateway
     syncPolicyRef: platform
 
   # --- Helm 타입 예시 ---
