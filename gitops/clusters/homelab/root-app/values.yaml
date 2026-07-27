@@ -4,42 +4,66 @@
 global:
   repoURL: https://github.com/hweyoung/homelab.git
   targetRevision: main
+  destinationServer: https://kubernetes.default.svc
+  domain: okbear.dev
+
+# ====================================
+# 표준 hostname 목룍
+# 실제 hostname은 각 values/HTTPRoute.yaml 에서 정의
+# ====================================
+hosts:
+  argocd: argocd.okbear.dev
+
 
 # ==============
 # syncPolicy
 # ==============
 syncPolicies:
-  # 수동 sync
-  manual:
-    syncOptions:
-      - ApplyOutOfSyncOnly=true
-  # 자동 sync — prune + selfHeal
+  # auto sync — auto sync + self-heal + prune (부트스트랩/설정용)
   auto:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+
+  # platform sync — auto sync + self-heal, without auto-prune
+  platform:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 15s
-        factor: 2
-        maxDuration: 5m
 
 # ==================
 # Application 목록
 # ==================
+# wave 규칙: argocd-config(-100) 가 AppProject 를 먼저 만든 뒤 platform 컴포넌트가
+# feature5 순서(-50 → 40)대로 sync 된다.
 applications:
-  # --- argocd-config (부트스트랩) ---
+  # --- argocd-config (부트스트랩: AppProject 생성) ---
   - name: argocd-config
     namespace: argocd
     project: default
     type: directory
-    wave: -10
+    wave: -100
     path: gitops/clusters/homelab/argocd-config
     syncPolicyRef: auto
+
+  # --- Gateway API CRD (Kustomize, 원격 standard-install) ---
+  - name: gateway-api-crds
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: gateway
+    wave: -50
+    path: gitops/platform/gateway-api-crds
+    syncPolicyRef: platform
+
+
 
   # --- Helm 타입 예시 ---
   # - name: podinfo
