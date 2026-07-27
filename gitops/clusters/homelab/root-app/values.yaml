@@ -75,7 +75,16 @@ applications:
     chartVersion: v1.16.1
     valuesPath: gitops/platform/cert-manager/values.yaml
     syncPolicyRef: platform
-
+  
+  # --- cert-manager 설정 (Cloudflare token + ClusterIssuer) ---
+  - name: cert-manager-config
+    group: platform
+    project: platform
+    type: directory
+    namespace: cert-manager
+    wave: -20
+    path: gitops/platform/cert-manager-config
+    syncPolicyRef: platform
 
   # --- Helm 타입 예시 ---
   # - name: podinfo

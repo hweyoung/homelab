@@ -1,7 +1,9 @@
 # sops 정책
 creation_rules:
-  - path_regex: \.sops\.ya?ml$
-    encrypted_regex: ^(data|stringData)$
+  - path_regex: '^gitops/.*\.sops\.yaml$'
+    encrypted_regex: '^(data|stringData)$'
     age:
-	    - age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq #age local public key
-	    - age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v #age argocd public key
+      # local public key
+      - age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq 
+      #age argocd public key
+      - age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v

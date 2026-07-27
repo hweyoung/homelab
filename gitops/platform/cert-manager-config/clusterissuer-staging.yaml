@@ -1,0 +1,23 @@
+# 테스트용 ClusterIssuer — rate limit 이 넉넉한 staging 으로 먼저 발급을 검증한 뒤
+# production 으로 전환한다. Cloudflare DNS-01 방식.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  acme:
+    email: gnldud0516@gmail.com
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - selector:
+          dnsZones:
+            - okbear.dev
+        dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token

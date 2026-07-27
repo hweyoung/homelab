@@ -1,0 +1,38 @@
+# 예시 파일 — 실제 값이 들어간 Secret 은 이 파일을 복사해
+#   cloudflare-api-token.sops.yaml
+# 로 만들고 `sops -e -i` 로 암호화해 커밋한다. (CI 평문 검사에서 *.example.yaml 은 예외,
+# root-app directory 렌더에서도 *.example.yaml 은 exclude 되어 배포되지 않는다.)
+#
+# Cloudflare API Token 권한(최소): Zone > DNS > Edit, Zone > Zone > Read.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cloudflare-api-token
+    namespace: cert-manager
+type: Opaque
+stringData:
+    api-token: ENC[AES256_GCM,data:YFr7ZBb9MHTC1U/37xHjg4nSTNhZ5uaHxXcz5/u0HxhHjoTuFOPcVt0t5H9sVctthEa2uIs=,iv:7AkPR5IfsCp2/Har+YBviu9dtzuR0FgX9DoD6aSUT6Q=,tag:8BmOU+x4JetZrR7DnQ3eLg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSByR2EzMTc4YTAxandmQjV6
+            dlFGdm1GQS9MNURUN1BuUEIyVE9STHg2c0JVCnB5SnBNR0JRNUtQUnBEbGVrcFo5
+            Q3lhRzVzdm5jdFNLdVNzbVVmaU52SkUKLS0tIGkvM1NiZHRLVkk5QUJtekJLQnJP
+            ZjBUZEZrTTBjZUdvZjQyQzRSQy9HNVEK8cF+bu96U5A9MoY3+P7nC+OdrFre69Of
+            fbQBfOeESIkvYIn7Wa4V+0GHL1glzardaSNpoyl9ybCmRaHBJYqHLQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBNRG9tbWNBdEhBcmtzWlc0
+            SDgvU21pZ3kwSS9TRXpRc1JjWkMvakZJTFF3Cld5aW1NdkhEU3JGNTR0R0lEREZO
+            dTFjV3BJdXdaVGlEeUxhS0xVQU5ZNTgKLS0tIDdEYzMxeDN6N3lETUUvS2pGUWhR
+            NVc3K0pSeERvUmg0aHpZVURJQm5ucG8K2KOO6L96jxgJTEQOBVytieU8D5UtaVVH
+            hLY2DePeguApPpf4cFTVRY0LzJZzbdLth8ADSAcf/1S5dYSfQDGvEA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-27T06:08:23Z"
+    mac: ENC[AES256_GCM,data:q6UEM6hunwdOQXztjb/sFdKAWb3c6dwZ3OlVO/nam//mATu+Nqkx8CWWVk6GOtdJDcMf+sOUW2wsfu8F2HKoQ7vyFyBm9FfU9pGLP7fpTrVsTdVN/VumWnJMkfupIef7o/KOkDxixZ27iRVOHrnmeseBhRrzv7A5iIBbG+5gZds=,iv:ww/ru5GoS2+5iBqhUknroG6W2cLRY3NbFMNOEK05IRM=,tag:1wfmrDUyfmB8Q4Z/bSzkvA==,type:str]
+    version: 3.13.2
