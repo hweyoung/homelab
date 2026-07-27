@@ -46,6 +46,25 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: {{ $app.project | default "default" }}
+  {{- if $app.chart }}
+  {{/*
+    remote Helm 차트 + git values 는 multi-source 로 렌더한다.
+    - source[0]: 원격 차트 저장소(chart/chartRepo/chartVersion)
+    - source[1]: 이 repo 를 values 소스로 참조(ref: values), valuesPath 는 repo 루트 기준
+  */}}
+  sources:
+    - repoURL: {{ required (printf "application %q requires chartRepo" $app.name) $app.chartRepo }}
+      chart: {{ $app.chart }}
+      targetRevision: {{ required (printf "application %q requires chartVersion" $app.name) $app.chartVersion }}
+      {{- with $app.valuesPath }}
+      helm:
+        valueFiles:
+          - $values/{{ . }}
+      {{- end }}
+    - repoURL: {{ $app.repoURL | default $root.Values.global.repoURL }}
+      targetRevision: {{ $app.targetRevision | default $root.Values.global.targetRevision }}
+      ref: values
+  {{- else }}
   source:
     repoURL: {{ $app.repoURL | default $root.Values.global.repoURL }}
     targetRevision: {{ $app.targetRevision | default $root.Values.global.targetRevision }}
@@ -63,7 +82,10 @@ spec:
     {{- else if eq $type "directory" }}
     directory:
       recurse: true
+      # placeholder 예시(*.example.yaml)는 절대 배포하지 않는다.
+      exclude: '*.example.yaml'
     {{- end }}
+  {{- end }}
   destination:
     server: {{ $app.destinationServer | default "https://kubernetes.default.svc" }}
     namespace: {{ required (printf "application %q requires a namespace" $app.name) $app.namespace }}
