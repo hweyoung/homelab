@@ -1,0 +1,35 @@
+# cert-manager Helm values (chart: jetstack/cert-manager, root-app values 의 chartVersion 사용)
+# feature5 Task 5-2. 명시적 Certificate/ClusterIssuer 를 사용하므로 gatewayAPI 자동 발급은 켜지 않는다.
+
+# CRD 를 chart 와 함께 설치한다.
+crds:
+  enabled: true
+
+# ServiceMonitor 등 prometheus 연동.
+prometheus:
+  enabled: true
+
+# 공용 플랫폼 Pod 이므로 prod/dev Worker taint 에서도 실행될 수 있도록 toleration 을 준다.
+# (controller / webhook / cainjector / startupapicheck 각각 지정)
+tolerations:
+  - key: homelab.okbear.dev/environment
+    operator: Exists
+    effect: NoSchedule
+
+webhook:
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Exists
+      effect: NoSchedule
+
+cainjector:
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Exists
+      effect: NoSchedule
+
+startupapicheck:
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Exists
+      effect: NoSchedule
