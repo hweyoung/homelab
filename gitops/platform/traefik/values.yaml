@@ -1,0 +1,47 @@
+# Traefik Helm values (chart: traefik/traefik, root-app values 의 chartVersion 사용)
+# feature5 Task 5-4. Gateway API Controller 로만 사용하고, GatewayClass/Gateway 는
+# 별도 Git 매니페스트(gitops/platform/gateway/)로 관리한다.
+
+deployment:
+  replicas: 1
+
+# Kubernetes Gateway provider 만 사용. Ingress / Traefik CRD provider 는 끈다.
+providers:
+  kubernetesCRD:
+    enabled: false
+  kubernetesIngress:
+    enabled: false
+  kubernetesGateway:
+    enabled: true
+
+# GatewayClass/Gateway 는 chart 가 아니라 Git 매니페스트로 만든다.
+gateway:
+  enabled: false
+gatewayClass:
+  enabled: false
+
+# Cloudflare Tunnel 뒤에 있으므로 외부 LoadBalancer 가 아닌 ClusterIP 로 노출한다.
+service:
+  type: ClusterIP
+
+ports:
+  web:
+    port: 8000
+    exposedPort: 80
+  websecure:
+    port: 8443
+    exposedPort: 443
+
+# prod/dev Worker taint 를 모두 tolerate 하고, 두 Worker 에 분산 배치한다.
+tolerations:
+  - key: homelab.okbear.dev/environment
+    operator: Exists
+    effect: NoSchedule
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: traefik
