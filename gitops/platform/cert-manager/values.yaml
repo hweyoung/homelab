@@ -1,6 +1,12 @@
 # cert-manager Helm values (chart: jetstack/cert-manager, root-app values 의 chartVersion 사용)
 # feature5 Task 5-2. 명시적 Certificate/ClusterIssuer 를 사용하므로 gatewayAPI 자동 발급은 켜지 않는다.
 
+# cert-manager의 leader election 리소스를 cert-manager Namespace에 생성한다.
+# 기본값 kube-system을 사용하면 Argo CD AppProject destination 제한에 걸릴 수 있다.
+global:
+  leaderElection:
+    namespace: cert-manager
+
 # CRD 를 chart 와 함께 설치한다.
 crds:
   enabled: true
