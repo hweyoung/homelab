@@ -3,7 +3,7 @@
 # 별도 Git 매니페스트(gitops/platform/gateway/)로 관리한다.
 
 deployment:
-  replicas: 1
+  replicas: 2
 
 # Kubernetes Gateway provider 만 사용. Ingress / Traefik CRD provider 는 끈다.
 providers:

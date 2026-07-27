@@ -1,0 +1,15 @@
+# 공용 wildcard 인증서. cert-manager 가 Cloudflare DNS-01 로 발급하여
+# gateway ns 에 wildcard-okbear-tls Secret 을 생성하고, Gateway HTTPS listener 가 사용한다.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: okbear-wildcard
+  namespace: traefik
+spec:
+  secretName: okbear-wildcard-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  dnsNames:
+    - "*.okbear.dev"
+    - "*.dev.okbear.dev"
