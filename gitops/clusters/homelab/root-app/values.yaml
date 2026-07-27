@@ -38,6 +38,14 @@ syncPolicies:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
+  # prod app sync — auto sync + self-heal, auto-prune 비활성화 (prod 리소스 보호)
+  appProd:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+
 # ==================
 # Application 목록
 # ==================
@@ -97,6 +105,16 @@ applications:
     chartRepo: https://traefik.github.io/charts
     chartVersion: "33.0.0"
     valuesPath: gitops/platform/traefik/values.yaml
+    syncPolicyRef: platform
+
+  # --- Traefik Gateway API Resources ---
+  - name: traefik-gateway
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: traefik
+    wave: -20
+    path: gitops/platform/traefik/gateway
     syncPolicyRef: platform
 
   # --- Helm 타입 예시 ---
