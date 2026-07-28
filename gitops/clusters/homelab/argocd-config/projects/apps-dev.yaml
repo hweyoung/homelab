@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Development application workloads
+
+  sourceRepos:
+    - https://github.com/hweyoung/homelab.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: apps-dev
+
+  # Application에서 클러스터 범위 리소스를 생성하지 못하도록 제한
+  clusterResourceBlacklist:
+    - group: "*"
+      kind: "*"
+
+  # Nginx 테스트에서 필요한 Namespace 범위 리소스만 허용
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+
+    - group: ""
+      kind: Service
+
+    - group: ""
+      kind: ConfigMap
+
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+
+  orphanedResources:
+    warn: true
