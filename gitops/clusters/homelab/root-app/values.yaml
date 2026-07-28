@@ -82,7 +82,7 @@ applications:
     group: platform
     project: platform
     type: kustomize
-    namespace: argocd
+    namespace: platform
     wave: -60
     path: gitops/platform/namespaces
     syncPolicyRef: platform
