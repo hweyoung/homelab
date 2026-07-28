@@ -6,4 +6,4 @@ kind: Kustomization
 #먼저 sync 된다(root-app values wave -50). 대용량 CRD 이므로 platform syncPolicy 의
 # ServerSideApply=true 로 적용한다.
 resources:
-  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
