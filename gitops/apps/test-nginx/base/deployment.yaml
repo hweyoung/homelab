@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx
+        app.kubernetes.io/component: web
+
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.30.4-alpine
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: APP_ENV
+              value: base
+
+            - name: APP_HOST
+              value: unknown
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              cat <<EOF > /usr/share/nginx/html/index.html
+              <!doctype html>
+              <html lang="ko">
+              <head>
+                <meta charset="utf-8">
+                <title>Homelab Nginx Test</title>
+              </head>
+              <body>
+                <h1>Homelab Nginx</h1>
+                <p>Environment: ${APP_ENV}</p>
+                <p>Hostname: ${APP_HOST}</p>
+                <p>Pod: ${HOSTNAME}</p>
+              </body>
+              </html>
+              EOF
+
+              exec nginx -g 'daemon off;'
+
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
