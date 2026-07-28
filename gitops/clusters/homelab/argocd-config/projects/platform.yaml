@@ -34,6 +34,9 @@ spec:
       namespace: gateway
 
     - server: https://kubernetes.default.svc
+      namespace: cloudflare
+
+    - server: https://kubernetes.default.svc
       namespace: cnpg-system
 
     - server: https://kubernetes.default.svc
@@ -44,6 +47,9 @@ spec:
 
     - server: https://kubernetes.default.svc
       namespace: monitoring
+    
+    - server: https://kubernetes.default.svc
+      namespace: argocd
 
   clusterResourceWhitelist:
     - group: '*'
