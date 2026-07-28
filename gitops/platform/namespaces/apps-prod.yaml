@@ -1,0 +1,9 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps-prod
+  labels:
+    homelab.okbear.dev/environment: prod
+    homelab.okbear.dev/workload-type: application
+    homelab.okbear.dev/gateway-access: public
