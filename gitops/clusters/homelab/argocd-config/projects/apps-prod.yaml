@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Production application workloads
+
+  sourceRepos:
+    - https://github.com/hweyoung/homelab.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: apps-prod
+
+  clusterResourceBlacklist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+
+    - group: ""
+      kind: Service
+
+    - group: ""
+      kind: ConfigMap
+
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+
+  orphanedResources:
+    warn: true
