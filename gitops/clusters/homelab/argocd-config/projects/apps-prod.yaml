@@ -13,7 +13,7 @@ spec:
 
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: apps-prod
+      namespace: '*-prod'
 
   clusterResourceBlacklist:
     - group: "*"

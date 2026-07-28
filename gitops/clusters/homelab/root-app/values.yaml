@@ -46,7 +46,7 @@ syncPolicies:
       - CreateNamespace=true
       - ServerSideApply=true
 
-  dev:
+  apps-dev:
     automated:
       prune: true
       selfHeal: true
@@ -54,9 +54,9 @@ syncPolicies:
       - CreateNamespace=true
       - ServerSideApply=true
 
-  prod:
+  apps-prod:
     automated:
-      prune: false
+      prune: true #test-nginx
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
@@ -143,6 +143,26 @@ applications:
     path: gitops/platform/gateway
     syncPolicyRef: platform
 
+
+  # --- Development Applications ---
+  - name: nginx-dev
+    group: apps
+    project: apps-dev
+    type: kustomize
+    namespace: apps-dev
+    wave: 0
+    path: gitops/apps/test-nginx/overlays/dev
+    syncPolicyRef: apps-dev
+
+  # --- Production Applications ---
+  - name: nginx-prod
+    group: apps
+    project: apps-prod
+    type: kustomize
+    namespace: apps-prod
+    wave: 0
+    path: gitops/apps/test-nginx/overlays/prod
+    syncPolicyRef: apps-prod
 
   # --- Helm 타입 예시 ---
   # - name: podinfo

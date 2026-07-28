@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 1
+
+  template:
+    spec:
+      nodeSelector:
+        homelab.okbear.dev/environment: dev
+
+      tolerations:
+        - key: homelab.okbear.dev/environment
+          operator: Equal
+          value: dev
+          effect: NoSchedule
+
+      containers:
+        - name: nginx
+          env:
+            - name: APP_ENV
+              value: dev
+
+            - name: APP_HOST
+              value: nginx-dev.okbear.dev
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 48Mi
