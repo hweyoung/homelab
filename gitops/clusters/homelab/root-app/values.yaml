@@ -76,6 +76,16 @@ applications:
     wave: -100
     path: gitops/clusters/homelab/argocd-config
     syncPolicyRef: platform
+  
+  # --- namespaces (Kustomize) ---
+  - name: namespaces
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: argocd
+    wave: -60
+    path: gitops/platform/namespaces
+    syncPolicyRef: platform
 
   # --- Gateway API CRD (Kustomize, 원격 standard-install) ---
   - name: gateway-api-crds
@@ -106,7 +116,7 @@ applications:
     project: platform
     type: kustomize
     namespace: cert-manager
-    wave: -20
+    wave: -35
     path: gitops/platform/cert-manager-config
     syncPolicyRef: platform
   
