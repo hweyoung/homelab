@@ -143,6 +143,16 @@ applications:
     path: gitops/platform/gateway
     syncPolicyRef: platform
 
+  # --- Cloudflare Tunnel ---
+  - name: cloudflared
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: cloudflare-system
+    wave: -10
+    path: gitops/platform/cloudflared
+    syncPolicyRef: platform
+
 
   # --- Development Applications ---
   - name: nginx-dev

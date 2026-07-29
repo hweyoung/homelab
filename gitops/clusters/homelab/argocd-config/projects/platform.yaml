@@ -37,6 +37,9 @@ spec:
       namespace: cloudflare
 
     - server: https://kubernetes.default.svc
+      namespace: cloudflare-system
+
+    - server: https://kubernetes.default.svc
       namespace: cnpg-system
 
     - server: https://kubernetes.default.svc
