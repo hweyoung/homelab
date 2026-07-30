@@ -161,7 +161,7 @@ applications:
     type: kustomize
     namespace: apps-nginx-dev
     wave: 0
-    path: gitops/applications/test-nginx/overlays/dev
+    path: gitops/apps/test-nginx/overlays/dev
     syncPolicyRef: apps-dev
 
   # --- Production Applications ---
@@ -171,7 +171,7 @@ applications:
     type: kustomize
     namespace: apps-nginx-prod
     wave: 0
-    path: gitops/applications/test-nginx/overlays/prod
+    path: gitops/apps/test-nginx/overlays/prod
     syncPolicyRef: apps-prod
 
   # --- Helm 타입 예시 ---
