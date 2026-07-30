@@ -74,7 +74,7 @@ applications:
     project: default
     type: kustomize
     wave: -100
-    path: gitops/projects
+    path: gitops/clusters/homelab/argocd-config
     syncPolicyRef: platform
   
   # --- namespaces (Kustomize) ---
@@ -159,9 +159,9 @@ applications:
     group: apps
     project: apps-dev
     type: kustomize
-    namespace: apps-nginx-dev
+    namespace: apps-dev
     wave: 0
-    path: gitops/applications/test-nginx/overlays/dev
+    path: gitops/apps/test-nginx/overlays/dev
     syncPolicyRef: apps-dev
 
   # --- Production Applications ---
@@ -169,9 +169,9 @@ applications:
     group: apps
     project: apps-prod
     type: kustomize
-    namespace: apps-nginx-prod
+    namespace: apps-prod
     wave: 0
-    path: gitops/applications/test-nginx/overlays/prod
+    path: gitops/apps/test-nginx/overlays/prod
     syncPolicyRef: apps-prod
 
   # --- Helm 타입 예시 ---
