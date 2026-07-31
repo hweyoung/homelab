@@ -13,7 +13,7 @@ spec:
 
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: '*-prod'
+      namespace: 'api-*-prod'
 
   clusterResourceBlacklist:
     - group: "*"
@@ -27,7 +27,25 @@ spec:
       kind: Service
 
     - group: ""
+      kind: ServiceAccount
+
+    - group: ""
       kind: ConfigMap
+
+    - group: ""
+      kind: LimitRange
+
+    - group: ""
+      kind: ResourceQuota
+
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+
+    - group: rbac.authorization.k8s.io
+      kind: Role
+
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
 
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
