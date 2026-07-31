@@ -68,10 +68,11 @@ applications:
   
   - name: namespaces
     project: platform
+    type: kustomize
     path: gitops/platform/namespaces
-    destinationNamespace: default
-    syncWave: -50
-    syncPolicy: platform
+    namespace: default
+    wave: -50
+    syncPolicyRef: platform
 
   # --- Gateway API CRD (Kustomize, 원격 standard-install) ---
   - name: gateway-api-crds

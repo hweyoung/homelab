@@ -1,4 +1,7 @@
 namespaces:
+  # ==================
+  # Homelab Workload Namespace
+  # ==================
   - name: api-nginx-dev
     environment: dev
     gatewayAccess: public
