@@ -3,7 +3,8 @@
 /_test/**
 /.claude/**
 /gitops/issues/**
-
+ansible/issues/
+.gitignore
 # Terraform 
 # /terraform/**
 /terraform/terraform.tfstate
