@@ -13,14 +13,14 @@ spec:
 
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: '*-dev'
+      namespace: 'api-*-dev'
 
   # Application에서 클러스터 범위 리소스를 생성하지 못하도록 제한
   clusterResourceBlacklist:
     - group: "*"
       kind: "*"
 
-  # Nginx 테스트에서 필요한 Namespace 범위 리소스만 허용
+  # 애플리케이션과 공통 앱 baseline 에 필요한 namespace 범위 리소스만 허용
   namespaceResourceWhitelist:
     - group: apps
       kind: Deployment
@@ -29,7 +29,25 @@ spec:
       kind: Service
 
     - group: ""
+      kind: ServiceAccount
+
+    - group: ""
       kind: ConfigMap
+
+    - group: ""
+      kind: LimitRange
+
+    - group: ""
+      kind: ResourceQuota
+
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+
+    - group: rbac.authorization.k8s.io
+      kind: Role
+
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
 
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
