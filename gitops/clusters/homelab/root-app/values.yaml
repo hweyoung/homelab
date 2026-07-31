@@ -19,15 +19,6 @@ hosts:
 # syncPolicy
 # ==============
 syncPolicies:
-  # auto sync — auto sync + self-heal + prune (부트스트랩/설정용)
-  auto:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - ApplyOutOfSyncOnly=true
-
   # platform sync — auto sync + self-heal, without auto-prune
   platform:
     automated:
@@ -51,7 +42,6 @@ syncPolicies:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
       - ServerSideApply=true
 
   apps-prod:
@@ -59,7 +49,6 @@ syncPolicies:
       prune: true #test-nginx
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
       - ServerSideApply=true
 
 # ==================
@@ -77,15 +66,12 @@ applications:
     path: gitops/clusters/homelab/argocd-config
     syncPolicyRef: platform
   
-  # --- namespaces (Kustomize) ---
   - name: namespaces
-    group: platform
     project: platform
-    type: kustomize
-    namespace: argocd
-    wave: -60
     path: gitops/platform/namespaces
-    syncPolicyRef: platform
+    destinationNamespace: default
+    syncWave: -50
+    syncPolicy: platform
 
   # --- Gateway API CRD (Kustomize, 원격 standard-install) ---
   - name: gateway-api-crds
@@ -93,7 +79,7 @@ applications:
     project: platform
     type: kustomize
     namespace: gateway
-    wave: -50
+    wave: -40
     path: gitops/platform/gateway-api-crds
     syncPolicyRef: platform
 
@@ -103,7 +89,7 @@ applications:
     project: platform
     type: helm
     namespace: cert-manager
-    wave: -40
+    wave: -35
     chart: cert-manager
     chartRepo: https://charts.jetstack.io
     chartVersion: v1.16.1
@@ -116,7 +102,7 @@ applications:
     project: platform
     type: kustomize
     namespace: cert-manager
-    wave: -35
+    wave: -30
     path: gitops/platform/cert-manager-config
     syncPolicyRef: platform
   
@@ -126,7 +112,7 @@ applications:
     project: platform
     type: helm
     namespace: traefik
-    wave: -30
+    wave: -25
     chart: traefik
     chartRepo: https://traefik.github.io/charts
     chartVersion: "33.0.0"
@@ -149,7 +135,7 @@ applications:
     project: platform
     type: kustomize
     namespace: cloudflare-system
-    wave: -10
+    wave: -15
     path: gitops/platform/cloudflared
     syncPolicyRef: platform
 
@@ -159,8 +145,8 @@ applications:
     group: apps
     project: apps-dev
     type: kustomize
-    namespace: apps-dev
-    wave: 0
+    namespace: api-nginx-dev
+    wave: 30
     path: gitops/apps/test-nginx/overlays/dev
     syncPolicyRef: apps-dev
 
@@ -169,8 +155,8 @@ applications:
     group: apps
     project: apps-prod
     type: kustomize
-    namespace: apps-prod
-    wave: 0
+    namespace: api-nginx-prod
+    wave: 30
     path: gitops/apps/test-nginx/overlays/prod
     syncPolicyRef: apps-prod
 
