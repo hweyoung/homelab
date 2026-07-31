@@ -218,6 +218,8 @@ Secret 원문을 Git에 저장하지 않기 위해 SOPS와 age를 사용합니�
 - Cloudflare WAF: 한국 외 지역 접근 제한 예정
 - Cloudflare Access: ArgoCD·Grafana 등 관리 화면의 사용자 인증 예정
 
+---
+
 ## 배포 흐름
 
 ### dev
