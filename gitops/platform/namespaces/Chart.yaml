@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-namespaces
+description: Homelab workload namespace provisioning
+type: application
+version: 0.1.0
+appVersion: "1.0"

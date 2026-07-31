@@ -1,0 +1,8 @@
+namespaces:
+  - name: api-nginx-dev
+    environment: dev
+    gatewayAccess: public
+
+  - name: api-nginx-prod
+    environment: prod
+    gatewayAccess: public

@@ -1,9 +1,0 @@
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: apps-dev
-  labels:
-    homelab.okbear.dev/environment: dev
-    homelab.okbear.dev/workload-type: application
-    homelab.okbear.dev/gateway-access: public

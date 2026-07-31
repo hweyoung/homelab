@@ -1,0 +1,13 @@
+{{- range $namespace := .Values.namespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ required "namespaces[].name is required" $namespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    homelab.okbear.dev/environment: {{ required "namespaces[].environment is required" $namespace.environment | quote }}
+    homelab.okbear.dev/gateway-access: {{ default "private" $namespace.gatewayAccess | quote }}
+  annotations:
+    argocd.argoproj.io/sync-options: "Prune=confirm,Delete=confirm"
+{{- end }}

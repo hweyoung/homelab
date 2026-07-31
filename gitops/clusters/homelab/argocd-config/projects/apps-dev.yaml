@@ -13,7 +13,7 @@ spec:
 
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: '*-dev'
+      namespace: 'api-*-dev'
 
   # Application에서 클러스터 범위 리소스를 생성하지 못하도록 제한
   clusterResourceBlacklist:
