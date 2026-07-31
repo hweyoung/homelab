@@ -19,9 +19,6 @@ spec:
         app.kubernetes.io/component: web
 
     spec:
-      serviceAccountName: app
-      automountServiceAccountToken: false
-
       containers:
         - name: nginx
           image: nginx:1.30.4-alpine

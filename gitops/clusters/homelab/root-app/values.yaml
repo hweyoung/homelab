@@ -77,6 +77,16 @@ applications:
     path: gitops/clusters/homelab/argocd-config
     syncPolicyRef: platform
   
+  # --- namespaces (Kustomize) ---
+  - name: namespaces
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: argocd
+    wave: -60
+    path: gitops/platform/namespaces
+    syncPolicyRef: platform
+
   # --- Gateway API CRD (Kustomize, 원격 standard-install) ---
   - name: gateway-api-crds
     group: platform
@@ -145,38 +155,24 @@ applications:
 
 
   # --- Development Applications ---
-  - name: test-nginx-dev
+  - name: nginx-dev
     group: apps
     project: apps-dev
     type: kustomize
-    namespace: api-test-nginx-dev
+    namespace: apps-dev
     wave: 0
     path: gitops/apps/test-nginx/overlays/dev
     syncPolicyRef: apps-dev
-    managedNamespaceMetadata:
-      labels:
-        homelab.okbear.dev/environment: dev
-        homelab.okbear.dev/workload-type: api
-        homelab.okbear.dev/app: test-nginx
-      annotations:
-        homelab.okbear.dev/managed-by: argocd
 
   # --- Production Applications ---
-  - name: test-nginx-prod
+  - name: nginx-prod
     group: apps
     project: apps-prod
     type: kustomize
-    namespace: api-test-nginx-prod
+    namespace: apps-prod
     wave: 0
     path: gitops/apps/test-nginx/overlays/prod
     syncPolicyRef: apps-prod
-    managedNamespaceMetadata:
-      labels:
-        homelab.okbear.dev/environment: prod
-        homelab.okbear.dev/workload-type: api
-        homelab.okbear.dev/app: test-nginx
-      annotations:
-        homelab.okbear.dev/managed-by: argocd
 
   # --- Helm 타입 예시 ---
   # - name: podinfo

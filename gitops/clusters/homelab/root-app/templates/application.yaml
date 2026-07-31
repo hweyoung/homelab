@@ -100,10 +100,6 @@ spec:
       - {{ . }}
       {{- end }}
     {{- end }}
-    {{- with $app.managedNamespaceMetadata }}
-    managedNamespaceMetadata:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
     {{- with $policy.retry }}
     retry:
       {{- toYaml . | nindent 6 }}

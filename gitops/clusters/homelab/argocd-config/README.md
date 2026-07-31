@@ -27,23 +27,19 @@ root-app (App-of-Apps)
 | --- | --- | --- | --- | --- |
 | `platform` | homelab | cert-manager, traefik, gateway, cnpg-system, dex, minio, monitoring | ✅ 허용 (CRD/ClusterRole) | ✅ 허용 |
 | `databases` | homelab | postgresql-dev, postgresql-prod | ❌ 차단 | ✅ 허용 |
-| `apps-dev` | homelab | api-*-dev | ❌ 차단 | ✅ 허용 |
-| `apps-prod` | homelab | api-*-prod | ❌ 차단 | ✅ 허용 |
+| `apps` | homelab | common-app-dev, common-app-prod, toy-app-dev, toy-app-prod | ❌ 차단 | ✅ 허용 |
 
 - **platform** 만 cluster-scoped 리소스(operator/CRD/ClusterRole)를 생성할 수 있습니다.
-- **databases / apps-dev / apps-prod** 는 `clusterResourceWhitelist: []` 로 cluster-scoped 리소스를
+- **databases / apps** 는 `clusterResourceWhitelist: []` 로 cluster-scoped 리소스를
   전면 차단하고, namespace-scoped 리소스만 다룹니다.
-- **apps-dev / apps-prod** 는 하나의 공용 namespace 가 아니라
-  **앱별·환경별 namespace**(`api-<app_name>-dev/prod`)로 분리 운영합니다.
-  AppProject destination 은 `api-*-dev` / `api-*-prod` 패턴만 허용합니다.
-- 앱 namespace 자체는 앱 manifest 가 만들지 않고, ArgoCD Application 의
-  `CreateNamespace=true` 와 `managedNamespaceMetadata` 로 생성/라벨링합니다.
+- **apps** 는 하나의 공용 namespace 가 아니라 **앱별·환경별 namespace**(`<app>-<env>`,
+  env ∈ dev·prod)로 분리 운영합니다. platform/databases 와 동일하게 destination 을
+  명시적으로 열거하여 project 경계를 명확히 유지합니다.
 - 각 project 는 **자신의 destinations 밖**에는 배포할 수 없습니다.
 - `default` project 사용은 argocd-config(부트스트랩) 한정으로 최소화합니다.
 
-새 서비스를 추가할 때는 `root-app/values.yaml` 의 Application 에서 `project` 와
-`namespace` 를 지정하세요. 앱 공통 RBAC/Quota/NetworkPolicy 는 앱 overlay 에서
-`apps/component/common` Component 를 참조해 적용합니다.
+새 서비스를 추가할 때는 해당 project 의 `destinations` 에 namespace 를 먼저 추가한 뒤
+(apps 는 `<app>-<env>`), `root-app/values.yaml` 의 Application 에서 `project` 를 지정하세요.
 
 ---
 
