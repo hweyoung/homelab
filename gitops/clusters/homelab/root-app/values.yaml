@@ -57,13 +57,13 @@ syncPolicies:
 # wave 규칙: argocd-config(-100) 가 AppProject 를 먼저 만든 뒤 platform 컴포넌트가
 # feature5 순서(-50 → 40)대로 sync 된다.
 applications:
-  # --- argocd-config (부트스트랩: AppProject 생성) ---
-  - name: argocd-config
+  # --- argocd (부트스트랩: AppProject 생성) ---
+  - name: argocd-control-plane
     namespace: argocd
     project: default
     type: kustomize
     wave: -100
-    path: gitops/clusters/homelab/argocd-config
+    path: gitops/clusters/homelab/argocd-control-plane
     syncPolicyRef: platform
   
   - name: namespaces
@@ -139,7 +139,16 @@ applications:
     wave: -15
     path: gitops/platform/cloudflared
     syncPolicyRef: platform
-
+  
+  # --- ArgoCD Server ---
+  - name: argocd-server
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: argocd
+    wave: -10
+    path: gitops/clusters/homelab/argocd-server
+    syncPolicyRef: platform
 
   # --- Development Applications ---
   - name: nginx-dev
