@@ -151,7 +151,6 @@ applications:
   
   # --- ArgoCD Server ---
   - name: argocd-server
-    group: argocd
     project: argocd-system
     type: kustomize
     namespace: argocd
