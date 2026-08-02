@@ -22,14 +22,6 @@
     success_msg: "sops_age_private_key 설정을 확인했습니다."
     quiet: true
 
-- name: argocd 네임스페이스 존재 보장
-  ansible.builtin.command: "kubectl create namespace {{ argocd_namespace }}"
-  register: ns_create
-  failed_when:
-    - ns_create.rc != 0
-    - "'already exists' not in ns_create.stderr"
-  changed_when: ns_create.rc == 0
-
 - name: 현재 sops-age Secret의 keys.txt 추출
   ansible.builtin.command: >-
     kubectl -n {{ argocd_namespace }}

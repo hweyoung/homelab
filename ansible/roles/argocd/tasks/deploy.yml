@@ -33,14 +33,6 @@
 
 - when: argocd_needs_install
   block:
-    - name: argocd 네임스페이스 생성
-      ansible.builtin.command: "kubectl create namespace {{ argocd_namespace }}"
-      register: ns_create
-      failed_when:
-        - ns_create.rc != 0
-        - "'already exists' not in ns_create.stderr"
-      changed_when: ns_create.rc == 0
-
     - name: argocd-values.yaml 렌더링
       ansible.builtin.template:
         src: argocd-values.yaml.j2
