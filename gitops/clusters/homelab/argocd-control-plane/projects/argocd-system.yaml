@@ -12,14 +12,9 @@
     destinations:
       - server: https://kubernetes.default.svc
         namespace: argocd
+
     clusterResourceWhitelist: []
 
     namespaceResourceWhitelist:
-      - group: gateway.networking.k8s.io
-        kind: NetworkPolicy
-      - group: ""
-        kind: Service
-      - group: ""
-        kind: ConfigMap
-      - group: ""
-        kind: Secret
+    - group: '*'
+      kind: '*'
