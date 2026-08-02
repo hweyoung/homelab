@@ -20,6 +20,8 @@ argocd_namespace: "argocd"
 argocd_chart_version: "7.7.0"
 argocd_domain: "argocd.homelab.local"
 argocd_ingress_class: "traefik"
+argocd_gateway_access_label_key: "homelab.okbear.dev/gateway-access"
+argocd_gateway_access_label_value: "public"
 
 # ArgoCD private repo credential (argocd role 의 tasks/repo_credentials.yml)
 #   - PAT 값 자체는 secrets.yml 의 argocd_repo_pat (Ansible Vault) 에 둔다.

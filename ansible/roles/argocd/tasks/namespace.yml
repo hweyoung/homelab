@@ -1,0 +1,24 @@
+---
+- name: argocd 네임스페이스 존재 보장
+  ansible.builtin.command: "kubectl create namespace {{ argocd_namespace }}"
+  register: argocd_namespace_create
+  failed_when:
+    - argocd_namespace_create.rc != 0
+    - "'already exists' not in argocd_namespace_create.stderr"
+  changed_when: argocd_namespace_create.rc == 0
+
+- name: argocd 네임스페이스 Gateway 접근 라벨 조회
+  ansible.builtin.command: >-
+    kubectl get namespace {{ argocd_namespace }}
+    -o jsonpath='{.metadata.labels.{{ argocd_gateway_access_label_key | replace(".", "\\.") }}}'
+  register: argocd_namespace_gateway_label
+  changed_when: false
+  failed_when: false
+
+- name: argocd 네임스페이스 Gateway 접근 라벨 적용
+  ansible.builtin.command: >-
+    kubectl label namespace {{ argocd_namespace }}
+    {{ argocd_gateway_access_label_key }}={{ argocd_gateway_access_label_value }}
+    --overwrite
+  when: argocd_namespace_gateway_label.stdout != argocd_gateway_access_label_value
+  changed_when: true

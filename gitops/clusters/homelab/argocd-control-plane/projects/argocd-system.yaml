@@ -1,0 +1,25 @@
+  apiVersion: argoproj.io/v1alpha1
+  kind: AppProject
+  metadata:
+    name: argocd-system
+    namespace: argocd
+  spec:
+    description: ArgoCD server exposure and ArgoCD namespace-scoped runtime config
+
+    sourceRepos:
+      - https://github.com/hweyoung/homelab.git
+
+    destinations:
+      - server: https://kubernetes.default.svc
+        namespace: argocd
+    clusterResourceWhitelist: []
+
+    namespaceResourceWhitelist:
+      - group: gateway.networking.k8s.io
+        kind: NetworkPolicy
+      - group: ""
+        kind: Service
+      - group: ""
+        kind: ConfigMap
+      - group: ""
+        kind: Secret
