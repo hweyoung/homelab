@@ -28,6 +28,6 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: nginx
+          name: argocd-server 
           port: 80
           weight: 1
