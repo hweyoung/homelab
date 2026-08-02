@@ -19,6 +19,15 @@ hosts:
 # syncPolicy
 # ==============
 syncPolicies:
+  argocd:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+
   # platform sync — auto sync + self-heal, without auto-prune
   platform:
     automated:
@@ -64,7 +73,7 @@ applications:
     type: kustomize
     wave: -100
     path: gitops/clusters/homelab/argocd-control-plane
-    syncPolicyRef: platform
+    syncPolicyRef: argocd
   
   - name: namespaces
     project: platform
@@ -142,13 +151,13 @@ applications:
   
   # --- ArgoCD Server ---
   - name: argocd-server
-    group: platform
-    project: platform
+    group: argocd
+    project: argocd-system
     type: kustomize
     namespace: argocd
     wave: -10
     path: gitops/clusters/homelab/argocd-server
-    syncPolicyRef: platform
+    syncPolicyRef: argocd
 
   # --- Development Applications ---
   - name: nginx-dev
