@@ -3,15 +3,14 @@ kind: Cluster
 metadata:
   name: postgres
 spec:
-  # This homelab has one worker per environment, so replicas would not provide node-level HA.
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
   enableSuperuserAccess: false
 
   bootstrap:
     initdb:
-      database: app
-      owner: app
+      database: homelab
+      owner: homelab
       dataChecksums: true
 
   storage:
