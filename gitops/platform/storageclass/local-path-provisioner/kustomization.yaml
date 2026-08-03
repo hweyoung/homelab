@@ -7,3 +7,5 @@ resources:
 
 patches:
   - path: patch-storageclass.yaml
+  - path: patch-deployment.yaml
+  - path: patch-configmap.yaml
