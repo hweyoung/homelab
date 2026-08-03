@@ -9,3 +9,6 @@ resources:
 
 patches:
   - path: patch-cluster.yaml
+
+generators:
+  - postgres-dev-secret-generator.yaml
