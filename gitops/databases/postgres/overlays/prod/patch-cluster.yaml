@@ -6,6 +6,14 @@ spec:
   storage:
     size: 20Gi
 
+  bootstrap:
+    initdb:
+      database: homelab
+      owner: homelab
+      secret:
+        name: postgres-prod-credentials
+      dataChecksums: true
+  
   resources:
     requests:
       cpu: 500m
