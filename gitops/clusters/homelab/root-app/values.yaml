@@ -40,7 +40,7 @@ syncPolicies:
 
   cnpg-manual:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
@@ -180,6 +180,28 @@ applications:
     wave: -10
     path: gitops/clusters/homelab/argocd-server
     syncPolicyRef: argocd
+
+  # ---------------------
+  # --- CNPG operator ---
+  # ---------------------
+  # --- PostgreSQL clusters (sync only after the CNPG operator is ready) ---
+  - name: postgres-dev
+    group: databases
+    project: databases
+    type: kustomize
+    namespace: postgres-dev
+    wave: 10
+    path: gitops/databases/postgres/overlays/dev
+    syncPolicyRef: cnpg-manual
+
+  - name: postgres-prod
+    group: databases
+    project: databases
+    type: kustomize
+    namespace: postgres-prod
+    wave: 10
+    path: gitops/databases/postgres/overlays/prod
+    syncPolicyRef: cnpg-manual
 
   # ----------------------------
   # --- Application Workload ---
