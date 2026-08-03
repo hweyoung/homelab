@@ -21,7 +21,6 @@ spec:
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
-      name: postgres-*
 
   namespaceResourceWhitelist:
     - group: '*'
