@@ -158,6 +158,19 @@ applications:
     wave: -15
     path: gitops/platform/cloudflared
     syncPolicyRef: platform
+    
+  # --- CloudNativePG operator (CRDs + controller) ---
+  - name: cloudnative-pg
+    group: platform
+    project: platform
+    type: helm
+    namespace: cnpg-system
+    wave: -14
+    chart: cloudnative-pg
+    chartRepo: https://cloudnative-pg.github.io/charts
+    chartVersion: "0.29.0"
+    valuesPath: gitops/platform/cloudnative-pg/values.yaml
+    syncPolicyRef: cnpg-manual
   
   # --- ArgoCD Server ---
   - name: argocd-server

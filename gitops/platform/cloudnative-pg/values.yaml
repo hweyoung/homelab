@@ -1,0 +1,23 @@
+# CloudNativePG operator only. PostgreSQL Cluster resources live under gitops/databases.
+crds:
+  create: true
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Stable platform workloads share the prod worker and therefore tolerate its taint.
+nodeSelector:
+  platform-tier: stable
+
+tolerations:
+  - key: pool
+    operator: Equal
+    value: prod
+    effect: NoSchedule
