@@ -38,7 +38,7 @@ syncPolicies:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
-  databases:
+  cnpg-manual:
     automated:
       prune: false
       selfHeal: true
@@ -81,6 +81,16 @@ applications:
     path: gitops/platform/namespaces
     namespace: default
     wave: -50
+    syncPolicyRef: platform
+
+  # --- Dynamic local PersistentVolume provisioning ---
+  - name: local-path-provisioner
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: local-path-storage
+    wave: -45
+    path: gitops/platform/storageclass/local-path-provisioner
     syncPolicyRef: platform
 
   # --- Gateway API CRD (Kustomize, 원격 standard-install) ---
@@ -158,7 +168,10 @@ applications:
     path: gitops/clusters/homelab/argocd-server
     syncPolicyRef: argocd
 
-  # --- Development Applications ---
+  # ----------------------------
+  # --- Application Workload ---
+  # ----------------------------
+  # --- test-nginx (dev) ---
   - name: nginx-dev
     group: apps
     project: apps-dev
@@ -168,7 +181,7 @@ applications:
     path: gitops/apps/test-nginx/overlays/dev
     syncPolicyRef: apps-dev
 
-  # --- Production Applications ---
+  # --- test-nginx (prod) ---
   - name: nginx-prod
     group: apps
     project: apps-prod
