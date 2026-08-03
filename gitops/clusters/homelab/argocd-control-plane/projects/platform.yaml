@@ -46,6 +46,9 @@ spec:
       namespace: cnpg-system
 
     - server: https://kubernetes.default.svc
+      namespace: local-path-storage
+
+    - server: https://kubernetes.default.svc
       namespace: dex
 
     - server: https://kubernetes.default.svc
