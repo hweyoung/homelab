@@ -14,13 +14,12 @@ spec:
       cpu: "2"
       memory: 4Gi
 
-  template:
-    spec:
-      nodeSelector:
-        homelab.okbear.dev/environment: dev
+  affinity:
+    nodeSelector:
+      homelab.okbear.dev/environment: dev
 
-      tolerations:
-        - key: homelab.okbear.dev/environment
-          operator: Equal
-          value: dev
-          effect: NoSchedule
+    tolerations:
+      - key: homelab.okbear.dev/environment
+        operator: Equal
+        value: dev
+        effect: NoSchedule
