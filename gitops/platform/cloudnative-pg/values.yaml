@@ -14,10 +14,10 @@ resources:
 
 # Stable platform workloads share the prod worker and therefore tolerate its taint.
 nodeSelector:
-  platform-tier: stable
+  homelab.okbear.dev/environment: prod
 
 tolerations:
-  - key: pool
+  - key: homelab.okbear.dev/environment
     operator: Equal
     value: prod
     effect: NoSchedule
