@@ -11,7 +11,7 @@ spec:
       database: homelab
       owner: homelab
       secret:
-        name: postgres-dev-secret
+        name: postgres-secret-dev
       dataChecksums: true
   
   resources:
