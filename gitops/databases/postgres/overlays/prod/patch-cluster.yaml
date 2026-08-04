@@ -11,7 +11,7 @@ spec:
       database: homelab
       owner: homelab
       secret:
-        name: postgres-prod-credentials
+        name: postgres-prod-secret
       dataChecksums: true
   
   resources:
