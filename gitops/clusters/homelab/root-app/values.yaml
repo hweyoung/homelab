@@ -13,6 +13,7 @@ global:
 # ====================================
 hosts:
   argocd: argocd.okbear.dev
+  infisical: infisical.okbear.dev
 
 
 # ==============
@@ -172,6 +173,16 @@ applications:
     valuesPath: gitops/platform/cloudnative-pg/values.yaml
     syncPolicyRef: cnpg-manual
   
+  # --- Infisical bootstrap Secret (KSOPS) ---
+  - name: infisical-bootstrap
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: infisical
+    wave: -13
+    path: gitops/platform/infisical/bootstrap
+    syncPolicyRef: platform
+
   # --- ArgoCD Server ---
   - name: argocd-server
     project: argocd-system
