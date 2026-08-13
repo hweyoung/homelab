@@ -192,6 +192,20 @@ applications:
     wave: -12
     path: gitops/platform/infisical/bootstrap
     syncPolicyRef: platform
+  
+  # --- Infisical server + bundled Redis (PostgreSQL은 전용 CNPG 사용) ---
+  - name: infisical
+    group: platform
+    project: platform
+    type: helm
+    namespace: infisical
+    wave: -11
+    chart: infisical-standalone
+    chartRepo: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+    chartVersion: "1.10.0"
+    valuesPath: gitops/platform/infisical/values.yaml
+    syncPolicyRef: cnpg-manual
+
 
   # --- ArgoCD Server ---
   - name: argocd-server
