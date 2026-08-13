@@ -1,0 +1,32 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  storage:
+    size: 10Gi
+
+  bootstrap:
+    initdb:
+      database: infisical
+      secret:
+        name: postgres-secret-infisical
+      owner: infisical
+      dataChecksums: true
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  affinity:
+    nodeSelector:
+      homelab.okbear.dev/environment: prod
+    tolerations:
+      - key: homelab.okbear.dev/environment
+        operator: Equal
+        value: prod
+        effect: NoSchedule

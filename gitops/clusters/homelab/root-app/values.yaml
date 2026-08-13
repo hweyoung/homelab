@@ -75,7 +75,7 @@ applications:
     wave: -100
     path: gitops/clusters/homelab/argocd-control-plane
     syncPolicyRef: argocd
-  
+
   - name: namespaces
     project: platform
     type: helm
@@ -116,7 +116,7 @@ applications:
     chartVersion: v1.16.1
     valuesPath: gitops/platform/cert-manager/values.yaml
     syncPolicyRef: platform
-  
+
   # --- cert-manager 설정 (Cloudflare token + ClusterIssuer) ---
   - name: cert-manager-config
     group: platform
@@ -173,13 +173,23 @@ applications:
     valuesPath: gitops/platform/cloudnative-pg/values.yaml
     syncPolicyRef: cnpg-manual
   
+  # --- Infisical 전용 PostgreSQL (CNPG) ---
+  - name: infisical-postgres
+    group: databases
+    project: databases
+    type: kustomize
+    namespace: infisical
+    wave: -13
+    path: gitops/databases/postgres/overlays/infisical
+    syncPolicyRef: cnpg-manual
+
   # --- Infisical bootstrap Secret (KSOPS) ---
   - name: infisical-bootstrap
     group: platform
     project: platform
     type: kustomize
     namespace: infisical
-    wave: -13
+    wave: -12
     path: gitops/platform/infisical/bootstrap
     syncPolicyRef: platform
 
