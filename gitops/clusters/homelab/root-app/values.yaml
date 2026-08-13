@@ -77,7 +77,7 @@ applications:
   
   - name: namespaces
     project: platform
-    type: kustomize
+    type: helm
     path: gitops/platform/namespaces
     namespace: default
     wave: -50

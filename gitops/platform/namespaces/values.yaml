@@ -1,5 +1,16 @@
 namespaces:
   # ==================
+  # Platform Namespace
+  # ==================
+  - name: infisical
+    environment: prod
+    gatewayAccess: public
+
+  - name: external-secrets
+    environment: prod
+    gatewayAccess: private
+
+  # ==================
   # Homelab Workload Namespace
   # ==================
   - name: api-nginx-dev
