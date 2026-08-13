@@ -22,6 +22,8 @@ spec:
     - https://argoproj.github.io/argo-helm
     - https://prometheus-community.github.io/helm-charts
     - https://grafana.github.io/helm-charts
+    - https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+    - https://charts.external-secrets.io
   
   destinations:
     - server: https://kubernetes.default.svc
@@ -56,6 +58,12 @@ spec:
 
     - server: https://kubernetes.default.svc
       namespace: monitoring
+
+    - server: https://kubernetes.default.svc
+      namespace: infisical
+
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets
     
     
 
