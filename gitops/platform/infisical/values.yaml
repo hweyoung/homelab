@@ -1,0 +1,80 @@
+infisical:
+  enabled: true
+  name: infisical
+  fullnameOverride: infisical
+  replicaCount: 1
+
+  # 초기 관리자/조직/Machine Identity는 UI에서 직접 구성한다.
+  autoBootstrap:
+    enabled: false
+
+  image:
+    repository: infisical/infisical
+    # upstream release를 명시적으로 고정한다. chart 업그레이드와 별도로 갱신한다.
+    tag: "v0.162.14"
+    pullPolicy: IfNotPresent
+
+  # platform-infisical-bootstrap Application(KSOPS)이 먼저 생성한다.
+  kubeSecretRef: bootstrap-infisical-secrets
+
+  extraEnv:
+    - name: DB_CONNECTION_URI
+      valueFrom:
+        secretKeyRef:
+          # CNPG bootstrap에 전달한 기존 application credential Secret이다.
+          name: postgres-secret-infisical
+          key: uri
+
+  service:
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+
+ingress:
+  enabled: false
+
+  nginx:
+    enabled: false
+
+# PostgreSQL은 databases-infisical-postgres Application의 전용 CNPG Cluster가 소유한다.
+postgresql:
+  enabled: false
+
+redis:
+  enabled: true
+  fullnameOverride: redis
+  architecture: standalone
+  master:
+    nodeSelector:
+      homelab.okbear.dev/environment: prod
+    tolerations:
+      - key: homelab.okbear.dev/environment
+        operator: Equal
+        value: prod
+        effect: NoSchedule
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
