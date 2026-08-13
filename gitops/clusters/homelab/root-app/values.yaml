@@ -206,6 +206,15 @@ applications:
     valuesPath: gitops/platform/infisical/values.yaml
     syncPolicyRef: cnpg-manual
 
+  # --- Infisical HTTPRoute (Gateway API) ---
+  - name: infisical-route
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: infisical
+    wave: -9
+    path: gitops/platform/infisical/exposure
+    syncPolicyRef: platform
 
   # --- ArgoCD Server ---
   - name: argocd-server
