@@ -4,4 +4,4 @@ kind: Kustomization
 namespace: infisical
 
 generators:
-  - infisical-secret-generator.yaml
+  - infisical-secrets-generator.yaml
