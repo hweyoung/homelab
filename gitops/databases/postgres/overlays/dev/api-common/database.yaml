@@ -11,4 +11,4 @@ spec:
   name: api_common
   owner: api_common
 
-  databaseReclaimPolicy: retain
+  databaseReclaimPolicy: delete
