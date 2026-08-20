@@ -7,3 +7,19 @@ creation_rules:
       - age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq 
       #age argocd public key
       - age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v
+
+  # App Dev
+  - path_regex: ^gitops/apps/.*/overlays/.*/.*\.enc\.env$
+    age:
+      # local public key
+      - age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq 
+      #age argocd public key
+      - age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v
+
+  # App Prod
+  - path_regex: ^gitops/apps/.*/overlays/prod/.*\.enc\.env$
+    age:
+      # local public key
+      - age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq 
+      #age argocd public key
+      - age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v
