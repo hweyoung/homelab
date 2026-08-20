@@ -1,0 +1,14 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: postgres-dev-api-common
+  namespace: postgres-dev
+
+spec:
+  cluster:
+    name: postgres-dev
+
+  name: api_common
+  owner: api_common
+
+  databaseReclaimPolicy: retain

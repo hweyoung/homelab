@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: api-common
+  namespace: postgres-dev
+
+spec:
+  cluster:
+    name: postgres-dev
+
+  name: api_common
+
+  login: true
+  superuser: false
+  createdb: false
+  createrole: false
+  replication: false
+
+  passwordSecret:
+    name: api-common-db-secret
+
+  databaseRoleReclaimPolicy: retain
