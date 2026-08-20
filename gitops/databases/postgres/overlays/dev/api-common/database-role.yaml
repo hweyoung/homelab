@@ -17,6 +17,6 @@ spec:
   replication: false
 
   passwordSecret:
-    name: api-common-db-secret
+    name: api-common-db-secret-dev
 
   databaseRoleReclaimPolicy: retain
