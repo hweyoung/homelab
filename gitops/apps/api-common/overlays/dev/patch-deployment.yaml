@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-common
+
+spec:
+  replicas: 1
+
+  template:
+    spec:
+      nodeSelector:
+        homelab.okbear.dev/environment: dev
+
+      tolerations:
+        - key: homelab.okbear.dev/environment
+          operator: Equal
+          value: dev
+          effect: NoSchedule
+
+      containers:
+        - name: api-common
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
