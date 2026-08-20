@@ -6,6 +6,7 @@ nameSuffix: -dev
 
 resources:
   - ../../base
+  - api-common  #(App)CommonPlant
 
 patches:
   - path: patch-cluster.yaml
