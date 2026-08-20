@@ -20,4 +20,4 @@ images:
     newTag: sha-ade18b9217a56c30223901d9449d928f348bac8f
 
 patches:
-  - path: deployment-patch.yaml
+  - path: patch-deployment.yaml
