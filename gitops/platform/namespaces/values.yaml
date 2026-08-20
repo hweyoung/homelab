@@ -20,3 +20,14 @@ namespaces:
   - name: api-nginx-prod
     environment: prod
     gatewayAccess: public
+
+  # ==================
+  # CommonPlant Application Namespace
+  # ==================
+  - name: api-common-dev
+    environment: dev
+    gatewayAccess: public
+
+  - name: api-common-prod
+    environment: prod
+    gatewayAccess: public
