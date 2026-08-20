@@ -42,7 +42,7 @@ syncPolicies:
   cnpg-manual:
     automated:
       prune: true
-      selfHeal: true
+      selfHeal: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
