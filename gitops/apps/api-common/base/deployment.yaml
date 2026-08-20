@@ -16,6 +16,9 @@ spec:
         app.kubernetes.io/name: api-common
 
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+        
       containers:
         - name: api-common
           image: ghcr.io/umc-commonplant/api-common
