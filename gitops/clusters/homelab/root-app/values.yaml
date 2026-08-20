@@ -270,6 +270,16 @@ applications:
     path: gitops/apps/test-nginx/overlays/prod
     syncPolicyRef: apps-prod
 
+  # --- CommonPlant (dev) ---
+  - name: api-common-dev
+    group: apps
+    project: apps-dev
+    type: kustomize
+    namespace: api-common-dev
+    wave: 30
+    path: gitops/apps/api-common/overlays/dev
+    syncPolicyRef: apps-dev
+
   # --- Helm 타입 예시 ---
   # - name: podinfo
   #   group: platform
