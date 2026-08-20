@@ -1,7 +1,7 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
-  name: postgres-dev-api-common
+  name: postgres-api-common
   namespace: postgres-dev
 
 spec:
