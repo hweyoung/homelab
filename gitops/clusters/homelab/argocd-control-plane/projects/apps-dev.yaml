@@ -30,6 +30,18 @@ spec:
 
     - group: ""
       kind: ConfigMap
+    
+    - group: ""
+      kind: Secret
+
+    - group: ""
+      kind: LimitRange
+
+    - group: ""
+      kind: ResourceQuota
+
+    - group: networking.k8s.io
+      kind: NetworkPolicy
 
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
