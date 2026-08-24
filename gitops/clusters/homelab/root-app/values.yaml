@@ -190,6 +190,19 @@ applications:
     valuesPath: gitops/platform/openbao/values.yaml
     syncPolicyRef: platform
 
+  # --- External Secrets Operator (CRDs + controllers) ---
+  - name: external-secrets
+    group: platform
+    project: platform
+    type: helm
+    namespace: external-secrets
+    wave: -12
+    chart: external-secrets
+    chartRepo: https://charts.external-secrets.io
+    chartVersion: "2.9.0"
+    valuesPath: gitops/platform/external-secrets/values.yaml
+    syncPolicyRef: platform
+
   # --- OpenBao public exposure (Gateway API) ---
   # - name: openbao-route
   #   group: platform
