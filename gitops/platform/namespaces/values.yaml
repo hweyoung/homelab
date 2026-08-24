@@ -6,9 +6,9 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
-  - name: external-secrets
+  - name: openbao
     environment: prod
-    gatewayAccess: private
+    gatewayAccess: public
 
   # ==================
   # Homelab Workload Namespace

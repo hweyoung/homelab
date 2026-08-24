@@ -14,6 +14,7 @@ global:
 hosts:
   argocd: argocd.okbear.dev
   infisical: infisical.okbear.dev
+  openbao: openbao.okbear.dev
 
 
 # ==============
@@ -126,7 +127,7 @@ applications:
     wave: -30
     path: gitops/platform/cert-manager-config
     syncPolicyRef: platform
-  
+
   # --- Traefik (Helm, Gateway API Controller) ---
   - name: traefik
     group: platform
@@ -172,49 +173,75 @@ applications:
     chartVersion: "0.29.0"
     valuesPath: gitops/platform/cloudnative-pg/values.yaml
     syncPolicyRef: cnpg-manual
-  
-  # --- Infisical 전용 PostgreSQL (CNPG) ---
-  - name: infisical-postgres
-    group: databases
-    project: databases
-    type: kustomize
-    namespace: infisical
-    wave: -13
-    path: gitops/databases/postgres/overlays/infisical
-    syncPolicyRef: cnpg-manual
 
-  # --- Infisical bootstrap Secret (KSOPS) ---
-  - name: infisical-bootstrap
-    group: platform
-    project: platform
-    type: kustomize
-    namespace: infisical
-    wave: -12
-    path: gitops/platform/infisical/bootstrap
-    syncPolicyRef: platform
-  
-  # --- Infisical server + bundled Redis (PostgreSQL은 전용 CNPG 사용) ---
-  - name: infisical
+  # -----------------------
+  # --- Secret Operator ---
+  # -----------------------
+  # --- OpenBao server  ---
+  - name: openbao
     group: platform
     project: platform
     type: helm
-    namespace: infisical
-    wave: -11
-    chart: infisical-standalone
-    chartRepo: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
-    chartVersion: "1.10.0"
-    valuesPath: gitops/platform/infisical/values.yaml
-    syncPolicyRef: cnpg-manual
-
-  # --- Infisical HTTPRoute (Gateway API) ---
-  - name: infisical-route
-    group: platform
-    project: platform
-    type: kustomize
-    namespace: infisical
-    wave: -9
-    path: gitops/platform/infisical/exposure
+    namespace: openbao
+    wave: -13
+    chart: openbao
+    chartRepo: https://openbao.github.io/openbao-helm
+    chartVersion: "0.29.2"
+    valuesPath: gitops/platform/openbao/values.yaml
     syncPolicyRef: platform
+
+  # --- OpenBao public exposure (Gateway API) ---
+  # - name: openbao-route
+  #   group: platform
+  #   project: platform
+  #   type: kustomize
+  #   namespace: openbao
+  #   wave: -12
+  #   path: gitops/platform/openbao/exposure
+  #   syncPolicyRef: platform
+
+  # # --- Infisical 전용 PostgreSQL (CNPG) ---
+  # - name: infisical-postgres
+  #   group: databases
+  #   project: databases
+  #   type: kustomize
+  #   namespace: infisical
+  #   wave: -13
+  #   path: gitops/databases/postgres/overlays/infisical
+  #   syncPolicyRef: cnpg-manual
+
+  # # --- Infisical bootstrap Secret (KSOPS) ---
+  # - name: infisical-bootstrap
+  #   group: platform
+  #   project: platform
+  #   type: kustomize
+  #   namespace: infisical
+  #   wave: -12
+  #   path: gitops/platform/infisical/bootstrap
+  #   syncPolicyRef: platform
+
+  # # --- Infisical server + bundled Redis (PostgreSQL은 전용 CNPG 사용) ---
+  # - name: infisical
+  #   group: platform
+  #   project: platform
+  #   type: helm
+  #   namespace: infisical
+  #   wave: -11
+  #   chart: infisical-standalone
+  #   chartRepo: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+  #   chartVersion: "1.10.0"
+  #   valuesPath: gitops/platform/infisical/values.yaml
+  #   syncPolicyRef: cnpg-manual
+
+  # # --- Infisical HTTPRoute (Gateway API) ---
+  # - name: infisical-route
+  #   group: platform
+  #   project: platform
+  #   type: kustomize
+  #   namespace: infisical
+  #   wave: -9
+  #   path: gitops/platform/infisical/exposure
+  #   syncPolicyRef: platform
 
   # --- ArgoCD Server ---
   - name: argocd-server

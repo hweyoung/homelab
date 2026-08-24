@@ -1,0 +1,111 @@
+global:
+  # TLS is terminated by the shared Traefik Gateway. Traffic from the Gateway
+  # to this ClusterIP service stays inside the cluster.
+  tlsDisable: true
+
+injector:
+  # Application secret delivery is delegated to External Secrets Operator.
+  enabled: false
+
+csi:
+  enabled: false
+
+server:
+  enabled: true
+
+  image:
+    registry: quay.io
+    repository: openbao/openbao
+    tag: "2.6.2"
+    pullPolicy: IfNotPresent
+
+  updateStrategyType: OnDelete
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: local-path
+    accessMode: ReadWriteOnce
+
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+
+  # A single Raft member provides snapshot support but is not highly available.
+  # Scale-out requires additional nodes, storage, anti-affinity and an unseal plan.
+  standalone:
+    enabled: false
+
+  ha:
+    enabled: true
+    replicas: 1
+
+    disruptionBudget:
+      enabled: false
+
+    raft:
+      enabled: true
+      setNodeId: true
+
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "raft" {
+          path = "/openbao/data"
+        }
+
+        service_registration "kubernetes" {}
+
+  authDelegator:
+    # Required later when ESO authenticates through OpenBao Kubernetes Auth.
+    enabled: true
+
+  ingress:
+    enabled: false
+
+  gateway:
+    httpRoute:
+      enabled: false
+    tlsRoute:
+      enabled: false
+
+  # TODO:
+  # Enable OpenBao audit devices after the initial deployment.
+  auditStorage:
+    enabled: false
+
+ui:
+  enabled: true
+  serviceType: ClusterIP
+  # Allows initialization/unseal access before OpenBao becomes ready.
+  publishNotReadyAddresses: true
+  # Single replica, so selecting all server pods is acceptable.
+  activeOpenbaoPodOnly: false
+
+snapshotAgent:
+  # TODO:
+  # Enable after an external snapshot target is prepared.
+  enabled: false
