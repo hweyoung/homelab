@@ -24,6 +24,7 @@ spec:
     - https://grafana.github.io/helm-charts
     - https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
     - https://charts.external-secrets.io
+    - https://openbao.github.io/openbao-helm
   
   destinations:
     - server: https://kubernetes.default.svc
@@ -64,6 +65,9 @@ spec:
 
     - server: https://kubernetes.default.svc
       namespace: external-secrets
+
+    - server: https://kubernetes.default.svc
+      namespace: openbao
     
     
 
