@@ -12,7 +12,7 @@ namespaces:
 
   - name: external-secrets
     environment: prod
-    gatewayAccess: private
+    gatewayAccess: public
 
   # ==================
   # Homelab Workload Namespace
