@@ -2,6 +2,7 @@
 kubespray/
 .ansible/
 .venv/
+.kubespray-venv/
 *.retry
 
 # 외부 노출 금지 — 실제 값 파일. 커밋되는 건 *.example 뿐.

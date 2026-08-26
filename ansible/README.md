@@ -19,6 +19,7 @@ terraform/  →  ansible/  →  gitops/ (ArgoCD)
 - Bastion `/etc/hosts` 인벤토리 매핑
 - Tailscale 설치 및 Tailnet 조인 (관리 평면)
 - Kubespray 실행 래퍼 (Kubernetes 클러스터 자체 부트스트랩)
+- Kubespray `upgrade-cluster.yml` 기반 기존 Kubernetes 클러스터 업그레이드 workflow
 - Post-Kubespray 노드 라벨링 / prod taint / SSH 사용자 kubeconfig 설치
 - Helm CLI 바이너리 설치 (ArgoCD 설치용)
 - SOPS age key 를 argocd ns 에 Secret 으로 주입 (ksops 복호화용)
@@ -63,7 +64,9 @@ ansible/
 ├── ansible.cfg
 ├── Makefile                          # 단계별 진입점
 ├── README.md
+├── KUBERNETES_UPGRADE.md             # Kubernetes/Kubespray 업그레이드 운영 절차
 ├── site.yml                          # 전체 진입점 (모든 play 를 태그별로 포함)
+├── kubernetes-upgrade.yml            # 기존 클러스터 업그레이드 전용 진입점
 ├── requirements-controller.txt       # 컨트롤러 Python 의존성
 ├── secrets.example.yml               # Vault 시크릿 템플릿
 ├── inventories/
@@ -80,6 +83,7 @@ ansible/
 │   ├── bastion_hosts/                # tasks: main
 │   ├── tailscale/                    # tasks: install / configure / join
 │   ├── kubespray_runner/             # Kubespray 사전검증 + 실행 (localhost play)
+│   ├── kubespray_upgrade/            # validate/precheck/upgrade/postcheck
 │   ├── k8s_node_config/              # tasks: kubeconfig / labels / taints
 │   ├── helm/                         # tasks: install
 │   └── argocd/                       # tasks: prereq / deploy / verify
@@ -98,6 +102,7 @@ ansible/
 
 - `kubespray/` — `sync-kubespray.sh` 가 만드는 외부 체크아웃
 - `.venv/` — `prepare-bastion.sh` 가 만드는 Python 가상환경
+- `.kubespray-venv/` — 선택한 Kubespray release 전용 Python/Ansible 가상환경
 - `secrets.yml` — Ansible Vault 로 암호화된 로컬 시크릿 (예시: `secrets.example.yml`)
 - `inventories/homelab/hosts.yml` — 실제 노드 IP·사용자 (예시: `hosts.yml.example`)
 - `.ansible/` — Ansible 임시 파일
@@ -137,7 +142,7 @@ cd /path/to/homelab/ansible
 - `.venv` 생성 + `requirements-controller.txt` 설치
 - `./scripts/sync-kubespray.sh` 호출 → `inventories/homelab/group_vars/all.yml`
   의 `kubespray_version` 으로 `./kubespray` 체크아웃
-- `kubespray/requirements.txt` 설치
+- `.kubespray-venv` 생성 + `kubespray/requirements.txt` 설치
 - 인벤토리 그래프 출력으로 sanity check
 
 시크릿 파일은 처음 한 번만 만들어 두면 됩니다. `secrets.yml` 은 최소 두 개의 키를
@@ -234,6 +239,18 @@ make all
 | `make sops`           | `sops`            | age 비공개키를 argocd ns `sops-age` Secret 으로 주입 (vault 필요) | 입력 키와 동일 내용이면 Secret 변경 안 함     |
 | `make argocd`         | `argocd`          | ArgoCD Helm chart 설치 + ksops 통합 + root.yaml 적용   | 동일 차트 버전이 deployed 면 helm upgrade 스킵 |
 
+Kubernetes 업그레이드는 bootstrap과 별도 진입점을 사용한다.
+
+| Make 타깃 | 동작 |
+| --- | --- |
+| `make kubernetes-upgrade-precheck` | 읽기 전용 사전 점검 |
+| `make kubernetes-upgrade` | 명시적 승인과 함께 `upgrade-cluster.yml` 실행 |
+| `make kubernetes-upgrade-postcheck` | 읽기 전용 사후 점검 |
+
+minor skip, backup, single-node/PDB/local-path 제약과 전체 체크리스트는
+[KUBERNETES_UPGRADE.md](KUBERNETES_UPGRADE.md)를 따른다. 업그레이드 목적으로
+`kubespray_force=true`를 전달해 `cluster.yml`을 재실행하지 않는다.
+
 > `make sops` 는 `secrets.yml` 의 `sops_age_private_key` 를 요구합니다. 값이 비어 있거나
 > `-e @secrets.yml` 없이 돌리면 `sops_age_private_key 검증` task 가 fail-fast 로 멈춥니다.
 > 넣을 키/짝 검증 방법은 §4 를 참고하세요. (`make sops` 타깃은 `-e @secrets.yml
@@ -308,5 +325,6 @@ ssh -L 8080:localhost:8080 <user>@<k8s-master-ip> \
 ## 7. 참고
 
 - `scripts/README.md` — shell 헬퍼 vs Ansible role 의 책임 경계
+- `KUBERNETES_UPGRADE.md` — Kubernetes/Kubespray upgrade runbook
 - `secrets.example.yml` — Vault 가 요구하는 키 목록
 - 루트 `../README.md` — homelab 저장소 전체 구조와 GitOps 영역

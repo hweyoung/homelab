@@ -1,0 +1,12 @@
+---
+# 기존 Kubernetes 클러스터 전용 업그레이드 진입점.
+# 신규 설치는 site.yml의 kubespray_runner(cluster.yml)를 사용한다.
+
+- name: Kubernetes upgrade with Kubespray
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - role: kubespray_upgrade
+  tags: [kubernetes_upgrade]

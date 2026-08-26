@@ -1,5 +1,6 @@
 .PHONY: all prepare sync-kubespray inventory syntax ssh-check bootstrap vault \
-        bastion-ssh bastion-hosts tailscale kubespray post-kubespray helm sops argocd
+        bastion-ssh bastion-hosts tailscale kubespray post-kubespray helm sops argocd \
+        kubernetes-upgrade-precheck kubernetes-upgrade kubernetes-upgrade-postcheck
 
 # 기본 타깃: 컨트롤러 준비 → 인벤토리 점검 → syntax-check → tailscale → 전체 부트스트랩
 all: prepare inventory syntax tailscale bootstrap
@@ -15,6 +16,7 @@ inventory:
 
 syntax:
 	./scripts/run-ansible.sh site.yml --syntax-check
+	./scripts/run-ansible.sh kubernetes-upgrade.yml --syntax-check
 
 ssh-check:
 	./scripts/run-adhoc.sh k8s_cluster -m ping
@@ -50,3 +52,13 @@ sops:
 
 argocd:
 	./scripts/run-ansible.sh site.yml --tags argocd -e @secrets.yml --ask-vault-pass
+
+kubernetes-upgrade-precheck: sync-kubespray ssh-check
+	./scripts/run-ansible.sh kubernetes-upgrade.yml --tags precheck
+
+kubernetes-upgrade: sync-kubespray ssh-check
+	./scripts/run-ansible.sh kubernetes-upgrade.yml --tags precheck,upgrade,postcheck \
+		-e kubernetes_upgrade_confirm=true
+
+kubernetes-upgrade-postcheck: sync-kubespray ssh-check
+	./scripts/run-ansible.sh kubernetes-upgrade.yml --tags postcheck

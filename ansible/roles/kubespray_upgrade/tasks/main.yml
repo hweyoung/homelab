@@ -1,0 +1,16 @@
+---
+- name: Upgrade 입력과 실행 환경 검증
+  ansible.builtin.import_tasks: validate.yml
+  tags: [always]
+
+- name: Upgrade 사전 점검
+  ansible.builtin.import_tasks: precheck.yml
+  tags: [precheck]
+
+- name: Kubespray upgrade-cluster.yml 실행
+  ansible.builtin.import_tasks: upgrade.yml
+  tags: [upgrade]
+
+- name: Upgrade 사후 점검
+  ansible.builtin.import_tasks: postcheck.yml
+  tags: [postcheck]

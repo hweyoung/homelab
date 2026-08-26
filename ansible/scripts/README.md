@@ -13,7 +13,7 @@ ansible 진입 래퍼만 둡니다. 호스트/클러스터 구성 그 자체는 
 - `.venv` 생성 (Python 3.11+)
 - 컨트롤러 측 Python 의존성 설치 (`requirements-controller.txt`)
 - pinned Kubespray release 체크아웃 (`sync-kubespray.sh` 호출)
-- Kubespray 의 Python 의존성 설치
+- Kubespray 전용 `.kubespray-venv` 생성과 release별 Python 의존성 설치
 - 인벤토리 점검
 
 Ansible 이 돌 머신 자체를 준비하는 단계라 shell 로 유지합니다.
@@ -21,7 +21,9 @@ Ansible 이 돌 머신 자체를 준비하는 단계라 shell 로 유지합니�
 ### `sync-kubespray.sh`
 
 로컬 `kubespray/` 체크아웃을 `inventories/homelab/group_vars/all.yml` 의
-`kubespray_version` 에 고정시킵니다.
+`kubespray_version` 에 고정시킵니다. `.venv`가 준비되어 있으면 checkout 직후 별도
+`.kubespray-venv`를 만들고 해당 release의 `kubespray/requirements.txt`를 설치합니다.
+프로젝트 controller의 Ansible pin과 Kubespray release의 Ansible pin은 서로 덮어쓰지 않는다.
 
 ## Ansible 진입 래퍼
 

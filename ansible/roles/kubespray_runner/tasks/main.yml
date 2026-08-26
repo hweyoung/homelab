@@ -19,15 +19,22 @@
     path: "{{ playbook_dir }}/kubespray/roles"
   register: kubespray_roles_dir
 
+- name: Kubespray 전용 ansible-playbook 확인
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/.kubespray-venv/bin/ansible-playbook"
+  register: kubespray_ansible_playbook
+
 - name: Kubespray 체크아웃 완전성 검증
   ansible.builtin.assert:
     that:
       - kubespray_cluster_yml.stat.exists | default(false)
       - kubespray_ansible_cfg.stat.exists | default(false)
       - kubespray_roles_dir.stat.isdir | default(false)
+      - kubespray_ansible_playbook.stat.executable | default(false)
     fail_msg: >-
       ./kubespray 가 비어 있거나 불완전합니다.
-      저장소 루트에서 ./scripts/prepare-bastion.sh 를 먼저 실행하세요.
+      저장소 루트에서 ./scripts/prepare-bastion.sh를 실행해 checkout과
+      .kubespray-venv를 준비하세요.
 
 - name: Kubespray 체크아웃 태그 조회
   ansible.builtin.command: git describe --tags --exact-match
@@ -52,9 +59,11 @@
     that:
       - kube_version is defined
       - kube_version is string
-      - kube_version is match('^v[0-9]+\\.[0-9]+\\.[0-9]+$')
+      # Kubespray release에 따라 leading v 사용 여부가 다르므로 migration
+      # 기간에는 두 형식을 모두 허용한다.
+      - kube_version is match('^v?[0-9]+\\.[0-9]+\\.[0-9]+$')
     fail_msg: >-
-      group_vars/all.yml 의 kube_version 을 v1.30.4 처럼 v 접두사가 붙은 따옴표
+      group_vars/all.yml의 kube_version을 v1.30.4 또는 1.32.8 형식의 따옴표
       문자열로 설정하세요.
 
 # 사전 체크: k8s-master 에 admin.conf 가 이미 있으면 클러스터가 부트스트랩된 것으로 간주.
@@ -78,7 +87,7 @@
 - name: Kubespray cluster.yml 실행
   ansible.builtin.command:
     argv:
-      - ansible-playbook
+      - "{{ playbook_dir }}/.kubespray-venv/bin/ansible-playbook"
       - -i
       - "{{ playbook_dir }}/inventories/homelab/hosts.yml"
       - cluster.yml

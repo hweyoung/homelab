@@ -1,0 +1,128 @@
+---
+- name: 공통 cluster health 사전 점검
+  ansible.builtin.import_tasks: health.yml
+  vars:
+    upgrade_check_phase: pre-upgrade
+
+- name: Node placement label과 taint baseline 기록
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - get
+      - nodes
+      - --sort-by=.metadata.name
+      - -o=custom-columns=NAME:.metadata.name,POOL:.metadata.labels.pool,ENV:.metadata.labels.homelab\.okbear\.dev/environment,TAINTS:.spec.taints
+      - --no-headers
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_node_placement_before
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: PDB 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, pdb, -A, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_pdbs
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: Eviction을 차단할 수 있는 PDB 경고
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ item.metadata.namespace }}/{{ item.metadata.name }}의
+      ALLOWED DISRUPTIONS가 0입니다. Single-instance CNPG라면 worker drain 전에
+      backup과 nodeMaintenanceWindow/reusePVC 절차를 준비해야 합니다.
+  loop: "{{ (upgrade_pdbs.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+  when: item.status.disruptionsAllowed | default(0) | int == 0
+
+- name: PV 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, pv, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_pvs
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: Released PV 경고
+  ansible.builtin.debug:
+    msg: "WARNING: PV {{ item.metadata.name }}가 Released 상태입니다."
+  loop: "{{ (upgrade_pvs.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: item.status.phase | default('Unknown') == 'Released'
+
+- name: PVC baseline 출력
+  ansible.builtin.command:
+    argv: [kubectl, get, pvc, -A]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_pvcs
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: PVC baseline
+  ansible.builtin.debug:
+    var: upgrade_pvcs.stdout_lines
+
+- name: CRD와 webhook baseline 출력
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - get
+      - crd,validatingwebhookconfigurations,mutatingwebhookconfigurations
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_extensions_before
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: CRD와 webhook baseline
+  ansible.builtin.debug:
+    var: upgrade_extensions_before.stdout_lines
+
+- name: GitOps deprecated API 정밀 대상 확인
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -R
+      - -n
+      - flowcontrol.apiserver.k8s.io/v1beta3
+      - "{{ playbook_dir }}/../gitops"
+  register: upgrade_removed_api_scan
+  changed_when: false
+  failed_when: upgrade_removed_api_scan.rc not in [0, 1]
+
+- name: 제거 예정 API 발견 경고
+  ansible.builtin.debug:
+    msg: "WARNING: 제거 예정 API 후보: {{ upgrade_removed_api_scan.stdout_lines }}"
+  when: upgrade_removed_api_scan.rc == 0
+
+- name: GitOps alpha/beta API 후보 확인
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -R
+      - -n
+      - -E
+      - "apiVersion:.*(v1alpha|v1beta)"
+      - "{{ playbook_dir }}/../gitops"
+  register: upgrade_prerelease_api_scan
+  changed_when: false
+  failed_when: upgrade_prerelease_api_scan.rc not in [0, 1]
+
+- name: Alpha/Beta API 후보 안내
+  ansible.builtin.debug:
+    msg: >-
+      발견된 alpha/beta API는 자동 수정하지 않습니다. 목표 Kubernetes release에서
+      각 API lifecycle을 검토하세요: {{ upgrade_prerelease_api_scan.stdout_lines }}
+  when: upgrade_prerelease_api_scan.rc == 0
