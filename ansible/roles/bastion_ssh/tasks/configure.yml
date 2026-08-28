@@ -1,4 +1,12 @@
 ---
+- name: Bastion SSH 포트 값 검증
+  ansible.builtin.assert:
+    that:
+      - (bastion_ssh_port | string) is match('^[0-9]+$')
+      - bastion_ssh_port | int >= 1
+      - bastion_ssh_port | int <= 65535
+    fail_msg: "bastion_ssh_port는 1~65535 범위의 TCP port여야 합니다."
+
 - name: SSH drop-in 디렉토리 보장
   ansible.builtin.file:
     path: /etc/ssh/sshd_config.d

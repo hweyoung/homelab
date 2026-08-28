@@ -1,0 +1,106 @@
+---
+- name: "{{ upgrade_check_phase }} | Node 상태 조회"
+  ansible.builtin.command:
+    argv: [kubectl, get, nodes, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_cluster_nodes
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: "{{ upgrade_check_phase }} | 모든 Node Ready 검증"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.status.conditions
+         | selectattr('type', 'equalto', 'Ready')
+         | map(attribute='status')
+         | first
+         | default('False')) == 'True'
+    fail_msg: "Node {{ item.metadata.name }}가 Ready 상태가 아닙니다."
+  loop: "{{ (upgrade_cluster_nodes.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: "{{ upgrade_check_phase }} | API server readyz 확인"
+  ansible.builtin.command:
+    argv: [kubectl, get, "--raw=/readyz?verbose"]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_apiserver_readyz
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: "{{ upgrade_check_phase }} | API server Ready 검증"
+  ansible.builtin.assert:
+    that:
+      - "'readyz check passed' in upgrade_apiserver_readyz.stdout"
+    fail_msg: "API server /readyz 검사가 통과하지 못했습니다."
+
+- name: "{{ upgrade_check_phase }} | APIService 상태 조회"
+  ansible.builtin.command:
+    argv: [kubectl, get, apiservices, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_apiservices
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: "{{ upgrade_check_phase }} | 모든 APIService Available 검증"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.status.conditions | default([])
+         | selectattr('type', 'equalto', 'Available')
+         | map(attribute='status')
+         | first
+         | default('False')) == 'True'
+    fail_msg: "APIService {{ item.metadata.name }}가 Available 상태가 아닙니다."
+  loop: "{{ (upgrade_apiservices.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: "{{ upgrade_check_phase }} | 전체 Pod 상태 조회"
+  ansible.builtin.command:
+    argv: [kubectl, get, pods, -A, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_cluster_pods
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: "{{ upgrade_check_phase }} | 비정상 Pod 검증"
+  vars:
+    blocked_waiting_reasons:
+      - CrashLoopBackOff
+      - ImagePullBackOff
+      - ErrImagePull
+      - CreateContainerError
+      - CreateContainerConfigError
+  ansible.builtin.assert:
+    that:
+      - item.status.phase not in ['Pending', 'Unknown', 'Failed']
+      - >-
+        ((item.status.containerStatuses | default([])
+          | selectattr('state.waiting', 'defined')
+          | map(attribute='state.waiting.reason')
+          | list)
+         | intersect(blocked_waiting_reasons)
+         | length) == 0
+      - >-
+        ((item.status.initContainerStatuses | default([])
+          | selectattr('state.waiting', 'defined')
+          | map(attribute='state.waiting.reason')
+          | list)
+         | intersect(blocked_waiting_reasons)
+         | length) == 0
+    fail_msg: >-
+      Pod {{ item.metadata.namespace }}/{{ item.metadata.name }} 상태를 확인하세요
+      (phase={{ item.status.phase }}).
+  loop: "{{ (upgrade_cluster_pods.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"

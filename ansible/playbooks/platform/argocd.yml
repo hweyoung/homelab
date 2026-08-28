@@ -1,0 +1,50 @@
+---
+- name: 7. ArgoCD 부트스트랩 (시크릿 주입 + 배포 + root.yaml 적용, App-of-Apps 발화)
+  hosts: k8s_master
+  become: false
+  environment:
+    KUBECONFIG: "{{ homelab_ansible_user_home }}/.kube/config"
+  tags: [ argocd, gitops ]
+  tasks:
+    - name: ArgoCD Helm repository 준비
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: prereq
+      tags: [argocd, prereq]
+
+    - name: ArgoCD namespace와 Gateway 접근 조건 구성
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: namespace
+      tags: [argocd, namespace, sops, deploy, gitops]
+
+    # 두 Secret은 첫 Git sync 전에 필요하므로 ArgoCD보다 먼저 out-of-band로 주입한다.
+    - name: ArgoCD SOPS age bootstrap Secret 구성
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: sops_age
+      tags: [argocd, sops, gitops]
+
+    - name: ArgoCD private repository credential 구성
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: repo_credentials
+      tags: [argocd, sops, gitops]
+
+    - name: ArgoCD Helm release 배포
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: deploy
+      tags: [argocd, deploy]
+
+    - name: ArgoCD root Application 적용
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: root_app
+      tags: [argocd, root_app, gitops]
+
+    - name: ArgoCD bootstrap 결과 검증
+      ansible.builtin.import_role:
+        name: argocd
+        tasks_from: verify
+      tags: [argocd, verify]

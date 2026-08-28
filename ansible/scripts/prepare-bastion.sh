@@ -41,8 +41,6 @@ ansible --version
 
 ./scripts/sync-kubespray.sh
 
-python -m pip install -r kubespray/requirements.txt
-
 # shellcheck disable=SC1091
 . scripts/ansible-env.sh
 

@@ -1,0 +1,41 @@
+---
+- name: 4. Kubespray 실행 (localhost 래퍼)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [ kubespray ]
+  tasks:
+    - name: Kubespray 실행 환경 검증
+      ansible.builtin.import_role:
+        name: kubespray
+        tasks_from: validate
+      vars:
+        kubespray_entrypoint: cluster.yml
+
+    - name: 목표 Kubernetes version 검증
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: validate/version
+
+    - name: 기존 Kubernetes cluster 상태 확인
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: install/state
+
+    - name: Kubernetes 설치 전 사전 점검
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: install/precheck
+      when: kubernetes_install_required
+
+    - name: 신규 Kubernetes cluster 설치
+      ansible.builtin.import_role:
+        name: kubespray
+        tasks_from: install
+      when: kubernetes_install_required
+
+    - name: Kubernetes 설치 결과 점검
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: install/postcheck
+      when: kubernetes_install_required

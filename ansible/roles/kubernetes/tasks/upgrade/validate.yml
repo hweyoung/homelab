@@ -1,0 +1,64 @@
+---
+- name: 기존 Kubernetes cluster 확인
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubernetes_upgrade_existing_cluster
+  delegate_to: k8s-master
+  become: true
+
+- name: 기존 Kubernetes cluster 존재 여부 검증
+  ansible.builtin.assert:
+    that:
+      - kubernetes_upgrade_existing_cluster.stat.exists | default(false)
+    fail_msg: >-
+      k8s-master에 /etc/kubernetes/admin.conf가 없습니다. 신규 설치는 playbooks/site.yml의
+      Kubernetes bootstrap workflow를 사용하세요.
+
+- name: 현재 Kubernetes server version 조회
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - version
+      - -o
+      - json
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: kubernetes_current_version_result
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: 현재와 목표 Kubernetes version 정규화
+  ansible.builtin.set_fact:
+    kubernetes_current_version_normalized: >-
+      {{ (kubernetes_current_version_result.stdout | from_json).serverVersion.gitVersion
+         | regex_replace('^v', '') }}
+    kubernetes_target_version_normalized: "{{ kube_version | regex_replace('^v', '') }}"
+
+- name: Kubernetes version 구성 요소 계산
+  ansible.builtin.set_fact:
+    kubernetes_current_version_parts: "{{ kubernetes_current_version_normalized.split('.') }}"
+    kubernetes_target_version_parts: "{{ kubernetes_target_version_normalized.split('.') }}"
+
+- name: Kubernetes minor skip와 downgrade 방지
+  ansible.builtin.assert:
+    that:
+      - kubernetes_target_version_parts[0] | int == kubernetes_current_version_parts[0] | int
+      - >-
+        ((kubernetes_target_version_parts[1] | int == kubernetes_current_version_parts[1] | int)
+         and (kubernetes_target_version_parts[2] | int > kubernetes_current_version_parts[2] | int))
+        or
+        (kubernetes_target_version_parts[1] | int ==
+         (kubernetes_current_version_parts[1] | int) + 1)
+        or
+        ((kubernetes_upgrade_postcheck_only | default(false) | bool)
+         and (kubernetes_target_version_normalized == kubernetes_current_version_normalized))
+    fail_msg: >-
+      현재 {{ kubernetes_current_version_normalized }}에서 목표
+      {{ kubernetes_target_version_normalized }}로 직접 업그레이드할 수 없습니다.
+      동일 minor의 더 높은 patch 또는 바로 다음 minor만 허용합니다.
+      kubernetes_upgrade_postcheck_only=true인 독립 postcheck에서만 현재 version과 목표
+      version이 같은 상태를 허용합니다.
+    success_msg: >-
+      Kubernetes upgrade path:
+      {{ kubernetes_current_version_normalized }} -> {{ kubernetes_target_version_normalized }}

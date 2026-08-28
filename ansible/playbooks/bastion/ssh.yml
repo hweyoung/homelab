@@ -1,0 +1,23 @@
+---
+- name: 1. Bastion SSH 포트/방화벽/SELinux 구성
+  hosts: bastion
+  become: true
+  tags: [ bastion, bastion_ssh ]
+  tasks:
+    - name: Bastion SSH 설정 파일 적용
+      ansible.builtin.import_role:
+        name: bastion_ssh
+        tasks_from: configure
+      tags: [bastion_ssh, configure]
+
+    - name: Bastion SSH SELinux 포트 정책 적용
+      ansible.builtin.import_role:
+        name: bastion_ssh
+        tasks_from: selinux
+      tags: [bastion_ssh, selinux]
+
+    - name: Bastion SSH 방화벽 정책 적용
+      ansible.builtin.import_role:
+        name: bastion_ssh
+        tasks_from: firewall
+      tags: [bastion_ssh, firewall]

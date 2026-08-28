@@ -1,0 +1,4 @@
+---
+# ArgoCD bootstrap에 필요한 Helm CLI를 먼저 준비한다.
+- import_playbook: helm.yml
+- import_playbook: argocd.yml

@@ -1,0 +1,7 @@
+---
+# 홈랩 전체 bootstrap orchestration.
+# 전체 실행 순서를 영역별 Playbook으로 위임한다.
+- import_playbook: bastion/bootstrap.yml
+- import_playbook: network/tailscale.yml
+- import_playbook: kubernetes/bootstrap.yml
+- import_playbook: platform/bootstrap.yml

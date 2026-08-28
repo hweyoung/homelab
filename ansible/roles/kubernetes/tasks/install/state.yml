@@ -1,0 +1,22 @@
+---
+- name: 기존 Kubernetes cluster 확인
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: existing_cluster
+  delegate_to: k8s-master
+  become: true
+
+- name: Kubernetes 신규 설치 필요 여부 판정
+  ansible.builtin.set_fact:
+    kubernetes_install_required: >-
+      {{ not existing_cluster.stat.exists
+         or (kubespray_force | default(false) | bool) }}
+
+- name: 기존 Kubernetes cluster 감지
+  ansible.builtin.debug:
+    msg: >-
+      k8s-master:/etc/kubernetes/admin.conf가 이미 존재합니다.
+      강제 재실행이 필요하면 -e kubespray_force=true를 추가하세요.
+  when:
+    - existing_cluster.stat.exists
+    - not (kubespray_force | default(false) | bool)

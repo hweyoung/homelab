@@ -1,0 +1,10 @@
+---
+- name: 목표 Kubernetes version 형식 검증
+  ansible.builtin.assert:
+    that:
+      - kube_version is defined
+      - kube_version is string
+      - kube_version is match('^v?[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: >-
+      group_vars/all.yml의 kube_version을 v1.31.9 또는 1.32.8 형식의 따옴표 문자열로
+      설정하세요. Kubespray release에 따라 leading v 사용 여부가 다릅니다.
