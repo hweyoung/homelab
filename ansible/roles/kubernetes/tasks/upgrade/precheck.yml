@@ -31,7 +31,7 @@
       WARNING: {{ item.metadata.namespace }}/{{ item.metadata.name }}의
       ALLOWED DISRUPTIONS가 0입니다. Single-instance CNPG라면 worker drain 전에
       backup과 nodeMaintenanceWindow/reusePVC 절차를 준비해야 합니다.
-  loop: "{{ (upgrade_pdbs.stdout | from_json).items }}"
+  loop: "{{ (upgrade_pdbs.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
   when: item.status.disruptionsAllowed | default(0) | int == 0
@@ -49,7 +49,7 @@
 - name: Released PV 경고
   ansible.builtin.debug:
     msg: "WARNING: PV {{ item.metadata.name }}가 Released 상태입니다."
-  loop: "{{ (upgrade_pvs.stdout | from_json).items }}"
+  loop: "{{ (upgrade_pvs.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
   when: item.status.phase | default('Unknown') == 'Released'
