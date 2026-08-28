@@ -25,15 +25,43 @@ Ansible 이 돌 머신 자체를 준비하는 단계라 shell 로 유지합니�
 `.kubespray-venv`를 만들고 해당 release의 `kubespray/requirements.txt`를 설치합니다.
 프로젝트 controller의 Ansible pin과 Kubespray release의 Ansible pin은 서로 덮어쓰지 않는다.
 
-## Ansible 진입 래퍼
+## 운영 Playbook 래퍼
+
+### `run-playbook.sh`
+
+Makefile의 운영 Playbook target이 사용하는 공식 실행 wrapper다.
+
+```bash
+./scripts/run-playbook.sh <operation> <playbook> [ansible arguments...]
+```
+
+실행마다 다음 artifact를 생성하고 원래 `ansible-playbook` exit code를 반환한다.
+
+```text
+runs/<operation>/<run-id>/
+├── metadata.yml
+├── command.txt
+├── ansible.log
+├── stdout.log
+└── summary.md
+```
+
+Run Directory는 `0700`, 파일은 `0600`으로 생성된다. Vault 파일은 경로만 기록하고,
+허용되지 않은 inline extra-var와 password/private-key 관련 옵션 값은 command history에서
+가린다. Secret은 `-e key=value`가 아니라 Vault 파일로 전달한다.
+
+일반 운영자는 이 스크립트를 직접 조합하기보다 Make target을 사용한다.
+
+## 호환 및 Utility 래퍼
 
 `run-ansible.sh`, `run-inventory.sh`, `run-adhoc.sh` 는 `ansible-env.sh` 의 공통 환경을
 로드한 뒤 각각 `ansible-playbook`, `ansible-inventory`, `ansible` 에 인자를 그대로
-넘기는 얇은 래퍼입니다. 소유권 경계가 아니라 편의용입니다.
+넘기는 얇은 래퍼다. `run-ansible.sh`는 syntax-check와 읽기 전용 Playbook 검사에 사용하며
+운영 Playbook 실행 이력을 만들지 않는다.
 
 `run-vault.sh` 는 같은 환경을 로드한 뒤 `ansible-vault` 를 감쌉니다. 이 저장소에서 vault
 로 다루는 파일은 `secrets.yml` 뿐이라, 대상 파일을 생략하면 자동으로 `secrets.yml` 을
-붙입니다.
+붙인다.
 
 ```bash
 ./scripts/run-vault.sh              # = ansible-vault edit secrets.yml
@@ -42,11 +70,13 @@ Ansible 이 돌 머신 자체를 준비하는 단계라 shell 로 유지합니�
 ./scripts/run-vault.sh view path/to/other.yml   # 파일을 명시하면 그대로 전달
 ```
 
-`secrets.yml` 에 `sops_age_private_key`(age private key) 를 채우는 것도 이 래퍼로 합니다.
-자세한 내용은 루트 `../README.md` §4 참고.
+`secrets.yml`에 `sops_age_private_key`를 설정할 때도 이 래퍼를 사용한다. 실제 값을 터미널
+로그나 execution artifact에 복사하지 않는다.
 
 ## 직접 호출 금지
 
-`playbooks/` 안에서 `ansible-playbook` 을 직접 호출하면 `ansible.cfg`, 인벤토리, 로컬
-role 을 모두 놓칩니다. 반드시 저장소 루트에서 `make` 혹은 `scripts/run-*.sh` 를 통해
-실행하세요.
+`playbooks/` 안에서 `ansible-playbook`을 직접 호출하면 실행 기준 디렉터리, `ansible.cfg`,
+Inventory, Role path와 execution artifact 계약을 놓칠 수 있다. 반드시 `ansible/` 루트에서
+Makefile을 사용한다.
+
+상세 실행 및 보안 정책은 [execution.md](../docs/execution.md)를 참고한다.
