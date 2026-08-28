@@ -1,0 +1,31 @@
+---
+- name: 5. Post-Kubespray (kubeconfig, 노드 라벨, taint)
+  hosts: k8s_master
+  become: true
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  tags: [ post_kubespray, kubernetes ]
+  tasks:
+    - name: Kubernetes node 구성 전제 조건 검증
+      ansible.builtin.import_role:
+        name: k8s_node_config
+        tasks_from: validate
+      tags: [always]
+
+    - name: Kubernetes 관리 사용자 kubeconfig 구성
+      ansible.builtin.import_role:
+        name: k8s_node_config
+        tasks_from: kubeconfig
+      tags: [post_kubespray, kubeconfig]
+
+    - name: Kubernetes node placement label 구성
+      ansible.builtin.import_role:
+        name: k8s_node_config
+        tasks_from: labels
+      tags: [post_kubespray, labels]
+
+    - name: Kubernetes node taint 구성
+      ansible.builtin.import_role:
+        name: k8s_node_config
+        tasks_from: taints
+      tags: [post_kubespray, taints]

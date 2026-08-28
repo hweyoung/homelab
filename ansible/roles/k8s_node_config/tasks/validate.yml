@@ -1,0 +1,17 @@
+---
+# kubeconfig, label, taint 작업이 공통으로 사용하는 kubectl 경로를 먼저 확정한다.
+- name: kubectl 경로 탐색
+  ansible.builtin.shell: >-
+    command -v kubectl
+    || { test -x /usr/local/bin/kubectl && echo /usr/local/bin/kubectl; }
+    || { test -x /usr/bin/kubectl && echo /usr/bin/kubectl; }
+  args:
+    executable: /bin/bash
+  register: kubectl_path
+  changed_when: false
+
+- name: kubectl 존재 보장
+  ansible.builtin.assert:
+    that:
+      - kubectl_path.stdout | length > 0
+    fail_msg: "kubectl을 찾을 수 없습니다. Kubespray 클라이언트 설치 단계를 확인하세요."

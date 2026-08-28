@@ -1,5 +1,19 @@
 ---
-# control-plane 노드에 Helm CLI 바이너리 설치.
+# control-plane 노드에 목표 version/architecture의 Helm CLI 바이너리를 설치한다.
+
+- name: Helm architecture 계산
+  ansible.builtin.set_fact:
+    helm_architecture: >-
+      {{ {'x86_64': 'amd64', 'aarch64': 'arm64'}
+         .get(ansible_architecture, 'unsupported') }}
+
+- name: Helm 지원 architecture 검증
+  ansible.builtin.assert:
+    that:
+      - helm_architecture != 'unsupported'
+    fail_msg: >-
+      지원하지 않는 architecture입니다: {{ ansible_architecture }}.
+      x86_64 또는 aarch64 node에서 실행하세요.
 
 - name: Helm 설치 여부 확인
   ansible.builtin.command: "{{ helm_install_path }} version --short"
@@ -9,30 +23,47 @@
 
 - name: 설치 상태 출력
   ansible.builtin.debug:
-    msg: "{{ 'Helm 이미 설치됨 — ' + helm_check.stdout if helm_check.rc == 0 else 'Helm 미설치 — ' ~ helm_version ~ ' 설치를 시작합니다' }}"
+    msg: >-
+      {{ 'Helm 목표 version 설치됨 — ' + helm_check.stdout
+         if helm_check.rc == 0 and helm_version in helm_check.stdout
+         else 'Helm ' ~ helm_version ~ ' 설치 또는 교체를 시작합니다' }}
+
+- name: Helm 설치 또는 교체 필요 여부 판정
+  ansible.builtin.set_fact:
+    helm_needs_install: >-
+      {{ helm_check.rc != 0 or helm_version not in helm_check.stdout }}
+
+- name: Helm 임시 압축 해제 디렉터리 생성
+  ansible.builtin.file:
+    path: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}"
+    state: directory
+    mode: "0755"
+  when: helm_needs_install
 
 - name: Helm 아카이브 다운로드
   ansible.builtin.get_url:
-    url: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
-    dest: "/tmp/helm-{{ helm_version }}-linux-amd64.tar.gz"
+    url: "https://get.helm.sh/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz"
+    dest: "/tmp/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz"
     mode: "0644"
-  when: helm_check.rc != 0
+    checksum: >-
+      sha256:https://get.helm.sh/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz.sha256sum
+  when: helm_needs_install
 
 - name: Helm 아카이브 압축 해제
   ansible.builtin.unarchive:
-    src: "/tmp/helm-{{ helm_version }}-linux-amd64.tar.gz"
-    dest: /tmp
+    src: "/tmp/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz"
+    dest: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}"
     remote_src: true
-    creates: /tmp/linux-amd64/helm
-  when: helm_check.rc != 0
+    creates: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}/linux-{{ helm_architecture }}/helm"
+  when: helm_needs_install
 
 - name: Helm 바이너리 설치
   ansible.builtin.copy:
-    src: /tmp/linux-amd64/helm
+    src: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}/linux-{{ helm_architecture }}/helm"
     dest: "{{ helm_install_path }}"
     remote_src: true
     mode: "0755"
-  when: helm_check.rc != 0
+  when: helm_needs_install
 
 - name: 설치된 Helm 버전 출력
   ansible.builtin.command: "{{ helm_install_path }} version --short"
@@ -42,3 +73,10 @@
 - name: Helm 버전 디버그
   ansible.builtin.debug:
     msg: "{{ helm_version_out.stdout }}"
+
+- name: Helm 목표 version 설치 보장
+  ansible.builtin.assert:
+    that:
+      - helm_version in helm_version_out.stdout
+    fail_msg: >-
+      설치된 Helm version({{ helm_version_out.stdout }})이 목표 {{ helm_version }}과 다릅니다.

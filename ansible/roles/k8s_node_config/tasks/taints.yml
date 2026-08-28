@@ -5,7 +5,10 @@
     {{ prod_taint_key }}={{ prod_taint_value }}:{{ prod_taint_effect }} --overwrite
   loop: "{{ groups['k8s_workers'] }}"
   when: hostvars[item].kube_node_pool == prod_taint_value
-  changed_when: false
+  register: apply_prod_taint
+  changed_when:
+    - "'tainted' in apply_prod_taint.stdout"
+    - "'not tainted' not in apply_prod_taint.stdout"
 
 - name: 비-prod 노드에서 prod taint 제거
   ansible.builtin.command: >-

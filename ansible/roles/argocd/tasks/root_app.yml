@@ -27,11 +27,12 @@
 - name: root.yaml 을 k8s-master 에 stage
   ansible.builtin.copy:
     content: "{{ root_app_yaml.content | b64decode }}"
-    dest: "/home/{{ ansible_user }}/argocd-root.yaml"
+    dest: "{{ homelab_ansible_user_home }}/argocd-root.yaml"
     mode: "0644"
 
 - name: kubectl apply -f argocd-root.yaml
-  ansible.builtin.command: "kubectl apply -f /home/{{ ansible_user }}/argocd-root.yaml"
+  ansible.builtin.command: >-
+    kubectl apply -f {{ homelab_ansible_user_home }}/argocd-root.yaml
   register: root_apply
   changed_when: >-
     'created' in root_apply.stdout

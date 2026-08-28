@@ -1,0 +1,57 @@
+---
+# cluster.yml 완료 후 Kubernetes API와 Inventory node 등록 상태를 검증한다.
+- name: Kubernetes admin.conf 생성 확인
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubernetes_install_admin_conf
+  delegate_to: k8s-master
+  become: true
+
+- name: Kubernetes admin.conf 생성 보장
+  ansible.builtin.assert:
+    that:
+      - kubernetes_install_admin_conf.stat.exists | default(false)
+    fail_msg: "Kubespray 실행 후 k8s-master에 /etc/kubernetes/admin.conf가 없습니다."
+
+- name: Kubernetes 설치 후 Node 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, nodes, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: kubernetes_install_nodes
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: Inventory node의 Kubernetes 등록 검증
+  vars:
+    registered_node_names: >-
+      {{ (kubernetes_install_nodes.stdout | from_json).items
+         | map(attribute='metadata.name')
+         | list }}
+  ansible.builtin.assert:
+    that:
+      - item in registered_node_names
+    fail_msg: "Inventory node {{ item }}이 Kubernetes cluster에 등록되지 않았습니다."
+  loop: "{{ groups['k8s_nodes'] }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: 설치된 Kubernetes Node Ready 및 version 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.status.conditions
+         | selectattr('type', 'equalto', 'Ready')
+         | map(attribute='status')
+         | first
+         | default('False')) == 'True'
+      - >-
+        (item.status.nodeInfo.kubeletVersion | regex_replace('^v', '')) ==
+        (kube_version | regex_replace('^v', ''))
+    fail_msg: >-
+      Node {{ item.metadata.name }}이 Ready가 아니거나 kubelet version이
+      목표 {{ kube_version }}과 일치하지 않습니다.
+  loop: "{{ (kubernetes_install_nodes.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"

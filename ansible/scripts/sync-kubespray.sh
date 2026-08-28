@@ -15,4 +15,15 @@ else
   git -C kubespray checkout "${KUBESPRAY_VERSION}"
 fi
 
+if [ -x .venv/bin/python ]; then
+  if [ ! -x .kubespray-venv/bin/python ]; then
+    .venv/bin/python -m venv .kubespray-venv
+  fi
+  .kubespray-venv/bin/python -m pip install --upgrade pip setuptools wheel
+  .kubespray-venv/bin/python -m pip install -r kubespray/requirements.txt
+else
+  echo "WARNING: .venv가 없어 .kubespray-venv 준비를 건너뜁니다." >&2
+  echo "먼저 ./scripts/prepare-bastion.sh를 실행하세요." >&2
+fi
+
 echo "Kubespray checkout 은 ${KUBESPRAY_VERSION} 에 고정되어 있습니다."
