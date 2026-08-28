@@ -3,7 +3,8 @@
 # 신규 설치는 bootstrap.yml의 install 절차를 사용한다.
 - name: Kubernetes upgrade with Kubespray
   hosts: localhost
-  connection: local
+  # connection: local을 play에 강제하면 delegate_to task까지 bastion에서 실행될 수 있다.
+  # implicit localhost의 기본 local 연결을 사용하고, cluster 점검은 k8s-master로 위임한다.
   gather_facts: false
   any_errors_fatal: true
   tags: [kubernetes_upgrade]
