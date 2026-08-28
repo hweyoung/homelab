@@ -3,9 +3,9 @@
 # 호스트별로 다르지 않은 값은 전부 여기 모아 둡니다.
 
 # Ansible 프로젝트 경로
-# Playbook이 하위 디렉터리로 이동해도 repository 경로가 달라지지 않도록
-# inventory 위치를 기준으로 ansible/ 루트를 계산한다.
-ansible_project_root: "{{ inventory_dir }}/../.."
+# Playbook 위치와 실행 host가 달라도 경로가 변하지 않도록 활성 ansible.cfg를 기준으로
+# ansible/ 루트를 계산한다. inventory_dir는 implicit localhost에서 정의되지 않을 수 있다.
+ansible_project_root: "{{ ansible_config_file | dirname }}"
 kubespray_root: "{{ ansible_project_root }}/kubespray"
 kubespray_venv_root: "{{ ansible_project_root }}/.kubespray-venv"
 kubespray_inventory_path: "{{ ansible_project_root }}/inventories/homelab/hosts.yml"
