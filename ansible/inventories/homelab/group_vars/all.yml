@@ -15,8 +15,8 @@ homelab_ansible_user_home: >-
   {{ '/root' if ansible_user == 'root' else '/home/' ~ ansible_user }}
 
 # Kubespray / Kubernetes
-kubespray_version: "v2.26.0"
-kube_version: "v1.30.4"
+kubespray_version: "v2.27.1"
+kube_version: "v1.31.9"
 
 # Post-Kubespray 노드 taint
 prod_taint_key: "pool"
