@@ -26,7 +26,7 @@
 - name: Inventory node의 Kubernetes 등록 검증
   vars:
     registered_node_names: >-
-      {{ (kubernetes_install_nodes.stdout | from_json).items
+      {{ (kubernetes_install_nodes.stdout | from_json)['items']
          | map(attribute='metadata.name')
          | list }}
   ansible.builtin.assert:
@@ -52,6 +52,6 @@
     fail_msg: >-
       Node {{ item.metadata.name }}이 Ready가 아니거나 kubelet version이
       목표 {{ kube_version }}과 일치하지 않습니다.
-  loop: "{{ (kubernetes_install_nodes.stdout | from_json).items }}"
+  loop: "{{ (kubernetes_install_nodes.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"

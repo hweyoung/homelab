@@ -18,7 +18,7 @@
     fail_msg: >-
       Node {{ item.metadata.name }}의 kubelet은 {{ item.status.nodeInfo.kubeletVersion }}이며
       목표 {{ kube_version }}와 일치하지 않습니다.
-  loop: "{{ (upgrade_nodes_after.stdout | from_json).items }}"
+  loop: "{{ (upgrade_nodes_after.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
 
@@ -58,7 +58,7 @@
 - name: Worker 필수 scheduling label 검증
   vars:
     checked_node: >-
-      {{ (upgrade_nodes_after.stdout | from_json).items
+      {{ (upgrade_nodes_after.stdout | from_json)['items']
          | selectattr('metadata.name', 'equalto', item)
          | first }}
   ansible.builtin.assert:

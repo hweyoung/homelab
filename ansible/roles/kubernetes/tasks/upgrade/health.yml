@@ -19,7 +19,7 @@
          | first
          | default('False')) == 'True'
     fail_msg: "Node {{ item.metadata.name }}가 Ready 상태가 아닙니다."
-  loop: "{{ (upgrade_cluster_nodes.stdout | from_json).items }}"
+  loop: "{{ (upgrade_cluster_nodes.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
 
@@ -59,7 +59,7 @@
          | first
          | default('False')) == 'True'
     fail_msg: "APIService {{ item.metadata.name }}가 Available 상태가 아닙니다."
-  loop: "{{ (upgrade_apiservices.stdout | from_json).items }}"
+  loop: "{{ (upgrade_apiservices.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
 
@@ -101,6 +101,6 @@
     fail_msg: >-
       Pod {{ item.metadata.namespace }}/{{ item.metadata.name }} 상태를 확인하세요
       (phase={{ item.status.phase }}).
-  loop: "{{ (upgrade_cluster_pods.stdout | from_json).items }}"
+  loop: "{{ (upgrade_cluster_pods.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
