@@ -1,7 +1,7 @@
 ---
 - name: 4. Kubespray 실행 (localhost 래퍼)
   hosts: localhost
-  connection: local
+  # implicit localhost는 로컬 실행되며, delegate_to task는 대상 node의 SSH 연결을 사용한다.
   gather_facts: false
   tags: [ kubespray ]
   tasks:
