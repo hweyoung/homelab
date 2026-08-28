@@ -1,0 +1,4 @@
+---
+# Bastion 영역의 기존 실행 순서를 유지한다.
+- import_playbook: ssh.yml
+- import_playbook: hosts.yml

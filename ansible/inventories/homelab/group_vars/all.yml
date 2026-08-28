@@ -2,6 +2,18 @@
 # 프로젝트 전역 변수.
 # 호스트별로 다르지 않은 값은 전부 여기 모아 둡니다.
 
+# Ansible 프로젝트 경로
+# Playbook이 하위 디렉터리로 이동해도 repository 경로가 달라지지 않도록
+# inventory 위치를 기준으로 ansible/ 루트를 계산한다.
+ansible_project_root: "{{ inventory_dir }}/../.."
+kubespray_root: "{{ ansible_project_root }}/kubespray"
+kubespray_venv_root: "{{ ansible_project_root }}/.kubespray-venv"
+kubespray_inventory_path: "{{ ansible_project_root }}/inventories/homelab/hosts.yml"
+gitops_root: "{{ ansible_project_root }}/../gitops"
+# root와 일반 SSH 사용자 모두 같은 Playbook을 사용할 수 있도록 홈 경로를 정규화한다.
+homelab_ansible_user_home: >-
+  {{ '/root' if ansible_user == 'root' else '/home/' ~ ansible_user }}
+
 # Kubespray / Kubernetes
 kubespray_version: "v2.26.0"
 kube_version: "v1.30.4"
@@ -30,4 +42,4 @@ argocd_repo_username: "hweyoung"
 argocd_repo_secret_name: "argocd-repo-homelab"
 
 # GitOps root Application 경로
-gitops_root_app_path: "{{ playbook_dir }}/../gitops/bootstrap/root.yaml"
+gitops_root_app_path: "{{ gitops_root }}/bootstrap/root.yaml"

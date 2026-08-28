@@ -1,0 +1,48 @@
+---
+# Kubespray를 실행하기 전에 Inventory의 cluster topology와 node 역할 변수를 검증한다.
+- name: Kubernetes 필수 Inventory group 검증
+  ansible.builtin.assert:
+    that:
+      - groups.get('k8s_master', []) | length > 0
+      - groups.get('k8s_workers', []) | length > 0
+      - groups.get('k8s_nodes', []) | length > 0
+      - groups.get('kube_control_plane', []) | length > 0
+      - groups.get('kube_node', []) | length > 0
+      - groups.get('etcd', []) | length > 0
+      - groups.get('k8s_cluster', []) | length > 0
+    fail_msg: >-
+      Kubernetes/Kubespray 필수 Inventory group이 비어 있습니다.
+      inventories/homelab/hosts.yml의 group 구조를 확인하세요.
+
+- name: Kubernetes 고정 node 역할 검증
+  ansible.builtin.assert:
+    that:
+      - "'k8s-master' in groups.get('k8s_master', [])"
+      - "'k8s-master' in groups.get('kube_control_plane', [])"
+      - "'k8s-master' in groups.get('etcd', [])"
+      - "'k8s-worker-prod' in groups.get('k8s_workers', [])"
+      - "'k8s-worker-dev' in groups.get('k8s_workers', [])"
+    fail_msg: >-
+      infra-bastion, k8s-master, k8s-worker-prod, k8s-worker-dev 역할 계약을 확인하세요.
+
+- name: Kubernetes worker placement 변수 검증
+  ansible.builtin.assert:
+    that:
+      - hostvars[item].kube_node_pool is defined
+      - hostvars[item].kube_node_pool in ['prod', 'dev']
+      - hostvars[item].platform_tier is defined
+      - hostvars[item].platform_tier in ['stable', 'mutable']
+    fail_msg: >-
+      {{ item }}의 kube_node_pool 또는 platform_tier가 올바르지 않습니다.
+  loop: "{{ groups['k8s_workers'] }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: 기존 cluster 강제 재설치 경고
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: 기존 admin.conf가 있는 cluster에 kubespray_force=true가 설정됐습니다.
+      현재 cluster 상태와 Kubespray release를 확인한 경우에만 계속하세요.
+  when:
+    - existing_cluster.stat.exists
+    - kubespray_force | default(false) | bool

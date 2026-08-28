@@ -1,9 +1,4 @@
 ---
-- name: 공통 cluster health 사전 점검
-  ansible.builtin.import_tasks: health.yml
-  vars:
-    upgrade_check_phase: pre-upgrade
-
 - name: Node placement label과 taint baseline 기록
   ansible.builtin.command:
     argv:
@@ -97,7 +92,7 @@
       - -R
       - -n
       - flowcontrol.apiserver.k8s.io/v1beta3
-      - "{{ playbook_dir }}/../gitops"
+      - "{{ gitops_root }}"
   register: upgrade_removed_api_scan
   changed_when: false
   failed_when: upgrade_removed_api_scan.rc not in [0, 1]
@@ -115,7 +110,7 @@
       - -n
       - -E
       - "apiVersion:.*(v1alpha|v1beta)"
-      - "{{ playbook_dir }}/../gitops"
+      - "{{ gitops_root }}"
   register: upgrade_prerelease_api_scan
   changed_when: false
   failed_when: upgrade_prerelease_api_scan.rc not in [0, 1]

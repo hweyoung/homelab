@@ -1,0 +1,11 @@
+---
+- name: 6. Helm CLI 설치
+  hosts: k8s_master
+  become: true
+  tags: [ helm ]
+  tasks:
+    - name: ArgoCD bootstrap용 Helm CLI 설치
+      ansible.builtin.import_role:
+        name: helm
+        tasks_from: install
+      tags: [helm, install]

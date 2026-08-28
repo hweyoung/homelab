@@ -1,9 +1,4 @@
 ---
-- name: 공통 cluster health 사후 점검
-  ansible.builtin.import_tasks: health.yml
-  vars:
-    upgrade_check_phase: post-upgrade
-
 - name: 모든 Node kubelet version 조회
   ansible.builtin.command:
     argv: [kubectl, get, nodes, -o, json]
