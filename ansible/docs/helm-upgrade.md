@@ -10,7 +10,7 @@ playbooks/upgrade.yml --tags helm_upgrade_*
 
 ## Version 선택
 
-`inventories/homelab/group_vars/all.yml`의 `helm_version`을 목표 version으로 설정한다.
+`inventories/homelab/group_vars/all.yml`의 `helm_cli_version`을 목표 version으로 설정한다.
 Helm이 빌드된 Kubernetes client minor와 cluster version의 공식 `n-3` 호환 범위를 먼저
 확인한다. 현재 Kubernetes 1.31에는 Helm 3.19.x 또는 Helm 4.0.x가 공식 범위에 포함된다.
 

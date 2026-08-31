@@ -9,10 +9,10 @@
 - name: Helm 목표 version 형식 검증
   ansible.builtin.assert:
     that:
-      - helm_version is defined
-      - helm_version is string
-      - helm_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
-    fail_msg: "helm_version을 v3.19.5 형식의 따옴표 문자열로 설정하세요."
+      - helm_cli_version is defined
+      - helm_cli_version is string
+      - helm_cli_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: "helm_cli_version을 v3.19.5 형식의 따옴표 문자열로 설정하세요."
 
 - name: Helm architecture 계산
   ansible.builtin.set_fact:
@@ -43,7 +43,7 @@
   ansible.builtin.set_fact:
     helm_current_version: >-
       {{ helm_upgrade_current_result.stdout | regex_search('v[0-9]+\.[0-9]+\.[0-9]+') }}
-    helm_target_version: "{{ helm_version }}"
+    helm_target_version: "{{ helm_cli_version }}"
 
 - name: Helm version 구성 요소 계산
   ansible.builtin.set_fact:

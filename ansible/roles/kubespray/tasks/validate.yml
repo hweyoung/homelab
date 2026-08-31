@@ -8,6 +8,14 @@
       - kubespray_entrypoint in ['cluster.yml', 'upgrade-cluster.yml']
     fail_msg: "실행할 Kubespray entrypoint를 cluster.yml 또는 upgrade-cluster.yml로 지정하세요."
 
+- name: Kubespray 예약 version 변수 충돌 방지
+  ansible.builtin.assert:
+    that:
+      - helm_version is not defined
+    fail_msg: >-
+      homelab inventory의 helm_version은 Kubespray 내부 변수와 충돌합니다.
+      Helm CLI 목표 version은 helm_cli_version으로 지정하세요.
+
 - name: Kubespray entrypoint 존재 확인
   ansible.builtin.stat:
     path: "{{ kubespray_root }}/{{ kubespray_entrypoint }}"
