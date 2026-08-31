@@ -4,7 +4,7 @@
     that:
       - kube_version is defined
       - kube_version is string
-      - kube_version is match('^v?[0-9]+\.[0-9]+\.[0-9]+$')
+      - kube_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
     fail_msg: >-
-      group_vars/all.yml의 kube_version을 v1.31.9 또는 1.32.8 형식의 따옴표 문자열로
-      설정하세요. Kubespray release에 따라 leading v 사용 여부가 다릅니다.
+      group_vars/all.yml의 kube_version을 1.32.8 형식의 따옴표 문자열로 설정하세요.
+      현재 고정된 Kubespray {{ kubespray_version }}은 leading v를 허용하지 않습니다.
