@@ -25,7 +25,7 @@ prod_taint_effect: "NoSchedule"
 
 # Helm CLI
 # Kubernetes 1.31을 지원하는 Helm 3.19 release line의 최신 patch.
-helm_version: "v3.19.5"
+helm_cli_version: "v3.19.5"
 helm_install_path: "/usr/local/bin/helm"
 
 # ArgoCD (운영자는 ArgoCD version을 선택하고 role이 대응 Helm chart를 결정)

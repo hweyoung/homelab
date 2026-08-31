@@ -28,37 +28,37 @@
 - name: 설치 상태 출력
   ansible.builtin.debug:
     msg: >-
-      {{ 'Helm이 설치되어 있지 않아 ' ~ helm_version ~ ' 최초 설치를 시작합니다.'
+      {{ 'Helm이 설치되어 있지 않아 ' ~ helm_cli_version ~ ' 최초 설치를 시작합니다.'
          if helm_needs_install
          else '기존 ' ~ helm_check.stdout ~ ' 바이너리를 유지합니다. version 변경은 make helm-upgrade를 사용하세요.' }}
 
 - name: Helm 임시 압축 해제 디렉터리 생성
   ansible.builtin.file:
-    path: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}"
+    path: "/tmp/helm-{{ helm_cli_version }}-{{ helm_architecture }}"
     state: directory
     mode: "0755"
   when: helm_needs_install
 
 - name: Helm 아카이브 다운로드
   ansible.builtin.get_url:
-    url: "https://get.helm.sh/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz"
-    dest: "/tmp/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz"
+    url: "https://get.helm.sh/helm-{{ helm_cli_version }}-linux-{{ helm_architecture }}.tar.gz"
+    dest: "/tmp/helm-{{ helm_cli_version }}-linux-{{ helm_architecture }}.tar.gz"
     mode: "0644"
     checksum: >-
-      sha256:https://get.helm.sh/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz.sha256sum
+      sha256:https://get.helm.sh/helm-{{ helm_cli_version }}-linux-{{ helm_architecture }}.tar.gz.sha256sum
   when: helm_needs_install
 
 - name: Helm 아카이브 압축 해제
   ansible.builtin.unarchive:
-    src: "/tmp/helm-{{ helm_version }}-linux-{{ helm_architecture }}.tar.gz"
-    dest: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}"
+    src: "/tmp/helm-{{ helm_cli_version }}-linux-{{ helm_architecture }}.tar.gz"
+    dest: "/tmp/helm-{{ helm_cli_version }}-{{ helm_architecture }}"
     remote_src: true
-    creates: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}/linux-{{ helm_architecture }}/helm"
+    creates: "/tmp/helm-{{ helm_cli_version }}-{{ helm_architecture }}/linux-{{ helm_architecture }}/helm"
   when: helm_needs_install
 
 - name: Helm 바이너리 설치
   ansible.builtin.copy:
-    src: "/tmp/helm-{{ helm_version }}-{{ helm_architecture }}/linux-{{ helm_architecture }}/helm"
+    src: "/tmp/helm-{{ helm_cli_version }}-{{ helm_architecture }}/linux-{{ helm_architecture }}/helm"
     dest: "{{ helm_install_path }}"
     remote_src: true
     mode: "0755"
@@ -77,7 +77,7 @@
   ansible.builtin.assert:
     that:
       - >-
-        (helm_needs_install and helm_version in helm_version_out.stdout)
+        (helm_needs_install and helm_cli_version in helm_version_out.stdout)
         or
         (not helm_needs_install and helm_check.stdout == helm_version_out.stdout)
     fail_msg: >-
