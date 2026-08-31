@@ -21,17 +21,16 @@
   failed_when: false
   changed_when: false
 
+- name: Helm 최초 설치 필요 여부 판정
+  ansible.builtin.set_fact:
+    helm_needs_install: "{{ helm_check.rc != 0 }}"
+
 - name: 설치 상태 출력
   ansible.builtin.debug:
     msg: >-
-      {{ 'Helm 목표 version 설치됨 — ' + helm_check.stdout
-         if helm_check.rc == 0 and helm_version in helm_check.stdout
-         else 'Helm ' ~ helm_version ~ ' 설치 또는 교체를 시작합니다' }}
-
-- name: Helm 설치 또는 교체 필요 여부 판정
-  ansible.builtin.set_fact:
-    helm_needs_install: >-
-      {{ helm_check.rc != 0 or helm_version not in helm_check.stdout }}
+      {{ 'Helm이 설치되어 있지 않아 ' ~ helm_version ~ ' 최초 설치를 시작합니다.'
+         if helm_needs_install
+         else '기존 ' ~ helm_check.stdout ~ ' 바이너리를 유지합니다. version 변경은 make helm-upgrade를 사용하세요.' }}
 
 - name: Helm 임시 압축 해제 디렉터리 생성
   ansible.builtin.file:
@@ -74,9 +73,12 @@
   ansible.builtin.debug:
     msg: "{{ helm_version_out.stdout }}"
 
-- name: Helm 목표 version 설치 보장
+- name: Helm 설치 결과 검증
   ansible.builtin.assert:
     that:
-      - helm_version in helm_version_out.stdout
+      - >-
+        (helm_needs_install and helm_version in helm_version_out.stdout)
+        or
+        (not helm_needs_install and helm_check.stdout == helm_version_out.stdout)
     fail_msg: >-
-      설치된 Helm version({{ helm_version_out.stdout }})이 목표 {{ helm_version }}과 다릅니다.
+      Helm 최초 설치 결과가 올바르지 않거나 기존 바이너리가 의도치 않게 변경됐습니다.

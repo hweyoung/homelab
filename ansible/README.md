@@ -57,12 +57,20 @@ Makefile을 운영 API로 사용한다.
 | `make tailscale` | Tailscale 설치 및 Tailnet join | 필요 |
 | `make kubespray` | 신규 cluster `cluster.yml` 실행 | 불필요 |
 | `make post-kubespray` | kubeconfig, node label, taint | 불필요 |
-| `make helm` | Helm CLI 설치 | 불필요 |
+| `make helm` | Helm CLI 최초 설치 | 불필요 |
+| `make helm-upgrade-precheck` | 기존 Helm CLI upgrade 사전 점검 | 불필요 |
+| `make helm-upgrade` | 승인된 Helm patch/minor upgrade | 불필요 |
+| `make helm-upgrade-major` | 추가 승인된 Helm major upgrade | 불필요 |
+| `make helm-upgrade-postcheck` | Helm upgrade 사후 점검 | 불필요 |
 | `make sops` | ArgoCD namespace SOPS age Secret | 필요 |
-| `make argocd` | ArgoCD 설치와 root Application 적용 | 필요 |
+| `make argocd` | ArgoCD 최초 설치와 root Application bootstrap | 필요 |
 | `make kubernetes-upgrade-precheck` | 기존 cluster upgrade 사전 점검 | 불필요 |
 | `make kubernetes-upgrade` | 승인된 Kubernetes upgrade | 불필요 |
 | `make kubernetes-upgrade-postcheck` | upgrade 사후 점검 | 불필요 |
+| `make argocd-upgrade-precheck` | 기존 ArgoCD release와 Application 사전 점검 | 불필요 |
+| `make argocd-upgrade` | 승인된 ArgoCD Helm chart upgrade | 불필요 |
+| `make argocd-upgrade-reconcile` | 동일 chart version의 승인된 values reconcile | 불필요 |
+| `make argocd-upgrade-postcheck` | ArgoCD upgrade 사후 점검 | 불필요 |
 
 점검 및 utility 명령:
 
@@ -98,11 +106,14 @@ inline extra-vars는 제한된 비민감 제어 변수 외에는 command history
 ```text
 ansible/
 ├── playbooks/                       # 역할별 orchestration
-│   ├── site.yml                     # 전체 bootstrap 진입점
-│   ├── bastion/
-│   ├── network/
-│   ├── kubernetes/                  # install, node-config, upgrade
+│   ├── bootstrap.yml                # 최초 구성 root entrypoint
+│   ├── upgrade.yml                  # component별 upgrade root entrypoint
+│   ├── bastion/{ssh,hosts}.yml
+│   ├── network/tailscale.yml
+│   ├── kubernetes/{install,node-config,upgrade}.yml
 │   └── platform/
+│       ├── helm/{install,upgrade}.yml
+│       └── argocd/{install,upgrade}.yml
 ├── roles/                           # 실제 검증과 상태 변경
 │   ├── kubespray/                   # upstream checkout 검증과 실행
 │   ├── kubernetes/                  # cluster version 및 health 검증
@@ -113,9 +124,10 @@ ansible/
 └── docs/
 ```
 
-`playbooks/site.yml`이 전체 bootstrap 진입점이며, 기존 cluster upgrade는
-`playbooks/kubernetes/upgrade.yml`을 독립 진입점으로 사용한다. 운영자는 실제 경로를
-직접 조합하지 않고 Make target을 사용한다.
+`playbooks/bootstrap.yml`은 최초 구성, `playbooks/upgrade.yml`은 기존 환경 변경의 root
+entrypoint다. bootstrap은 `bastion`, `kubernetes`, `platform` domain tag를 지원하고,
+upgrade는 component별 고유 tag로 한 workflow만 선택한다. 전체 동시 upgrade target은
+제공하지 않으며 운영자는 실제 경로를 직접 조합하지 않고 Make target을 사용한다.
 
 ## 문서
 
@@ -123,6 +135,8 @@ ansible/
 - [실행 방식과 artifact](docs/execution.md)
 - [신규 Kubernetes 설치](docs/kubernetes-install.md)
 - [Kubernetes 업그레이드](docs/kubernetes-upgrade.md)
+- [Helm CLI 업그레이드](docs/helm-upgrade.md)
+- [ArgoCD 업그레이드](docs/argocd-upgrade.md)
 - [문제 해결](docs/troubleshooting.md)
 - [스크립트 책임](scripts/README.md)
 - [Secret 관리](../gitops/SECRETS.md)

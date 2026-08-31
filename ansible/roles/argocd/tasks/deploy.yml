@@ -1,54 +1,41 @@
 ---
-# chart version뿐 아니라 렌더링된 values 변경도 Helm reconcile 조건에 포함한다.
-- name: argocd-values.yaml 렌더링
-  ansible.builtin.template:
-    src: argocd-values.yaml.j2
-    dest: "{{ homelab_ansible_user_home }}/argocd-values.yaml"
-    mode: "0644"
-  register: argocd_values_render
+# bootstrap과 upgrade가 공유하는 유일한 Helm release 변경 지점.
+# 실행 정책과 승인 여부는 호출 Playbook 및 validate.yml이 먼저 결정한다.
+- name: ArgoCD deploy 선행 검증
+  ansible.builtin.assert:
+    that:
+      - argocd_operation in ['bootstrap', 'upgrade']
+      - argocd_deploy_required is defined
+      - argocd_precheck_passed | default(false) | bool
+      - argocd_operation == 'bootstrap' or argocd_upgrade_confirm | default(false) | bool
+    fail_msg: >-
+      validate/precheck와 Playbook 승인 gate를 거치지 않은 ArgoCD deploy는 허용하지 않습니다.
+  when: argocd_deploy_required | bool
 
-- name: 기존 ArgoCD 릴리즈 상태 조회
-  ansible.builtin.command: >-
-    {{ helm_install_path }} status argocd
-    -n {{ argocd_namespace }}
-    -o json
-  register: argocd_status
-  changed_when: false
-  failed_when: false
+- name: ArgoCD Helm release 배포
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - upgrade
+      - --install
+      - argocd
+      - argo/argo-cd
+      - --namespace
+      - "{{ argocd_namespace }}"
+      - --version
+      - "{{ argocd_chart_version }}"
+      - --values
+      - "{{ homelab_ansible_user_home }}/argocd-values.yaml"
+      - --create-namespace
+      - "{{ '--rollback-on-failure' if argocd_helm_major | int >= 4 else '--atomic' }}"
+      - --wait
+      - --wait-for-jobs
+      - --timeout
+      - "{{ argocd_helm_timeout }}"
+  changed_when: true
+  when: argocd_deploy_required | bool
 
-- name: 기존 릴리즈 메타데이터 파싱
-  ansible.builtin.set_fact:
-    argocd_current_version: "{{ (argocd_status.stdout | from_json).chart.metadata.version }}"
-    argocd_release_status: "{{ (argocd_status.stdout | from_json).info.status }}"
-  when: argocd_status.rc == 0
-
-- name: 설치/업그레이드 필요 여부 판정
-  ansible.builtin.set_fact:
-    argocd_needs_install: >-
-      {{ argocd_status.rc != 0
-         or argocd_release_status | default('') != 'deployed'
-         or argocd_current_version | default('') != argocd_chart_version
-         or argocd_values_render is changed
-         or (argocd_force | default(false) | bool) }}
-
-- name: ArgoCD가 동일 version과 values로 deployed 상태 — Helm reconcile 생략
+- name: ArgoCD Helm release 변경 생략
   ansible.builtin.debug:
-    msg: >-
-      ArgoCD {{ argocd_current_version }}이 동일한 values로 deployed 상태입니다.
-      강제 재실행이 필요하면 `-e argocd_force=true` 를 추가하세요.
-  when: not argocd_needs_install
-
-- name: ArgoCD 설치 또는 업그레이드
-  when: argocd_needs_install
-  block:
-    # 같은 명령으로 최초 설치와 기존 release 업그레이드를 처리한다.
-    - name: ArgoCD 배포 (설치 또는 업그레이드)
-      ansible.builtin.command: >
-        {{ helm_install_path }} upgrade --install argocd argo/argo-cd
-        -n {{ argocd_namespace }}
-        --version {{ argocd_chart_version }}
-        -f {{ homelab_ansible_user_home }}/argocd-values.yaml
-        --create-namespace
-        --wait
-        --timeout 5m
-      changed_when: true
+    msg: "{{ argocd_operation }} workflow에서 Helm release 변경이 필요하지 않습니다."
+  when: not (argocd_deploy_required | bool)

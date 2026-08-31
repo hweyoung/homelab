@@ -1,6 +1,6 @@
 ---
 # 기존 Kubernetes 클러스터 전용 업그레이드 진입점.
-# 신규 설치는 bootstrap.yml의 install 절차를 사용한다.
+# 신규 설치는 install.yml을 사용한다.
 - name: Kubernetes upgrade with Kubespray
   hosts: localhost
   # connection: local을 play에 강제하면 delegate_to task까지 bastion에서 실행될 수 있다.
@@ -15,19 +15,19 @@
         tasks_from: validate
       vars:
         kubespray_entrypoint: upgrade-cluster.yml
-      tags: [always]
+      tags: [kubernetes_upgrade_precheck, kubernetes_upgrade_run, kubernetes_upgrade_postcheck]
 
     - name: 목표 Kubernetes version 검증
       ansible.builtin.import_role:
         name: kubernetes
         tasks_from: validate/version
-      tags: [always]
+      tags: [kubernetes_upgrade_precheck, kubernetes_upgrade_run, kubernetes_upgrade_postcheck]
 
     - name: Kubernetes upgrade 경로 검증
       ansible.builtin.import_role:
         name: kubernetes
         tasks_from: upgrade/validate
-      tags: [always]
+      tags: [kubernetes_upgrade_precheck, kubernetes_upgrade_run, kubernetes_upgrade_postcheck]
 
     - name: Kubernetes upgrade 전 cluster health 점검
       ansible.builtin.import_role:
@@ -35,13 +35,13 @@
         tasks_from: upgrade/health
       vars:
         upgrade_check_phase: pre-upgrade
-      tags: [precheck]
+      tags: [precheck, kubernetes_upgrade_precheck, kubernetes_upgrade_run]
 
     - name: Kubernetes upgrade 전 운영 baseline 점검
       ansible.builtin.import_role:
         name: kubernetes
         tasks_from: upgrade/precheck
-      tags: [precheck]
+      tags: [precheck, kubernetes_upgrade_precheck, kubernetes_upgrade_run]
 
     - name: 실제 Kubernetes upgrade 승인 확인
       ansible.builtin.assert:
@@ -51,7 +51,7 @@
           실제 upgrade-cluster.yml 실행은 명시적 승인이 필요합니다.
           -e kubernetes_upgrade_confirm=true를 추가하세요.
       when: not ansible_check_mode
-      tags: [upgrade]
+      tags: [upgrade, kubernetes_upgrade_run]
 
     - name: Check mode에서는 Kubespray upgrade 실행 생략
       ansible.builtin.debug:
@@ -59,14 +59,14 @@
           Check mode: Kubespray {{ kubespray_version }}의 upgrade-cluster.yml로
           Kubernetes {{ kube_version }} 업그레이드를 실행할 예정입니다.
       when: ansible_check_mode
-      tags: [upgrade]
+      tags: [upgrade, kubernetes_upgrade_run]
 
     - name: Kubespray로 Kubernetes upgrade 실행
       ansible.builtin.import_role:
         name: kubespray
         tasks_from: upgrade
       when: not ansible_check_mode
-      tags: [upgrade]
+      tags: [upgrade, kubernetes_upgrade_run]
 
     - name: Kubernetes upgrade 후 cluster health 점검
       ansible.builtin.import_role:
@@ -74,10 +74,10 @@
         tasks_from: upgrade/health
       vars:
         upgrade_check_phase: post-upgrade
-      tags: [postcheck]
+      tags: [postcheck, kubernetes_upgrade_run, kubernetes_upgrade_postcheck]
 
     - name: Kubernetes upgrade 결과 검증
       ansible.builtin.import_role:
         name: kubernetes
         tasks_from: upgrade/postcheck
-      tags: [postcheck]
+      tags: [postcheck, kubernetes_upgrade_run, kubernetes_upgrade_postcheck]
