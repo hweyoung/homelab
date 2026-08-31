@@ -27,6 +27,9 @@ kubespray_version: "v2.x.y"
 kube_version: "1.x.y"
 ```
 
+`kubespray_version`은 Git tag이므로 선행 `v`가 필요하지만, Kubespray 내부
+`kube_version`에는 선행 `v`를 붙이지 않는다.
+
 Role은 동일 minor의 patch 상승 또는 바로 다음 minor만 허용하며 downgrade와 minor skip을
 거부한다.
 
