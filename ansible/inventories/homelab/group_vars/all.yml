@@ -16,7 +16,7 @@ homelab_ansible_user_home: >-
 
 # Kubespray / Kubernetes
 kubespray_version: "v2.28.1"
-kube_version: "1.32.8"
+kube_version: "v1.32.8"
 
 # Post-Kubespray 노드 taint
 prod_taint_key: "pool"
