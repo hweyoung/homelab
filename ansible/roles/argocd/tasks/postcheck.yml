@@ -55,16 +55,16 @@
   retries: "{{ argocd_postcheck_retries }}"
   delay: "{{ argocd_postcheck_delay }}"
   until:
-    - (argocd_pods_after.stdout | from_json).items | length > 0
+    - (argocd_pods_after.stdout | from_json)['items'] | length > 0
     - >-
-      ((argocd_pods_after.stdout | from_json).items
+      ((argocd_pods_after.stdout | from_json)['items']
        | rejectattr('status.phase', 'in', ['Running', 'Succeeded']) | list | length) == 0
     - >-
-      ((argocd_pods_after.stdout | from_json).items
+      ((argocd_pods_after.stdout | from_json)['items']
        | selectattr('status.phase', 'equalto', 'Running')
        | list | length)
       ==
-      ((argocd_pods_after.stdout | from_json).items
+      ((argocd_pods_after.stdout | from_json)['items']
        | selectattr('status.phase', 'equalto', 'Running')
        | map(attribute='status.conditions') | flatten
        | selectattr('type', 'equalto', 'Ready')
@@ -81,7 +81,7 @@
       - item.status.phase in ['Running', 'Succeeded']
       - item.status.phase == 'Succeeded' or pod_ready == 'True'
     fail_msg: "{{ item.metadata.name }} Pod가 Ready 또는 완료 상태가 아닙니다."
-  loop: "{{ (argocd_pods_after.stdout | from_json).items }}"
+  loop: "{{ (argocd_pods_after.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
 
@@ -93,18 +93,18 @@
   retries: "{{ argocd_postcheck_retries }}"
   delay: "{{ argocd_postcheck_delay }}"
   until:
-    - (argocd_apps_after.stdout | from_json).items | length > 0
+    - (argocd_apps_after.stdout | from_json)['items'] | length > 0
     - >-
-      ((argocd_apps_after.stdout | from_json).items
+      ((argocd_apps_after.stdout | from_json)['items']
        | rejectattr('status.sync.status', 'defined') | list | length) == 0
     - >-
-      ((argocd_apps_after.stdout | from_json).items
+      ((argocd_apps_after.stdout | from_json)['items']
        | rejectattr('status.sync.status', 'equalto', 'Synced') | list | length) == 0
     - >-
-      ((argocd_apps_after.stdout | from_json).items
+      ((argocd_apps_after.stdout | from_json)['items']
        | rejectattr('status.health.status', 'defined') | list | length) == 0
     - >-
-      ((argocd_apps_after.stdout | from_json).items
+      ((argocd_apps_after.stdout | from_json)['items']
        | rejectattr('status.health.status', 'equalto', 'Healthy') | list | length) == 0
   when: argocd_operation == 'upgrade'
 
@@ -116,7 +116,7 @@
     fail_msg: >-
       {{ item.metadata.namespace }}/{{ item.metadata.name }}가 제한 시간 안에
       Synced/Healthy 상태로 복구되지 않았습니다.
-  loop: "{{ (argocd_apps_after.stdout | from_json).items }}"
+  loop: "{{ (argocd_apps_after.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
   when: argocd_operation == 'upgrade'
