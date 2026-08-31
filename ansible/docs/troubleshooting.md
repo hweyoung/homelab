@@ -1,624 +1,418 @@
-# Ansible 문제 해결
+# Kubernetes / Kubespray 문제 해결
 
-## 기본 확인 순서
+이 문서는 기존 Kubernetes 클러스터 업그레이드 문제를 실행 phase별로 분류한다. 명령은
+별도 언급이 없으면 `infra-bastion`의 `/home/rocky/homelab/ansible`에서 실행한다.
+
+```text
+Phase 0 기준 확인
+  -> Phase 1 Kubespray 준비
+  -> Phase 2 upgrade precheck
+  -> Phase 3 upgrade 실행
+  -> Phase 4 중단 상태 분류 및 복구
+  -> Phase 5 upgrade postcheck
+  -> Phase 6 artifact 분석
+```
+
+## 공통 안전 원칙
+
+- bootstrap playbook으로 기존 클러스터를 다시 만들지 않는다.
+- 원인을 확인하기 전에 강제 drain, PDB 삭제, Pod 강제 삭제를 하지 않는다.
+- `--ignore-preflight-errors=all` 또는 수동 `kubeadm upgrade`로 검증을 우회하지 않는다.
+- 클러스터 조회는 `k8s-master:/etc/kubernetes/admin.conf`를 기준으로 한다.
+- Vault, SOPS, kubeconfig 및 credential 원문은 artifact나 이슈에 첨부하지 않는다.
+- wrapper가 남긴 cleanup 결과까지 확인한 뒤 재실행한다.
+
+## Phase 0. 실행 전 기준 확인
+
+### 저장소와 Ansible 진입점
 
 ```bash
 pwd
 git status --short
+git log -1 --oneline
 make inventory
 make syntax
 ```
 
-명령은 `infra-bastion`의 `ansible/` 루트에서 실행한다.
+예상 기준은 다음과 같다.
 
-## 임시 디렉터리 오류
+- 작업 디렉터리: `/home/rocky/homelab/ansible`
+- inventory: `inventories/homelab/hosts.yml`
+- upgrade 진입점: `playbooks/kubernetes/upgrade.yml`
+- Kubespray 실행 playbook: `kubespray/upgrade-cluster.yml`
 
-wrapper는 `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local`, `TMPDIR=/tmp`를 설정한다. 권한 오류가
-나면 `scripts/ansible-env.sh`가 로드됐는지와 디렉터리 생성 권한을 확인한다.
+dirty worktree라면 변경 출처를 확인한다. 특히 `kubespray/` 하위 변경은 checkout 실패와
+후속 실행 결과를 왜곡할 수 있다.
 
-## Inventory 오류
+### 버전 변수 계약
+
+```bash
+rg -n "kubespray_version|kube_version|kubespray_argocd|helm_cli_version|argocd_app_version" \
+  inventories/homelab/group_vars/all.yml
+```
+
+현재 변수 형식은 다음 경계를 지켜야 한다.
+
+| 변수 | 형식 | 소유 범위 |
+| --- | --- | --- |
+| `kubespray_version` | `v2.28.1` | Git tag checkout |
+| `kube_version` | `1.32.8` | Kubespray Kubernetes version |
+| `kubespray_argocd_enabled` | `false` | Kubespray addon 차단 |
+| `kubespray_argocd_version` | `2.14.5` | Kubespray 내부 checksum 호환값 |
+| `helm_cli_version` | `v3.19.5` | homelab Helm role |
+| `argocd_app_version` | `3.0.0` | homelab ArgoCD role |
+
+Kubespray 검증과 충돌하므로 inventory에 전역 `helm_version` 또는 `argocd_version`을
+정의하지 않는다. Kubernetes 버전에도 선행 `v`를 붙이지 않는다.
+
+### 대상 inventory와 cluster 확인
 
 ```bash
 ./scripts/run-inventory.sh --graph
 ./scripts/run-inventory.sh --list >/dev/null
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl config current-context'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes -o wide'
 ```
 
-- `inventories/homelab/hosts.yml` 존재와 YAML parse 확인
-- 정확한 네 node 이름 확인
-- `kube_control_plane`, `kube_node`, `etcd`, `k8s_cluster` 확인
+`kube_control_plane`, `kube_node`, `etcd`, `k8s_cluster` 그룹과 실제 node 이름이 일치해야
+한다. inventory 원문에는 IP와 사용자가 있으므로 외부에 그대로 공유하지 않는다.
 
-Inventory 원문에는 IP와 사용자가 있으므로 issue나 외부 로그에 첨부하지 않는다.
-
-## Kubespray checkout 오류
+## Phase 1. Kubespray checkout 및 실행 환경 준비
 
 ```bash
 make sync-kubespray
 git -C kubespray describe --tags --exact-match
+test -x .kubespray-venv/bin/ansible-playbook
+.kubespray-venv/bin/ansible-playbook --version
 ```
 
-- checkout tag와 `kubespray_version` 일치
-- `cluster.yml` 또는 `upgrade-cluster.yml` 존재
-- `kubespray/ansible.cfg`, `kubespray/roles` 존재
-- `.kubespray-venv/bin/ansible-playbook` 실행 가능
+확인 항목:
 
-프로젝트 `.venv`와 `.kubespray-venv`를 합치지 않는다.
+- checkout tag가 `kubespray_version`과 일치한다.
+- `kubespray/upgrade-cluster.yml`, `kubespray/ansible.cfg`, `kubespray/roles/`가 존재한다.
+- `.kubespray-venv`는 프로젝트 `.venv`와 분리되어 있다.
+- Kubespray 요구 범위의 Ansible/Jinja/netaddr가 설치되어 있다.
 
-## Vault 및 SOPS 오류
+### `pathspec '2.28.1' did not match`
+
+`kubespray_version`에서 `v`가 빠졌거나 local clone에 tag가 없을 때 발생한다.
 
 ```bash
-./scripts/run-vault.sh view
+rg -n "kubespray_version" inventories/homelab/group_vars/all.yml
+git -C kubespray tag -l 'v2.28.1'
+git -C kubespray status --short
 ```
 
-값을 복사하거나 로그에 남기지 않고 key 존재 여부만 확인한다. `sops_age_private_key`는
-저장소 `.sops.yaml`의 age public key와 짝이 맞아야 한다. 새 키로 기존 Secret을 덮지
+변수는 `v2.28.1`처럼 실제 Git tag와 동일해야 한다. tag가 없다면 remote/tag fetch 상태를
+확인하고, `kubespray/`에 보존해야 할 로컬 변경이 없는지 먼저 확인한다.
+
+## Phase 2. Kubernetes upgrade precheck
+
+```bash
+make kubernetes-upgrade-precheck
+```
+
+precheck는 대략 다음 순서로 실패를 차단한다.
+
+1. Kubespray checkout, venv, inventory 경로 검증
+2. 현재/목표 Kubernetes 버전과 upgrade 경로 검증
+3. node Ready, API `/readyz`, system Pod 상태 검증
+4. PDB와 stateful workload의 drain 위험 검증
+5. upgrade 승인 변수 검증
+
+### `not kube_version.startswith('v')`
+
+Kubespray 2.28 계열은 정규화된 Kubernetes 버전을 요구한다.
+
+```yaml
+kube_version: "1.32.8"
+```
+
+CLI의 extra vars도 동일하다. `-e kube_version=v1.32.8`이 아니라
+`-e kube_version=1.32.8`이어야 한다.
+
+### `not helm_version.startswith('v')`
+
+homelab의 Helm 버전을 Kubespray 전역 변수 `helm_version`으로 전달한 경우다. inventory의
+homelab 변수는 `helm_cli_version`을 사용하고, Kubespray에는 불필요한 Helm 변수를 넘기지
 않는다.
 
-## 실행 실패
-
 ```bash
-ls -1t runs/<operation>/ | head
+rg -n "(^|[[:space:]])helm_version:" inventories playbooks roles
+rg -n "helm_cli_version" inventories playbooks roles
 ```
 
-1. `summary.md`
-2. `metadata.yml`
-3. `stdout.log`
-4. `ansible.log`
-5. `command.txt`
+### `argocd_install_checksums... has no attribute '3.0.0'`
 
-Secret이 발견되면 artifact를 공유하지 않고 credential 회전과 `no_log` 보완을 우선한다.
-
-## Kubernetes context
-
-이 workflow는 cluster 점검을 `k8s-master:/etc/kubernetes/admin.conf` 기준으로 수행한다.
-수동 검증 전 target context인지 확인한다.
-
-```bash
-kubectl config current-context
-kubectl cluster-info
-```
-
-target cluster가 아니거나 접근할 수 없다면 정적 분석과 live-cluster 검증을 구분한다.
-
-## Kubernetes 1.30.4에서 1.31.9 upgrade 장애 기록
-
-이번 upgrade에서 확인한 장애와 해결 순서는 다음과 같다. 각 조치는 증상과 원인이 일치할
-때만 사용하고, 다음 단계로 넘어가기 전에 cluster health를 다시 확인한다.
-
-| 순서 | 증상 | 원인 | 해결 |
-| --- | --- | --- | --- |
-| 1 | `inventory_dir is undefined` | localhost validation에서 inventory 전용 변수를 project root 계산에 사용 | `ansible_config_file | dirname` 기준으로 project root 계산 |
-| 2 | master의 `admin.conf`가 있는데 stat 결과가 없음 | localhost play의 local connection이 delegated task에도 적용 | play의 명시적 `connection: local` 제거 후 `delegate_to: k8s-master` 사용 |
-| 3 | JSON loop가 built-in method를 받음 | `.items`가 JSON key가 아니라 dictionary method로 평가 | `(result.stdout | from_json)['items']` 사용 |
-| 4 | 동일 version precheck 거부 | upgrade와 독립 postcheck의 목적이 다름 | 실제 upgrade는 더 높은 target만 허용하고 postcheck target에서만 동일 version 허용 |
-| 5 | kubeadm health-check Job timeout | control plane은 drain되고 두 worker에는 사용자 정의 `NoSchedule` taint 존재 | control plane uncordon, dev taint 임시 제거 후 recovery upgrade |
-| 6 | master system Pod `CreateContainerConfigError` | 1.31 kubelet이 1.30 API server에 지원되지 않는 `spec.clusterIP` selector 사용 | Pod 삭제 반복 대신 control plane upgrade 완료 |
-| 7 | Kubespray task가 오랫동안 출력 없이 대기 | 상위 Ansible `command`가 하위 `ansible-playbook` 출력을 종료 시점까지 보관 | 별도 terminal에서 process와 run artifact의 `ansible.log` 확인 |
-| 8 | prod worker drain이 6분 후 실패 | 단일 CNPG instance의 PDB가 eviction 차단 | maintenance window와 `reusePVC:true` 적용 후 worker별 제한 실행 |
-| 9 | OpenBao가 `Running 0/1` | prod node 처리로 Pod가 재시작되며 sealed 상태가 됨 | 관리 terminal에서 대화형 unseal 후 Ready 확인 |
-
-문제 해결 중 `--ignore-preflight-errors`, 강제 drain, PDB 직접 삭제, 전체 bootstrap 재실행을
-일반적인 우회 수단으로 사용하지 않는다. 부분 upgrade 상태에서는 현재 API server, kubelet,
-node schedulability와 stateful workload를 먼저 기록한다.
-
-## 사전 Ansible 오류
-
-### localhost에서 `inventory_dir`가 undefined
-
-`inventory_dir`는 inventory host context에 의존하므로 localhost validation에서 project
-root의 기본값으로 사용하지 않는다.
-
-```text
-{{ inventory_dir }}/../..: 'inventory_dir' is undefined
-```
-
-project root는 현재 Ansible configuration 위치를 기준으로 계산한다.
+Kubespray download role가 homelab의 `argocd_app_version: 3.0.0`을 addon 버전으로 잘못
+해석한 경우다. Kubespray 호출에는 addon 경계를 명시한다.
 
 ```yaml
-ansible_project_root: "{{ ansible_config_file | dirname }}"
+argocd_enabled: false
+argocd_version: "2.14.5"
 ```
 
-### delegated task가 localhost에서 실행됨
+`argocd_enabled=false`라도 Kubespray가 download dictionary를 template하는 과정에서
+checksum lookup이 먼저 평가될 수 있으므로 호환되는 내부 버전도 함께 전달한다.
 
-`/etc/kubernetes/admin.conf`가 master에 존재하는데 upgrade validation이 없다고 판단하면
-ad-hoc stat으로 실제 host 상태를 먼저 확인한다.
+### node/API/Pod health 실패
 
 ```bash
-./scripts/run-adhoc.sh k8s_master \
-  --become \
-  -m ansible.builtin.stat \
-  -a 'path=/etc/kubernetes/admin.conf'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get --raw=/readyz?verbose'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pods -A -o wide'
 ```
 
-localhost play에 `connection: local`을 강제하면 `delegate_to` task의 연결까지 잘못 적용될
-수 있다. implicit localhost local connection을 사용하고 cluster task만
-`delegate_to: k8s-master`, `become: true`로 실행한다.
+`Running`은 Ready를 의미하지 않는다. `READY=0/1`, CrashLoopBackOff, Pending Pod도 실패
+대상이다. node의 `SchedulingDisabled`가 이전 실패에서 남았는지도 확인한다.
 
-### JSON `items` loop 오류
-
-다음 오류는 dictionary의 `items` method를 loop에 전달했을 때 발생한다.
-
-```text
-Invalid data passed to 'loop', it requires a list, got this instead:
-<built-in method items of dict object>
-```
-
-JSON 배열 key는 bracket notation으로 접근한다.
-
-```yaml
-loop: "{{ (command_result.stdout | from_json)['items'] }}"
-```
-
-### 동일 version upgrade 거부
-
-현재와 목표 version이 같으면 실제 upgrade 실행은 거부한다. 동일 version 검증은 독립
-postcheck에서만 허용한다.
+### PDB 또는 local-path workload 실패
 
 ```bash
-make kubernetes-upgrade-postcheck
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pdb -A'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pod -A \
+  -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,NODE:.spec.nodeName,READY:.status.containerStatuses[*].ready'
 ```
 
-### postcheck에서 worker `pool` label 누락
-
-다음 오류는 worker의 실제 placement label과 inventory 계약이 다를 때 발생한다.
-
-```text
-Worker 필수 scheduling label 검증
-'dict object' has no attribute 'pool'
-```
-
-postcheck는 누락 label을 `missing`으로 표시하도록 구현하며, 정상 upgrade 경로는 Kubespray
-완료 후 홈랩 전용 `reconcile.yml`에서 label을 자동 복구한다. 이미 완료된 upgrade의 독립
-postcheck에서 발견했다면 node-config를 한 번 재적용한 뒤 다시 검사한다.
-
-```bash
-make post-kubespray
-make kubernetes-upgrade-postcheck
-```
-
-## Kubernetes upgrade health-check Job 스케줄 실패
-
-### 증상
-
-Kubespray upgrade가 첫 control plane의 `kubeadm upgrade apply` 단계에서 다음 오류로
-중단될 수 있다.
-
-```text
-[ERROR CreateJob]: Job "upgrade-health-check-xxxxx" in the namespace
-"kube-system" did not complete in 15s: no condition of type Complete
-```
-
-실패 후에는 다음과 같은 부분 업그레이드 상태가 나타날 수 있다.
-
-- control plane node의 kubelet은 목표 version이지만 API server는 기존 version
-- control plane node가 `Ready,SchedulingDisabled`
-- CoreDNS 또는 dns-autoscaler가 `Pending`이나 `CreateContainerConfigError`
-- `services have not yet been read at least once, cannot construct envvars` 이벤트
-- master kubelet 로그에서 `spec.clusterIP is not a known field selector` 오류
-
-`clusterDNS` 권장값이나 kubeadm configuration deprecation 메시지는 경고다. 실제 fatal
-원인은 `upgrade-health-check` Job의 완료 실패 여부와 Pod 이벤트로 판단한다.
-
-### 원인 확인
-
-이 homelab은 단일 control plane을 사용하고 두 worker에 workload 분리용 `NoSchedule`
-taint를 설정한다. Kubespray가 control plane을 drain하면 다음 조건이 동시에 발생할 수 있다.
-
-```text
-k8s-master      -> unschedulable
-k8s-worker-dev  -> environment=dev:NoSchedule
-k8s-worker-prod -> environment=prod:NoSchedule
-```
-
-이 상태에서는 kubeadm health-check Job을 실행할 node가 없다. 다음 명령으로 node와 이벤트를
+single replica와 `local-path` 조합은 node 이동이 불가능할 수 있다. workload를 강제로
+삭제하거나 CNPG PDB를 제거하지 말고, 어느 node에 저장소와 Pod가 묶여 있는지 먼저
 확인한다.
 
-```bash
-kubectl get nodes -o wide
-kubectl get nodes \
-  -o custom-columns='NAME:.metadata.name,UNSCHEDULABLE:.spec.unschedulable,TAINTS:.spec.taints'
-kubectl -n kube-system get jobs,pods -o wide \
-  | grep -E 'upgrade-health-check|NAME'
-kubectl -n kube-system get events \
-  --sort-by=.metadata.creationTimestamp \
-  | tail -n 100
-```
-
-다음 이벤트가 있으면 스케줄 가능한 node 부재가 원인이다.
-
-```text
-0/3 nodes are available: worker nodes had untolerated taint and the control plane
-node was unschedulable
-```
-
-Kubespray가 kubelet binary를 먼저 갱신한 뒤 control plane 적용에 실패하면 kubelet과 API
-server의 version도 함께 확인한다.
+## Phase 3. Kubespray upgrade 실행
 
 ```bash
-kubectl version
-kubectl get nodes \
-  -o custom-columns='NAME:.metadata.name,KUBELET:.status.nodeInfo.kubeletVersion'
-./scripts/run-adhoc.sh k8s_master \
-  --become \
-  -m ansible.builtin.shell \
-  -a "journalctl -u kubelet --since=-10min --no-pager | grep -E 'failed to list.*Service|spec.clusterIP' | tail -n 50"
+make kubernetes-upgrade
 ```
 
-다음 조합이면 kubelet 재시작이나 Pod 재생성으로 해결할 수 없는 부분 업그레이드 상태다.
+정상 호출은 Kubespray `upgrade-cluster.yml`에 다음 경계를 전달한다.
 
-```text
-k8s-master kubelet: v1.31.x
-kube-apiserver:     v1.30.x
-failed to list *v1.Service: "spec.clusterIP" is not a known field selector
-```
+- `kube_version=1.32.8`
+- `serial=1`
+- `argocd_enabled=false`
+- `argocd_version=2.14.5`
 
-Kubernetes 1.31 kubelet은 Service informer에 `spec.clusterIP` field selector를 사용하지만
-1.30 API server는 이를 지원하지 않는다. kubelet은 kube-apiserver보다 새 version이면 안
-되므로 control plane upgrade를 완료해 지원되는 version 관계로 복구해야 한다.
+upgrade는 node를 한 번에 하나씩 처리한다. 실패했다고 곧바로 전체 명령을 반복하지 말고
+Phase 4에서 실제 변경 범위를 먼저 확인한다.
 
-### 복구
+### 화면 출력이 멈춘 것처럼 보이는 경우
 
-`--ignore-preflight-errors=CreateJob`로 우회하거나 전체 bootstrap을 실행하지 않는다. 실패한
-upgrade의 artifact와 etcd backup을 보존한 상태에서 다음 순서로 복구한다.
-
-1. Kubespray 실패로 cordon 상태에 남은 control plane을 복구한다.
-
-   ```bash
-   kubectl uncordon k8s-master
-   kubectl wait --for=condition=Ready node/k8s-master --timeout=120s
-   ```
-
-2. upgrade health-check가 사용할 dev worker의 환경 taint를 임시 제거한다. prod worker의
-   taint는 유지한다.
-
-   ```bash
-   kubectl taint node k8s-worker-dev \
-     homelab.okbear.dev/environment=dev:NoSchedule-
-   ```
-
-3. API server readiness와 현재 version skew를 확인한다.
-
-   ```bash
-   kubectl get --raw='/readyz?verbose'
-   kubectl version
-   kubectl get nodes \
-     -o custom-columns='NAME:.metadata.name,KUBELET:.status.nodeInfo.kubeletVersion,UNSCHEDULABLE:.spec.unschedulable,TAINTS:.spec.taints'
-   ```
-
-   API server가 기존 minor이고 master kubelet만 목표 minor라면 일반 precheck는
-   `CreateContainerConfigError` Pod 때문에 실패한다. 스케줄 문제를 해소했고 API
-   `/readyz`가 통과한 상태에서 upgrade 단계만 tag-scoped로 재개한다.
-
-4. control plane upgrade를 완료한다.
-
-   ```bash
-   ./scripts/run-playbook.sh \
-     kubernetes-upgrade-recovery \
-     playbooks/kubernetes/upgrade.yml \
-     --tags upgrade \
-     -e kubernetes_upgrade_confirm=true
-   ```
-
-   이 명령은 장애로 통과할 수 없는 cluster health precheck만 생략한다. Kubespray
-   `upgrade-cluster.yml`, 명시적 승인 gate와 version 검증은 그대로 수행한다. 수동
-   `kubeadm upgrade apply`, `cluster.yml` 또는 `--ignore-preflight-errors=CreateJob`로
-   우회하지 않는다.
-
-5. API server가 목표 version으로 올라간 뒤 system Pod 복구를 확인한다.
-
-   ```bash
-   kubectl version
-   kubectl -n kube-system rollout status deployment/coredns --timeout=180s
-   kubectl -n kube-system rollout status deployment/dns-autoscaler --timeout=180s
-   kubectl get --raw='/readyz?verbose'
-   kubectl get nodes -o wide
-   kubectl get pods -A \
-     --field-selector=status.phase!=Running,status.phase!=Succeeded \
-     -o wide
-   ```
-
-   master의 Calico, kube-proxy 또는 NodeLocalDNS가 version skew 해소 후에도 복구되지
-   않으면 kubelet을 한 번 재시작한다.
-
-   ```bash
-   ./scripts/run-adhoc.sh k8s_master \
-     --become \
-     -m ansible.builtin.systemd_service \
-     -a 'name=kubelet state=restarted'
-   ```
-
-   그래도 남은 실패 Pod는 `kubectl describe pod`로 동일 오류인지 확인한 뒤 Deployment나
-   DaemonSet이 관리하는 Pod만 개별 재생성한다. static Pod, PVC 또는 stateful workload를
-   이 절차로 삭제하지 않는다.
-
-6. 전체 health와 upgrade 결과를 검증한다.
-
-   ```bash
-   make kubernetes-upgrade-postcheck
-   kubectl -n kube-system get daemonsets
-   kubectl get pods -A \
-     --field-selector=status.phase!=Running,status.phase!=Succeeded \
-     -o wide
-   ```
-
-dev worker의 임시 taint 제거 상태는 recovery upgrade와 postcheck가 끝날 때까지 유지한다.
-
-### 업그레이드 완료 후 원상 복구
-
-모든 node가 목표 version이고 postcheck가 성공한 뒤 dev worker의 taint를 복구한다.
+Kubespray subprocess 출력이 wrapper에 의해 모였다가 task 종료 시 보일 수 있다. 별도
+세션에서 최신 artifact를 확인한다.
 
 ```bash
-kubectl taint node k8s-worker-dev \
-  homelab.okbear.dev/environment=dev:NoSchedule \
-  --overwrite
+run_id="$(ls -1t runs/kubernetes-upgrade | head -1)"
+tail -f "runs/kubernetes-upgrade/${run_id}/stdout.log"
 ```
+
+프로세스 존재 여부, `metadata.yml`의 종료 상태, 대상 node의 kubelet/API 상태를 함께 본다.
+
+### download preparation 단계 실패
+
+긴 `downloads` dictionary는 원인이라기보다 template 평가 결과다. 메시지의 마지막
+undefined variable 또는 checksum key를 찾는다.
 
 ```bash
-kubectl version
-kubectl get nodes -o wide
-kubectl get pods -A \
-  --field-selector=status.phase!=Running,status.phase!=Succeeded \
-  -o wide
-kubectl get --raw='/readyz?verbose'
+rg -n "undefined|has no attribute|checksum|FAILED" \
+  "runs/kubernetes-upgrade/${run_id}/stdout.log"
 ```
 
-`NoSchedule` taint를 다시 추가해도 이미 dev worker에서 실행 중인 Pod는 자동 퇴거되지
-않는다. 필요하면 업그레이드와 별개의 maintenance 작업으로 Pod 배치를 검토한다.
+최근 대표 원인은 ArgoCD addon 변수 충돌이다. Kubespray source를 직접 수정하기보다
+inventory 변수 경계와 nested playbook extra vars를 먼저 확인한다.
 
-## Kubespray 실행 task에서 출력이 보이지 않음
+## Phase 4. 중단 상태 분류 및 복구
 
-다음 task에서 화면이 오래 멈춰 보여도 하위 Kubespray가 실행 중일 수 있다.
+먼저 실패 시점을 둘로 나눈다.
 
-```text
-TASK [kubespray : Kubespray upgrade-cluster.yml 실행]
-```
+### Kubernetes 변경 전 실패
 
-현재 Role은 Kubespray `ansible-playbook` 전체를 상위 Ansible의 `command` task 하나로
-실행한다. 하위 command가 끝날 때까지 stdout이 상위 task 결과로 반환되지 않으므로 별도
-infra-bastion session에서 확인한다.
+inventory validation, download preparation 등에서 종료되었고 모든 node 버전이 기존
+버전이라면 변수나 checkout을 수정한 뒤 Phase 2부터 다시 수행한다.
+
+### 일부 node만 upgrade된 실패
 
 ```bash
-pgrep -af 'ansible-playbook.*upgrade-cluster.yml'
-ps -eo pid,etime,stat,%cpu,%mem,cmd \
-  | grep '[a]nsible-playbook.*upgrade-cluster.yml'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes \
+  -o custom-columns=NAME:.metadata.name,VERSION:.status.nodeInfo.kubeletVersion,UNSCHEDULABLE:.spec.unschedulable'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pods -A -o wide'
 ```
 
-wrapper로 시작한 실행은 operation의 최신 artifact log를 확인한다.
+다음을 확인한다.
 
-```bash
-RUN_DIR="$(ls -1dt runs/kubernetes-upgrade-recovery/* | head -n 1)"
-tail -n 100 -f "$RUN_DIR/ansible.log"
-```
+- 어느 node까지 목표 버전이 적용됐는가
+- `SchedulingDisabled` 또는 maintenance label/taint가 남았는가
+- system Pod와 stateful workload가 Ready인가
+- wrapper의 `always` cleanup이 수행됐는가
 
-process가 존재하고 log가 증가하면 중단하지 않는다. process가 사라졌는데 상위 task가
-반환되지 않거나 log가 10분 이상 갱신되지 않을 때 마지막 task, SSH 연결과 대상 node
-상태를 확인한다.
-
-## Kubernetes worker drain이 CNPG PDB에 차단됨
-
-### 증상
-
-control plane upgrade 이후 worker 처리 중 단일 인스턴스 PostgreSQL Pod를 eviction하지
-못하고 drain timeout이 발생할 수 있다.
-
-```text
-Cannot evict pod as it would violate the pod's disruption budget
-error when evicting pods/"postgres-prod-1": global timeout reached
-Failed to drain node k8s-worker-prod
-```
-
-Kubespray rescue가 성공하면 실패한 worker를 다시 schedulable 상태로 되돌린다. 다음 명령으로
-node와 database가 정상 복구됐는지 먼저 확인한다.
-
-```bash
-kubectl get nodes -o wide
-kubectl get cluster -A
-kubectl get pdb -A
-kubectl -n postgres-dev get pod -o wide
-kubectl -n postgres-prod get pod -o wide
-```
-
-단일 CNPG instance의 PDB는 가용 database가 0개가 되는 drain을 의도적으로 차단한다.
-`local-path` PVC는 다른 node로 이동할 수 없으므로 worker maintenance 동안 database
-downtime을 수용하고 기존 PVC가 있는 node가 돌아오기를 기다려야 한다.
-
-### 진행 조건
-
-운영 데이터라면 검증된 CNPG backup과 복구 계획 없이 진행하지 않는다.
-
-```bash
-kubectl -n postgres-prod get backups.postgresql.cnpg.io
-kubectl -n postgres-prod get scheduledbackups.postgresql.cnpg.io
-```
-
-초기 테스트 환경에서 데이터 손실과 downtime을 명시적으로 수용한 경우에는 backup을
-생략할 수 있다. 이 결정이 PDB 강제 삭제나 `--force`, `--disable-eviction` 사용을 허용하는
-것은 아니다.
-
-### CNPG maintenance window 설정
-
-정상 upgrade에서는 `make kubernetes-upgrade`가 이 절차를 자동 수행한다. 아래 수동 명령은
-자동 cleanup이 실패했거나 live 상태를 진단해야 할 때만 사용한다.
-
-dev와 prod Cluster에 maintenance window를 열고 기존 PVC 재사용을 지정한다.
-
-```bash
-kubectl -n postgres-dev patch cluster postgres-dev \
-  --type merge \
-  -p '{"spec":{"nodeMaintenanceWindow":{"inProgress":true,"reusePVC":true}}}'
-
-kubectl -n postgres-prod patch cluster postgres-prod \
-  --type merge \
-  -p '{"spec":{"nodeMaintenanceWindow":{"inProgress":true,"reusePVC":true}}}'
-```
-
-긴 `custom-columns` 명령은 terminal wrapping으로 option이 분리될 수 있으므로 각 Cluster를
-짧은 JSONPath로 확인한다.
-
-```bash
-kubectl -n postgres-dev get cluster postgres-dev \
-  -o jsonpath='{.spec.nodeMaintenanceWindow}{"\n"}'
-kubectl -n postgres-prod get cluster postgres-prod \
-  -o jsonpath='{.spec.nodeMaintenanceWindow}{"\n"}'
-kubectl get pdb -A
-```
-
-두 Cluster가 `inProgress:true`, `reusePVC:true`이고 CNPG PDB가 제거된 것을 확인한다.
-ArgoCD가 live patch를 되돌리면 `gitops/databases/postgres/overlays/<environment>/`에 같은
-설정을 선언하고 sync 완료 후 진행한다.
-
-### worker별 upgrade 재개
-
-control plane이 이미 목표 version이면 일반 신규 upgrade의 동일 version 방지 검증이 실행을
-막는다. 공식 복구 경로는 홈랩 준비/cleanup과 postcheck를 포함하는 resume target이다.
-
-```bash
-make kubernetes-upgrade-resume
-```
-
-아래 직접 Kubespray 명령은 resume target 자체가 동작하지 않을 때 마지막 복구 수단으로만
-사용한다. 명령은 `infra-bastion`에서 수행한다.
+상태가 안전하면 동일한 `make kubernetes-upgrade` workflow를 재실행한다. 직접 Kubespray를
+호출하는 복구는 자동 경로의 차단 원인을 확인한 뒤 마지막 수단으로만 사용한다.
 
 ```bash
 cd /home/rocky/homelab/ansible/kubespray
 export ANSIBLE_CONFIG="$PWD/ansible.cfg"
-
-../.kubespray-venv/bin/ansible-playbook \
-  -i ../inventories/homelab/hosts.yml \
-  playbooks/facts.yml \
-  --become
-```
-
-Kubespray의 facts Playbook 경로는 repository root의 `facts.yml`이 아니라
-`playbooks/facts.yml`이다.
-
-dev worker를 먼저 처리하고 database와 workload 복구를 확인한다.
-
-```bash
 ../.kubespray-venv/bin/ansible-playbook \
   -i ../inventories/homelab/hosts.yml \
   upgrade-cluster.yml \
   --become \
-  -e kube_version=1.31.9 \
+  -e kube_version=1.32.8 \
   -e serial=1 \
-  --limit k8s-worker-dev
-
-kubectl get node k8s-worker-dev -o wide
-kubectl -n postgres-dev get pod -o wide
+  -e argocd_enabled=false \
+  -e argocd_version=2.14.5 \
+  --limit <확인된-node>
 ```
 
-dev가 정상일 때만 prod worker를 처리한다.
+`--limit`은 버전과 상태를 확인한 정확한 node에만 사용한다. 추측한 node 이름이나 전체
+worker group을 넣지 않는다.
 
-```bash
-../.kubespray-venv/bin/ansible-playbook \
-  -i ../inventories/homelab/hosts.yml \
-  upgrade-cluster.yml \
-  --become \
-  -e kube_version=1.31.9 \
-  -e serial=1 \
-  --limit k8s-worker-prod
+### `ERROR CreateJob`: `upgrade-health-check`가 15초 안에 완료되지 않는 경우
+
+대표 로그:
+
+```text
+[ERROR CreateJob]: Job "upgrade-health-check-..." in the namespace "kube-system"
+did not complete in 15s: no condition of type Complete
 ```
 
-Kubernetes와 Kubespray version이 달라지면 위 예시의 `kube_version`을 inventory에 승인된
-목표 version으로 바꾼다.
+이 오류는 kubeadm이 cluster health를 확인하려고 만든 임시 Job이 `Complete`가 되지 않은
+것이다. YAML kind deprecation과 `clusterDNS=169.254.25.10` 메시지는 warning이며 이
+실패의 직접 원인이 아니다. `--ignore-preflight-errors`로 우회하지 않는다.
 
-### 사후 복구
+Kubespray가 first control-plane을 먼저 drain한 single-control-plane 구성에서는 해당 node가
+다음처럼 남을 수 있다.
 
-prod drain으로 OpenBao Pod가 다시 시작되면 sealed 상태가 될 수 있다. key를 명령 인자,
-로그 또는 artifact에 남기지 않고 관리 terminal에서 대화형으로 unseal한다.
-
-```bash
-kubectl -n openbao exec platform-openbao-0 -- bao status
-kubectl -n openbao exec -it platform-openbao-0 -- bao operator unseal
+```text
+k8s-master  Ready,SchedulingDisabled
 ```
 
-모든 node, database와 OpenBao가 정상인 뒤 maintenance window를 닫는다.
+다만 worker가 Ready인 환경에서는 cordon만으로 원인을 단정할 수 없다. health-check Pod의
+Pending, image pull, admission, CNI 또는 scheduler event를 함께 확인한다. 임시 Job은 kubeadm
+종료 시 삭제될 수 있으므로 실패 직후 event와 scheduler 로그가 중요하다.
 
 ```bash
-kubectl -n postgres-dev patch cluster postgres-dev \
-  --type merge \
-  -p '{"spec":{"nodeMaintenanceWindow":{"inProgress":false,"reusePVC":true}}}'
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get events \
+  --sort-by=.lastTimestamp | tail -n 80
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get pod \
+  -o wide | grep upgrade-health-check || true
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system logs \
+  -l component=kube-scheduler --tail=200
+```
 
-kubectl -n postgres-prod patch cluster postgres-prod \
-  --type merge \
-  -p '{"spec":{"nodeMaintenanceWindow":{"inProgress":false,"reusePVC":true}}}'
+`kubectl get nodes`의 `VERSION=v1.32.8`은 kubelet 버전만 보여준다. `kubeadm upgrade apply`가
+preflight에서 실패했다면 control-plane이 실제로 upgrade됐다는 증거가 아니다.
 
-kubectl taint node k8s-worker-dev \
-  homelab.okbear.dev/environment=dev:NoSchedule \
-  --overwrite
+```bash
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl version
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get pod \
+  -l component=kube-apiserver \
+  -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[0].image
+sudo kubeadm upgrade plan v1.32.8
+```
 
+event에서 `node.kubernetes.io/unschedulable` 때문에 health-check Pod가 배치되지 않은 것이
+확인된 경우에만 다음 순서로 복구한다.
+
+1. 실패한 Kubespray 프로세스가 종료됐는지 확인한다.
+2. control-plane의 API, etcd, system Pod가 정상인지 확인한다.
+3. 운영 승인 후 `kubectl uncordon k8s-master`를 수행한다.
+4. `kubeadm upgrade plan v1.32.8`로 health check가 통과하는지 확인한다.
+5. single-control-plane drain 순서 때문에 동일 오류가 재현된다면, schedulable 상태에서
+   Kubespray가 생성한 `/etc/kubernetes/kubeadm-config.yaml`을 사용해 `kubeadm upgrade
+   apply`를 완료한다.
+6. control-plane/API 상태를 다시 확인한 뒤 원래 Kubespray workflow를 재실행하여 나머지
+   role과 worker upgrade를 수렴시킨다.
+
+```bash
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl uncordon k8s-master
+sudo kubeadm upgrade plan v1.32.8
+sudo kubeadm upgrade apply -y v1.32.8 \
+  --config=/etc/kubernetes/kubeadm-config.yaml \
+  --skip-phases=addon/coredns
+```
+
+수동 `kubeadm upgrade apply`는 event로 unschedulable 원인이 확인되고 Kubespray 재시도가
+동일하게 실패하는 single-control-plane 복구에만 사용한다. 성공 후 `make
+kubernetes-upgrade`를 다시 실행하지 않고 끝내면 worker와 후속 role이 구버전에 남는다.
+
+### CNPG PDB가 drain을 차단하는 경우
+
+```bash
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get cluster -A'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pdb -A'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pod -A -o wide | grep postgres'
+```
+
+PDB를 강제로 삭제하지 않는다. instance 수, primary/replica 위치, PVC node affinity를 확인해
+drain 가능한 topology인지 판단한다.
+
+### OpenBao가 `Running 0/1`인 경우
+
+`Running 0/1`은 정상 상태가 아니다. upgrade나 node 재부팅 뒤 OpenBao는 sealed 상태로
+기동될 수 있다.
+
+```bash
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n openbao get pods'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n openbao logs \
+  statefulset/platform-openbao --tail=100'
+```
+
+초기 root token과 unseal key는 Git 또는 Kubernetes Secret에 저장하지 않는다. 운영자가
+별도 보관한 키로 unseal한 뒤 Pod Ready와 ArgoCD Application health를 다시 확인한다.
+
+## Phase 5. Kubernetes upgrade postcheck
+
+```bash
 make kubernetes-upgrade-postcheck
 ```
 
-`kubectl get pods`의 `STATUS=Running`만으로 완료를 판단하지 않는다. `Running 0/1` Pod도
-장애 상태이므로 OpenBao, CNPG와 모든 container의 Ready 상태까지 확인한다.
+완료 기준:
 
-## Kubernetes upgrade 최종 검증
-
-모든 복구와 worker별 upgrade가 끝난 뒤 `infra-bastion`의 `ansible/`에서 postcheck를
-실행한다.
-
-```bash
-make kubernetes-upgrade-postcheck
-```
-
-console에서는 version, node, API server와 비정상 Pod를 차례로 확인한다.
+- 모든 node의 kubelet version이 목표 버전이다.
+- 모든 node가 `Ready`이고 schedulable 상태가 의도와 일치한다.
+- API `/readyz`가 통과한다.
+- system Pod와 일반 workload에 `0/N`, Pending, CrashLoopBackOff가 없다.
+- CNPG, OpenBao 등 stateful workload가 Ready다.
+- maintenance label/taint와 임시 상태가 정리되었다.
 
 ```bash
-kubectl version
-kubectl get nodes -o wide
-kubectl wait --for=condition=Ready node --all --timeout=180s
-kubectl get --raw='/readyz?verbose'
-kubectl get apiservices
-kubectl get pods -A -o wide
-kubectl get pods -A \
-  --field-selector=status.phase!=Running,status.phase!=Succeeded \
-  -o wide
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes -o wide'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get --raw=/readyz?verbose'
+ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pods -A'
 ```
 
-모든 node의 kubelet과 API server가 목표 version이어야 한다. phase filter는
-`Running 0/1`을 찾지 못하므로 kube-system DaemonSet과 주요 stateful service를 별도로
-검증한다.
+postcheck가 실패하면 upgrade 성공으로 기록하지 않는다. 실패 workload를 복구한 뒤
+postcheck만 다시 실행한다.
+
+## Phase 6. Execution artifact 분석
 
 ```bash
-kubectl -n kube-system get daemonsets
-kubectl -n kube-system get deployments
-kubectl get cluster -A
-kubectl -n openbao get pod -o wide
-kubectl -n openbao exec platform-openbao-0 -- bao status
-kubectl -n argocd get applications.argoproj.io
+operation=kubernetes-upgrade
+run_id="$(ls -1t "runs/${operation}" | head -1)"
+sed -n '1,220p' "runs/${operation}/${run_id}/summary.md"
+sed -n '1,220p' "runs/${operation}/${run_id}/metadata.yml"
+rg -n "FAILED|fatal:|undefined|has no attribute|unreachable" \
+  "runs/${operation}/${run_id}/stdout.log"
 ```
 
-다음 원상 복구도 확인한다.
+확인 순서:
 
-- CNPG `nodeMaintenanceWindow.inProgress`가 `false`
-- dev/prod 환경 taint가 inventory의 baseline과 일치
-- OpenBao `Sealed=false`, Pod `Ready=1/1`
-- CoreDNS, Calico, kube-proxy와 NodeLocalDNS의 desired 수와 ready 수 일치
-- 예상하지 않은 최근 Warning event 없음
+1. `summary.md`: PASS/FAIL/NOT VERIFIED와 주요 결과
+2. `metadata.yml`: 실행 시각, commit, command, 종료 코드
+3. `stdout.log`: Ansible task와 원인 메시지
+4. `ansible.log`: 상세 callback 기록
+5. `command.txt`: 실제 전달 인자
 
-```bash
-kubectl get pdb -A
-kubectl get events -A \
-  --field-selector=type=Warning \
-  --sort-by=.metadata.creationTimestamp \
-  | tail -n 100
-```
+Secret이나 token이 발견되면 artifact를 공유하지 말고 credential 회전과 `no_log` 보완을
+우선한다.
 
-## ArgoCD bootstrap 실패
+## 빠른 증상 색인
 
-1. Helm CLI
-2. `argocd` namespace와 Gateway 접근 label
-3. SOPS age Secret
-4. 선택적 repository credential
-5. ArgoCD Helm release
-6. `gitops/bootstrap/root.yaml`
-7. `root-app`의 `Synced` 및 `Healthy` 상태
-
-검증 작업은 ArgoCD server/repo-server rollout과 `root-app` 상태를 제한 시간 동안 기다린다.
-실패하면 repository credential, KSOPS mount와 child Application 상태를 차례로 확인한다.
-
-private repository credential의 circular bootstrap은 Ansible이 out-of-band로 해결한다. 이
-credential을 GitOps로 옮기기 전에 bootstrap 계약을 먼저 검토한다.
-
-초기 admin password는 execution artifact에 남기지 않는다. 꼭 필요한 경우 권한이 제한된
-관리 세션에서 `argocd-initial-admin-secret`을 직접 조회하고 출력값을 공유하지 않는다.
+| 증상 | 먼저 확인할 phase | 핵심 조치 |
+| --- | --- | --- |
+| `pathspec '2.28.1'` | Phase 1 | `kubespray_version`을 실제 `v` tag와 일치 |
+| `kube_version.startswith('v')` | Phase 2 | Kubernetes 버전의 선행 `v` 제거 |
+| `helm_version.startswith('v')` | Phase 2 | 전역 변수 제거, `helm_cli_version` 사용 |
+| `argocd_install_checksums...3.0.0` | Phase 2/3 | Kubespray addon 변수 경계 고정 |
+| node별 버전 불일치 | Phase 4 | 변경 범위 확인 후 동일 workflow 재실행 |
+| `upgrade-health-check` 15초 timeout | Phase 4 | event로 scheduler 원인 확인, single control-plane 복구 |
+| drain/PDB 차단 | Phase 2/4 | topology와 replica/PVC 확인, PDB 강제 삭제 금지 |
+| OpenBao `Running 0/1` | Phase 4 | sealed 여부 확인 후 안전하게 unseal |
+| postcheck workload 실패 | Phase 5 | workload 복구 후 postcheck 재실행 |
