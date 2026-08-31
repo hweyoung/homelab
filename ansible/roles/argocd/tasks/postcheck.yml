@@ -79,7 +79,7 @@
   ansible.builtin.assert:
     that:
       - item.status.phase in ['Running', 'Succeeded']
-      - item.status.phase == 'Succeeded' or pod_ready == 'True'
+      - item.status.phase == 'Succeeded' or (pod_ready | bool)
     fail_msg: "{{ item.metadata.name }} Pod가 Ready 또는 완료 상태가 아닙니다."
   loop: "{{ (argocd_pods_after.stdout | from_json)['items'] }}"
   loop_control:
