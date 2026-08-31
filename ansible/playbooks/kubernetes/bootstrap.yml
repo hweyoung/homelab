@@ -1,4 +1,0 @@
----
-# 신규 Kubernetes bootstrap만 포함한다. 기존 cluster upgrade는 별도 진입점이다.
-- import_playbook: install.yml
-- import_playbook: node-config.yml

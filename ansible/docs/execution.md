@@ -9,7 +9,7 @@ make <target>
   ↓
 scripts/run-playbook.sh
   ↓
-playbooks/site.yml 또는 playbooks/kubernetes/upgrade.yml
+playbooks/bootstrap.yml 또는 playbooks/upgrade.yml
   ↓
 playbooks/
   ↓
@@ -44,16 +44,27 @@ make tailscale
 make kubespray
 make post-kubespray
 make helm
+make helm-upgrade-precheck
+make helm-upgrade
+make helm-upgrade-major
+make helm-upgrade-postcheck
 make sops
 make argocd
 ```
 
-전체 신규 bootstrap은 `make bootstrap`, 기존 cluster 업그레이드는 다음 target을 사용한다.
+전체 최초 구성은 `make bootstrap`을 사용한다. `bootstrap.yml`은 bastion, network,
+Kubernetes, Helm과 ArgoCD 설치 Playbook을 직접 import하며, 개별 설치 target은 같은 root
+Playbook을 domain tag로 제한한다. `upgrade.yml`은 component별 고유 tag로 다음 target 중
+하나만 실행한다.
 
 ```bash
 make kubernetes-upgrade-precheck
 make kubernetes-upgrade
 make kubernetes-upgrade-postcheck
+make argocd-upgrade-precheck
+make argocd-upgrade
+make argocd-upgrade-reconcile
+make argocd-upgrade-postcheck
 ```
 
 ## Artifact 구조
@@ -81,7 +92,9 @@ runs/<operation>/<YYYYMMDD-HHMMSS>-<pid>/
 - ArgoCD 초기 admin password를 Playbook output에 표시하지 않음
 
 허용된 비민감 제어 변수는 `kubernetes_upgrade_confirm`,
-`kubernetes_upgrade_postcheck_only`, `kubespray_force`, `argocd_force`다. Secret은 CLI
+`kubernetes_upgrade_postcheck_only`, `argocd_upgrade_confirm`,
+`argocd_upgrade_reconcile`, `argocd_upgrade_postcheck_only`, `helm_upgrade_confirm`, `helm_upgrade_allow_major`,
+`helm_upgrade_postcheck_only`, `kubespray_force`다. Secret은 CLI
 inline 값이 아니라 Vault 파일로 전달한다.
 
 ## 읽기 전용 도구
