@@ -38,6 +38,9 @@ argocd_version_matrix:
 argocd_helm_timeout: "10m"
 argocd_postcheck_retries: 60
 argocd_postcheck_delay: 10
+# AppProject만 소유하는 bootstrap Application은 Synced를 강제하되 workload health gate에서는 제외한다.
+argocd_health_exempt_applications:
+  - argocd-control-plane
 argocd_domain: "argocd.homelab.local"
 argocd_ingress_class: "traefik"
 argocd_gateway_access_label_key: "homelab.okbear.dev/gateway-access"

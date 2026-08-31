@@ -41,6 +41,10 @@ precheck는 기존 release가 `deployed`이고 ArgoCD application version이 허
 ArgoCD Pod, 세 CRD와 모든 Application의 `Synced/Healthy` baseline을 검사한다. 결과와 upstream
 release note를 검토한 후에만 실행한다.
 
+`argocd-control-plane`은 AppProject만 먼저 생성하는 bootstrap Application이므로 workload
+health gate에서는 제외하지만 `Synced` 상태는 계속 강제한다. 이 예외는
+`argocd_health_exempt_applications`에 명시하며 일반 workload Application을 추가해서는 안 된다.
+
 ```bash
 make argocd-upgrade
 ```

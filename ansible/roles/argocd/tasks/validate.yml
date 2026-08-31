@@ -9,9 +9,18 @@
       - argocd_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
       - argocd_version_matrix is defined
       - argocd_version in argocd_version_matrix
+      - argocd_health_exempt_applications | default([]) is sequence
     fail_msg: >-
       Playbook에서 argocd_operation을 bootstrap 또는 upgrade로 지정하고,
       argocd_version을 version matrix에 등록된 2.13.0 형식의 따옴표 문자열로 설정하세요.
+
+- name: ArgoCD health 예외 Application 이름 검증
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item | length > 0
+    fail_msg: "argocd_health_exempt_applications에는 Application 이름 문자열만 지정하세요."
+  loop: "{{ argocd_health_exempt_applications | default([]) }}"
 
 - name: 목표 ArgoCD version에 대응하는 chart version 계산
   ansible.builtin.set_fact:
