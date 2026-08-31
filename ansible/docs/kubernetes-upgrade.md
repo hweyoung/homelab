@@ -16,6 +16,11 @@ Kubespray는 control plane, etcd, kubelet, container runtime, CNI, DNS와 metric
 관리한다. ArgoCD는 cert-manager, Gateway, Traefik, CNPG, Secret operator와 application을
 관리한다. ArgoCD 자체와 root Application은 Ansible bootstrap 소유다.
 
+Kubespray의 내장 ArgoCD addon은 사용하지 않는다. nested Kubespray 실행에는
+`argocd_enabled=false`와 Kubespray v2.28.1이 지원하는 `argocd_version=2.14.5`를 명시적으로
+전달한다. 이 version은 실제 Ansible 관리 ArgoCD 목표 version과 무관하며, 비활성 addon의
+download checksum 평가가 외부 `argocd_app_version`과 충돌하지 않게 하는 경계 값이다.
+
 ## Upgrade 경로
 
 한 번에 하나의 Kubernetes minor만 올린다. 현재 minor의 최신 patch 적용 후 다음 minor로
