@@ -61,8 +61,10 @@
     that:
       - kubespray_version is defined
       - kubespray_version is string
+      - kubespray_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
       - kubespray_checkout_tag.rc == 0
       - kubespray_checkout_tag.stdout == kubespray_version
     fail_msg: >-
-      Kubespray checkout tag가 인벤토리의 {{ kubespray_version | default('미정의') }}와
-      일치해야 합니다. ./scripts/sync-kubespray.sh로 pinned release를 준비하세요.
+      kubespray_version은 v2.28.1 형식이어야 하며 checkout tag와 일치해야 합니다.
+      현재 값은 {{ kubespray_version | default('미정의') }}입니다.
+      ./scripts/sync-kubespray.sh로 pinned release를 준비하세요.

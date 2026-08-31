@@ -8,6 +8,11 @@ if [ -z "${KUBESPRAY_VERSION}" ]; then
   exit 1
 fi
 
+if [[ ! "${KUBESPRAY_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "kubespray_version은 Git tag 형식(v2.28.1)이어야 합니다: ${KUBESPRAY_VERSION}" >&2
+  exit 1
+fi
+
 if [ ! -f kubespray/cluster.yml ]; then
   git clone --branch "${KUBESPRAY_VERSION}" https://github.com/kubernetes-sigs/kubespray.git kubespray
 else
