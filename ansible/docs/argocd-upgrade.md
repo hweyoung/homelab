@@ -12,10 +12,11 @@ SOPS age/PAT Secret 주입과 root Application 생성은 기존 `make argocd` bo
 ## 준비
 
 `inventories/homelab/group_vars/all.yml`의 목표 ArgoCD version을 단계별로 변경한다. Helm chart
-version은 role이 `argocd_version_matrix`에서 선택하므로 직접 변경하지 않는다.
+version은 role이 `argocd_version_matrix`에서 선택하므로 직접 변경하지 않는다. Kubespray 내부
+변수와 충돌하는 `argocd_version` 대신 `argocd_app_version`을 사용한다.
 
 ```yaml
-argocd_version: "2.13.0"  # 현재 단계
+argocd_app_version: "2.13.0"  # 현재 단계
 
 # 다음 실행: 2.14.11
 # 그다음 실행: 3.0.0

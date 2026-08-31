@@ -4,15 +4,15 @@
     that:
       - argocd_operation is defined
       - argocd_operation in ['bootstrap', 'upgrade']
-      - argocd_version is defined
-      - argocd_version is string
-      - argocd_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - argocd_app_version is defined
+      - argocd_app_version is string
+      - argocd_app_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
       - argocd_version_matrix is defined
-      - argocd_version in argocd_version_matrix
+      - argocd_app_version in argocd_version_matrix
       - argocd_health_exempt_applications | default([]) is sequence
     fail_msg: >-
       Playbook에서 argocd_operation을 bootstrap 또는 upgrade로 지정하고,
-      argocd_version을 version matrix에 등록된 2.13.0 형식의 따옴표 문자열로 설정하세요.
+      argocd_app_version을 version matrix에 등록된 2.13.0 형식의 따옴표 문자열로 설정하세요.
 
 - name: ArgoCD health 예외 Application 이름 검증
   ansible.builtin.assert:
@@ -24,8 +24,8 @@
 
 - name: 목표 ArgoCD version에 대응하는 chart version 계산
   ansible.builtin.set_fact:
-    argocd_target_version: "{{ argocd_version }}"
-    argocd_chart_version: "{{ argocd_version_matrix[argocd_version] }}"
+    argocd_target_version: "{{ argocd_app_version }}"
+    argocd_chart_version: "{{ argocd_version_matrix[argocd_app_version] }}"
 
 - name: Helm CLI 존재 확인
   ansible.builtin.stat:

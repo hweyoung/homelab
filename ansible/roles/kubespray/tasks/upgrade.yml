@@ -11,6 +11,10 @@
       - "kube_version={{ kube_version }}"
       - -e
       - serial=1
+      - -e
+      - "argocd_enabled={{ kubespray_argocd_enabled | bool | lower }}"
+      - -e
+      - "argocd_version={{ kubespray_argocd_version }}"
   args:
     chdir: "{{ kubespray_root }}"
   environment:
