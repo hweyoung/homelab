@@ -1,0 +1,46 @@
+---
+- name: Existing Helm CLI binary upgrade
+  hosts: k8s_master
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  tags: [helm_upgrade]
+  tasks:
+    - name: Helm upgrade 경로 검증
+      ansible.builtin.import_role:
+        name: helm
+        tasks_from: upgrade/validate
+      tags: [helm_upgrade_precheck, helm_upgrade_run, helm_upgrade_postcheck]
+
+    - name: Helm upgrade 사전 점검
+      ansible.builtin.import_role:
+        name: helm
+        tasks_from: upgrade/precheck
+      tags: [precheck, helm_upgrade_precheck, helm_upgrade_run]
+
+    - name: Helm upgrade 승인 확인
+      ansible.builtin.assert:
+        that:
+          - helm_upgrade_confirm | default(false) | bool
+        fail_msg: "실제 교체는 -e helm_upgrade_confirm=true가 필요합니다."
+      when: not ansible_check_mode
+      tags: [upgrade, helm_upgrade_run]
+
+    - name: Check mode에서는 Helm 바이너리 교체 생략
+      ansible.builtin.debug:
+        msg: "Check mode: {{ helm_current_version }}에서 {{ helm_target_version }}으로 교체할 예정입니다."
+      when: ansible_check_mode
+      tags: [upgrade, helm_upgrade_run]
+
+    - name: Helm CLI binary upgrade 실행
+      ansible.builtin.import_role:
+        name: helm
+        tasks_from: upgrade/deploy
+      when: not ansible_check_mode
+      tags: [upgrade, helm_upgrade_run]
+
+    - name: Helm upgrade 사후 점검
+      ansible.builtin.import_role:
+        name: helm
+        tasks_from: upgrade/postcheck
+      tags: [postcheck, helm_upgrade_run, helm_upgrade_postcheck]

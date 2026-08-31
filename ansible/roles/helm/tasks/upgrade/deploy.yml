@@ -1,0 +1,52 @@
+---
+- name: Helm upgrade 실행 조건 검증
+  ansible.builtin.assert:
+    that:
+      - helm_upgrade_precheck_passed | default(false) | bool
+      - helm_upgrade_confirm | default(false) | bool
+    fail_msg: "precheck와 -e helm_upgrade_confirm=true 없이 Helm 바이너리를 교체할 수 없습니다."
+
+- name: Helm 바이너리 교체와 실패 시 복원
+  block:
+    - name: 기존 Helm 바이너리 backup
+      ansible.builtin.copy:
+        src: "{{ helm_install_path }}"
+        dest: "{{ helm_backup_path }}"
+        remote_src: true
+        mode: "0755"
+        force: false
+
+    - name: 목표 Helm 바이너리 배포
+      ansible.builtin.copy:
+        src: "{{ helm_upgrade_staging_dir }}/linux-{{ helm_architecture }}/helm"
+        dest: "{{ helm_install_path }}"
+        remote_src: true
+        mode: "0755"
+
+    - name: 교체된 Helm version 확인
+      ansible.builtin.command:
+        argv: ["{{ helm_install_path }}", version, --short]
+      register: helm_upgrade_deployed_version
+      changed_when: false
+
+    - name: 교체된 Helm release 조회 확인
+      ansible.builtin.command:
+        argv: ["{{ helm_install_path }}", list, --all-namespaces, --all, --output, json]
+      changed_when: false
+
+    - name: 교체된 Helm 목표 version 보장
+      ansible.builtin.assert:
+        that:
+          - helm_target_version in helm_upgrade_deployed_version.stdout
+  rescue:
+    - name: 기존 Helm 바이너리 복원
+      ansible.builtin.copy:
+        src: "{{ helm_backup_path }}"
+        dest: "{{ helm_install_path }}"
+        remote_src: true
+        mode: "0755"
+
+    - name: Helm upgrade 실패 보고
+      ansible.builtin.fail:
+        msg: >-
+          Helm upgrade 검증이 실패해 {{ helm_backup_path }}에서 기존 바이너리를 복원했습니다.
