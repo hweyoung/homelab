@@ -70,20 +70,41 @@
        | selectattr('type', 'equalto', 'Ready')
        | selectattr('status', 'equalto', 'True') | list | length)
 
-- name: 모든 ArgoCD Pod Ready 검증
+- name: Upgrade 후 ArgoCD Pod 상태 요약 초기화
+  ansible.builtin.set_fact:
+    argocd_pod_health_after: []
+
+- name: Upgrade 후 ArgoCD Pod 상태 요약 생성
   vars:
     pod_ready: >-
       {{ item.status.conditions | default([])
          | selectattr('type', 'equalto', 'Ready')
          | map(attribute='status') | first | default('False') }}
+  ansible.builtin.set_fact:
+    argocd_pod_health_after: >-
+      {{ argocd_pod_health_after + [{
+           'name': item.metadata.name,
+           'phase': item.status.phase | default('Unknown'),
+           'ready': pod_ready | bool,
+           'healthy': ((item.status.phase | default('Unknown')) == 'Succeeded')
+                      or (((item.status.phase | default('Unknown')) == 'Running') and (pod_ready | bool))
+         }] }}
+  loop: "{{ (argocd_pods_after.stdout | from_json)['items'] }}"
+  no_log: true
+
+- name: 모든 ArgoCD Pod Ready 검증
+  vars:
+    unhealthy_pods: >-
+      {{ argocd_pod_health_after
+         | rejectattr('healthy', 'equalto', true) | list }}
   ansible.builtin.assert:
     that:
-      - item.status.phase in ['Running', 'Succeeded']
-      - item.status.phase == 'Succeeded' or (pod_ready | bool)
-    fail_msg: "{{ item.metadata.name }} Pod가 Ready 또는 완료 상태가 아닙니다."
-  loop: "{{ (argocd_pods_after.stdout | from_json)['items'] }}"
-  loop_control:
-    label: "{{ item.metadata.name }}"
+      - unhealthy_pods | length == 0
+    fail_msg: |-
+      다음 ArgoCD Pod가 Ready 또는 완료 상태가 아닙니다.
+      {% for pod in unhealthy_pods %}
+      - {{ pod.name }}: phase={{ pod.phase }}, ready={{ pod.ready }}
+      {% endfor %}
 
 - name: Upgrade 후 Application 상태 조회
   ansible.builtin.command:
