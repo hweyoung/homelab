@@ -17,6 +17,10 @@ homelab_ansible_user_home: >-
 # Kubespray / Kubernetes
 kubespray_version: "v2.28.1"
 kube_version: "1.32.8"
+# ArgoCD는 별도 argocd role이 소유하므로 Kubespray addon은 사용하지 않는다.
+# Kubespray가 disabled addon의 checksum도 평가하므로 해당 release의 지원 version을 함께 고정한다.
+kubespray_argocd_enabled: false
+kubespray_argocd_version: "2.14.5"
 
 # Post-Kubespray 노드 taint
 prod_taint_key: "pool"
@@ -30,7 +34,7 @@ helm_install_path: "/usr/local/bin/helm"
 
 # ArgoCD (운영자는 ArgoCD version을 선택하고 role이 대응 Helm chart를 결정)
 argocd_namespace: "argocd"
-argocd_version: "3.0.0"
+argocd_app_version: "3.0.0"
 argocd_version_matrix:
   "2.13.0": "7.7.0"
   "2.14.11": "7.8.28"
