@@ -71,15 +71,41 @@
   ansible.builtin.set_fact:
     argocd_release_exists: "{{ argocd_release_query.rc == 0 }}"
 
+- name: 기존 ArgoCD release version metadata 조회
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - list
+      - --namespace
+      - "{{ argocd_namespace }}"
+      - --all
+      - --filter
+      - "^argocd$"
+      - --output
+      - json
+  register: argocd_release_list_query
+  changed_when: false
+  when: argocd_release_exists
+
+- name: 기존 ArgoCD release version metadata 검증
+  ansible.builtin.assert:
+    that:
+      - (argocd_release_list_query.stdout | from_json) | length == 1
+    fail_msg: >-
+      helm status에서는 argocd release가 확인됐지만 helm list metadata를 하나만 찾지 못했습니다.
+  when: argocd_release_exists
+
 - name: 기존 ArgoCD release 정보 계산
+  vars:
+    release_status: "{{ argocd_release_query.stdout | from_json }}"
+    release_metadata: "{{ (argocd_release_list_query.stdout | from_json) | first }}"
   ansible.builtin.set_fact:
     argocd_current_chart_version: >-
-      {{ (argocd_release_query.stdout | from_json).chart.metadata.version }}
+      {{ release_metadata.chart | regex_replace('^argo-cd-', '') }}
     argocd_current_version: >-
-      {{ (argocd_release_query.stdout | from_json).chart.metadata.appVersion
-         | regex_replace('^v', '') }}
+      {{ release_metadata.app_version | regex_replace('^v', '') }}
     argocd_current_release_status: >-
-      {{ (argocd_release_query.stdout | from_json).info.status }}
+      {{ release_status.info.status }}
   when: argocd_release_exists
 
 - name: Bootstrap 배포 필요 여부 계산

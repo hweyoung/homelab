@@ -5,19 +5,44 @@
   register: argocd_release_after
   changed_when: false
 
-- name: ArgoCD release 상태와 application/chart version 검증
+- name: ArgoCD Helm release version metadata 사후 조회
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - list
+      - --namespace
+      - "{{ argocd_namespace }}"
+      - --all
+      - --filter
+      - "^argocd$"
+      - --output
+      - json
+  register: argocd_release_list_after
+  changed_when: false
+
+- name: ArgoCD release 상태와 version metadata 개수 검증
   vars:
-    release: "{{ argocd_release_after.stdout | from_json }}"
+    release_status: "{{ argocd_release_after.stdout | from_json }}"
+    release_list: "{{ argocd_release_list_after.stdout | from_json }}"
   ansible.builtin.assert:
     that:
-      - release.info.status == 'deployed'
+      - release_list | length == 1
+      - release_status.info.status == 'deployed'
+    fail_msg: >-
+      ArgoCD release가 deployed 상태가 아니거나 helm list metadata를 하나만 찾지 못했습니다.
+
+- name: ArgoCD application/chart version 검증
+  vars:
+    release_metadata: "{{ (argocd_release_list_after.stdout | from_json) | first }}"
+  ansible.builtin.assert:
+    that:
       - >-
         argocd_operation == 'bootstrap'
-        or release.chart.metadata.version == argocd_chart_version
+        or release_metadata.chart | regex_replace('^argo-cd-', '') == argocd_chart_version
       - >-
         (argocd_operation == 'bootstrap' and not (argocd_deploy_required | bool))
         or
-        (release.chart.metadata.appVersion | regex_replace('^v', '') == argocd_target_version)
+        (release_metadata.app_version | regex_replace('^v', '') == argocd_target_version)
     fail_msg: >-
       ArgoCD release가 deployed 상태가 아니거나 목표 ArgoCD {{ argocd_target_version }}
       (chart {{ argocd_chart_version }})과 다릅니다.
