@@ -12,9 +12,11 @@
   ansible.builtin.assert:
     that:
       - helm_version is not defined
+      - argocd_version is not defined
     fail_msg: >-
-      homelab inventory의 helm_version은 Kubespray 내부 변수와 충돌합니다.
-      Helm CLI 목표 version은 helm_cli_version으로 지정하세요.
+      homelab inventory의 helm_version 또는 argocd_version은 Kubespray 내부 변수와 충돌합니다.
+      Helm CLI 목표 version은 helm_cli_version, ArgoCD 목표 version은
+      argocd_app_version으로 지정하세요.
 
 - name: Kubespray entrypoint 존재 확인
   ansible.builtin.stat:
