@@ -109,14 +109,25 @@
   when: argocd_operation == 'upgrade'
 
 - name: Upgrade 후 모든 Application Synced/Healthy 검증
+  vars:
+    applications: "{{ (argocd_apps_after.stdout | from_json)['items'] }}"
   ansible.builtin.assert:
     that:
-      - item.status.sync.status | default('Unknown') == 'Synced'
-      - item.status.health.status | default('Unknown') == 'Healthy'
-    fail_msg: >-
-      {{ item.metadata.namespace }}/{{ item.metadata.name }}가 제한 시간 안에
-      Synced/Healthy 상태로 복구되지 않았습니다.
-  loop: "{{ (argocd_apps_after.stdout | from_json)['items'] }}"
-  loop_control:
-    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+      - >-
+        (applications
+         | selectattr('status.sync.status', 'defined')
+         | selectattr('status.sync.status', 'equalto', 'Synced')
+         | list | length) == (applications | length)
+      - >-
+        (applications
+         | selectattr('status.health.status', 'defined')
+         | selectattr('status.health.status', 'equalto', 'Healthy')
+         | list | length) == (applications | length)
+    fail_msg: |-
+      제한 시간 안에 다음 ArgoCD Application이 Synced/Healthy로 복구되지 않았습니다.
+      {% for app in applications %}
+      {% if (app.status.sync.status | default('Unknown')) != 'Synced' or (app.status.health.status | default('Unknown')) != 'Healthy' %}
+      - {{ app.metadata.namespace }}/{{ app.metadata.name }}: sync={{ app.status.sync.status | default('Unknown') }}, health={{ app.status.health.status | default('Unknown') }}
+      {% endif %}
+      {% endfor %}
   when: argocd_operation == 'upgrade'
