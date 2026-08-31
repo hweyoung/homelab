@@ -1,0 +1,35 @@
+---
+- name: Helm upgrade 후 version 조회
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", version, --short]
+  register: helm_version_after
+  changed_when: false
+
+- name: Helm 목표 version 검증
+  ansible.builtin.assert:
+    that:
+      - helm_target_version in helm_version_after.stdout
+    fail_msg: "설치된 {{ helm_version_after.stdout }}가 목표 {{ helm_target_version }}과 다릅니다."
+
+- name: Helm upgrade 후 release 상태 조회
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", list, --all-namespaces, --all, --output, json]
+  register: helm_releases_after
+  changed_when: false
+
+- name: Helm release 이름과 namespace 유지 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        helm_releases_before is not defined
+        or
+        ((helm_releases_before.stdout | from_json | map(attribute='name') | list | sort)
+         ==
+         (helm_releases_after.stdout | from_json | map(attribute='name') | list | sort))
+      - >-
+        helm_releases_before is not defined
+        or
+        ((helm_releases_before.stdout | from_json | map(attribute='namespace') | list | sort)
+         ==
+         (helm_releases_after.stdout | from_json | map(attribute='namespace') | list | sort))
+    fail_msg: "Helm binary upgrade 전후 release 목록이 다릅니다."

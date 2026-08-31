@@ -10,7 +10,7 @@
       ansible.builtin.import_role:
         name: k8s_node_config
         tasks_from: validate
-      tags: [always]
+      tags: [post_kubespray, kubernetes, validate]
 
     - name: Kubernetes 관리 사용자 kubeconfig 구성
       ansible.builtin.import_role:

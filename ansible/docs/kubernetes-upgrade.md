@@ -3,8 +3,8 @@
 이미 설치된 cluster를 Kubespray `upgrade-cluster.yml`로 한 단계씩 업그레이드하는 절차다.
 
 ```text
-신규 설치: playbooks/site.yml → kubespray/Kubernetes 검증 → cluster.yml
-기존 upgrade: playbooks/kubernetes/upgrade.yml → precheck → upgrade-cluster.yml → postcheck
+신규 설치: playbooks/bootstrap.yml → kubespray/Kubernetes 검증 → cluster.yml
+기존 upgrade: playbooks/upgrade.yml --tags kubernetes_upgrade_* → precheck → upgrade-cluster.yml → postcheck
 ```
 
 `kubespray` Role은 upstream checkout과 실행만 담당하고, `kubernetes` Role은 cluster 상태와

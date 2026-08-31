@@ -92,7 +92,9 @@ redact_extra_var() {
     key="${value%%=*}"
     case "${key}" in
       kubernetes_upgrade_confirm | kubernetes_upgrade_postcheck_only | \
-        kubespray_force | argocd_force)
+        helm_upgrade_confirm | helm_upgrade_allow_major | helm_upgrade_postcheck_only | \
+        kubespray_force | argocd_upgrade_confirm | argocd_upgrade_reconcile | \
+        argocd_upgrade_postcheck_only)
         shell_quote "${value}"
         ;;
       *)

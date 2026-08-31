@@ -101,7 +101,7 @@ playbooks/kubernetes/install.yml
   ├── kubespray: cluster.yml 실행
   └── kubernetes: install 사후 점검
 
-playbooks/kubernetes/upgrade.yml
+playbooks/upgrade.yml → kubernetes/upgrade.yml
   ├── kubespray: checkout/entrypoint 검증
   ├── kubernetes: upgrade path 검증과 precheck
   ├── playbook: 명시적 승인 gate
@@ -139,11 +139,18 @@ roles/kubernetes/tasks/
 | `bastion/hosts.yml` | hostname mapping 관리 | `bastion_hosts` |
 | `network/tailscale.yml` | install → forwarding → join | `tailscale` |
 | `kubernetes/node-config.yml` | validate → kubeconfig → labels → taints | `k8s_node_config` |
-| `platform/helm.yml` | Helm CLI install | `helm` |
-| `platform/argocd.yml` | prerequisite → namespace → bootstrap Secret → deploy → root app → verify | `argocd` |
+| `platform/helm/install.yml` | Helm CLI 최초 install | `helm/tasks/install.yml` |
+| `platform/helm/upgrade.yml` | validate → precheck → approved binary replacement → postcheck | `helm/tasks/upgrade/` |
+| `platform/argocd/install.yml` | validate → prerequisite → Secret → precheck → deploy → root app → postcheck | `argocd` common tasks (`argocd_operation=bootstrap`) |
+| `platform/argocd/upgrade.yml` | validate → precheck → approved deploy → postcheck | `argocd` common tasks (`argocd_operation=upgrade`) |
 
 Role의 `tasks/`에는 위 표의 개별 작업 파일만 둔다. 실행 순서를 숨기는 `tasks/main.yml`은
 사용하지 않는다. 단, Ansible handler 진입점인 `handlers/main.yml`은 규약에 따라 유지한다.
+
+root `bootstrap.yml`은 최초 구성 Playbook을 순서대로 직접 import하며 부분 실행은 domain
+tag를 사용한다. root `upgrade.yml`은 Kubernetes, Helm과 ArgoCD upgrade Playbook을 등록하되
+component별 고유 tag로 하나만 선택한다. 영역별 wrapper와 전체 동시 upgrade target은 두지
+않는다.
 
 ## Runtime과 비추적 파일
 

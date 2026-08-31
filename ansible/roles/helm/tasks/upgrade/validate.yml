@@ -1,0 +1,78 @@
+---
+- name: Helm 목표 version 형식 검증
+  ansible.builtin.assert:
+    that:
+      - helm_version is defined
+      - helm_version is string
+      - helm_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: "helm_version을 v3.19.5 형식의 따옴표 문자열로 설정하세요."
+
+- name: Helm architecture 계산
+  ansible.builtin.set_fact:
+    helm_architecture: >-
+      {{ {'x86_64': 'amd64', 'aarch64': 'arm64'}
+         .get(ansible_architecture, 'unsupported') }}
+
+- name: Helm 지원 architecture 검증
+  ansible.builtin.assert:
+    that:
+      - helm_architecture != 'unsupported'
+    fail_msg: "지원하지 않는 architecture입니다: {{ ansible_architecture }}"
+
+- name: 기존 Helm CLI 확인
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", version, --short]
+  register: helm_upgrade_current_result
+  changed_when: false
+  failed_when: false
+
+- name: 기존 Helm CLI 존재 보장
+  ansible.builtin.assert:
+    that:
+      - helm_upgrade_current_result.rc == 0
+    fail_msg: "기존 Helm CLI가 없습니다. 신규 설치는 make helm을 사용하세요."
+
+- name: Helm 현재와 목표 version 정규화
+  ansible.builtin.set_fact:
+    helm_current_version: >-
+      {{ helm_upgrade_current_result.stdout | regex_search('v[0-9]+\.[0-9]+\.[0-9]+') }}
+    helm_target_version: "{{ helm_version }}"
+
+- name: Helm version 구성 요소 계산
+  ansible.builtin.set_fact:
+    helm_current_major: "{{ (helm_current_version | regex_replace('^v', '')).split('.')[0] | int }}"
+    helm_target_major: "{{ (helm_target_version | regex_replace('^v', '')).split('.')[0] | int }}"
+
+- name: Helm 2 migration 자동화 차단
+  ansible.builtin.assert:
+    that:
+      - helm_current_major | int >= 3
+      - helm_target_major | int in [3, 4]
+    fail_msg: >-
+      이 workflow는 Helm 3 또는 4 바이너리 업그레이드만 지원합니다.
+      Helm 2 release migration은 2to3 절차를 별도로 수행해야 합니다.
+
+- name: Helm downgrade와 동일 version 실행 방지
+  ansible.builtin.assert:
+    that:
+      - >-
+        (helm_current_version is version(helm_target_version, '<'))
+        or
+        ((helm_upgrade_postcheck_only | default(false) | bool)
+         and helm_current_version == helm_target_version)
+    fail_msg: >-
+      현재 {{ helm_current_version }}에서 목표 {{ helm_target_version }}로 업그레이드할 수 없습니다.
+      더 높은 version만 허용하고 동일 version은 독립 postcheck에서만 허용합니다.
+
+- name: Helm major upgrade 추가 승인 확인
+  ansible.builtin.assert:
+    that:
+      - helm_upgrade_allow_major | default(false) | bool
+    fail_msg: >-
+      Helm {{ helm_current_major }} -> {{ helm_target_major }} major upgrade는 plugin, CLI flag와
+      chart workflow 검증이 필요합니다. -e helm_upgrade_allow_major=true를 추가하세요.
+  when: helm_target_major | int > helm_current_major | int
+
+- name: Helm upgrade 경로 출력
+  ansible.builtin.debug:
+    msg: "Helm upgrade path: {{ helm_current_version }} -> {{ helm_target_version }}"

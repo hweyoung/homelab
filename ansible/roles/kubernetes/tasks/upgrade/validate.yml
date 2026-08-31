@@ -11,7 +11,7 @@
     that:
       - kubernetes_upgrade_existing_cluster.stat.exists | default(false)
     fail_msg: >-
-      k8s-master에 /etc/kubernetes/admin.conf가 없습니다. 신규 설치는 playbooks/site.yml의
+      k8s-master에 /etc/kubernetes/admin.conf가 없습니다. 신규 설치는 playbooks/bootstrap.yml의
       Kubernetes bootstrap workflow를 사용하세요.
 
 - name: 현재 Kubernetes server version 조회
