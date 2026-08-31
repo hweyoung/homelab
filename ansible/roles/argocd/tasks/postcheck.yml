@@ -5,7 +5,7 @@
   register: argocd_release_after
   changed_when: false
 
-- name: ArgoCD release 상태와 chart version 검증
+- name: ArgoCD release 상태와 application/chart version 검증
   vars:
     release: "{{ argocd_release_after.stdout | from_json }}"
   ansible.builtin.assert:
@@ -14,8 +14,13 @@
       - >-
         argocd_operation == 'bootstrap'
         or release.chart.metadata.version == argocd_chart_version
+      - >-
+        (argocd_operation == 'bootstrap' and not (argocd_deploy_required | bool))
+        or
+        (release.chart.metadata.appVersion | regex_replace('^v', '') == argocd_target_version)
     fail_msg: >-
-      ArgoCD release가 deployed 상태가 아니거나 목표 {{ argocd_chart_version }}과 다릅니다.
+      ArgoCD release가 deployed 상태가 아니거나 목표 ArgoCD {{ argocd_target_version }}
+      (chart {{ argocd_chart_version }})과 다릅니다.
 
 - name: ArgoCD Pod Ready 대기
   ansible.builtin.command:
