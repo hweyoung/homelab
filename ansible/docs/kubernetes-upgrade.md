@@ -24,7 +24,7 @@ Kubespray는 control plane, etcd, kubelet, container runtime, CNI, DNS와 metric
 
 ```yaml
 kubespray_version: "v2.x.y"
-kube_version: "v1.x.y"
+kube_version: "1.x.y"
 ```
 
 Role은 동일 minor의 patch 상승 또는 바로 다음 minor만 허용하며 downgrade와 minor skip을
