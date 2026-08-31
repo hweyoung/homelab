@@ -498,7 +498,7 @@ dev worker를 먼저 처리하고 database와 workload 복구를 확인한다.
   -i ../inventories/homelab/hosts.yml \
   upgrade-cluster.yml \
   --become \
-  -e kube_version=v1.31.9 \
+  -e kube_version=1.31.9 \
   -e serial=1 \
   --limit k8s-worker-dev
 
@@ -513,7 +513,7 @@ dev가 정상일 때만 prod worker를 처리한다.
   -i ../inventories/homelab/hosts.yml \
   upgrade-cluster.yml \
   --become \
-  -e kube_version=v1.31.9 \
+  -e kube_version=1.31.9 \
   -e serial=1 \
   --limit k8s-worker-prod
 ```
