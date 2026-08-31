@@ -2,7 +2,8 @@
 - name: Existing Helm CLI binary upgrade
   hosts: k8s_master
   become: true
-  gather_facts: true
+  # root upgrade.yml에서 component tag만 선택해도 validate가 필요한 fact를 직접 수집한다.
+  gather_facts: false
   any_errors_fatal: true
   tags: [helm_upgrade]
   tasks:
