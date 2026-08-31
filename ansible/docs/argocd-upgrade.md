@@ -11,11 +11,18 @@ SOPS age/PAT Secret 주입과 root Application 생성은 기존 `make argocd` bo
 
 ## 준비
 
-`inventories/homelab/group_vars/all.yml`의 목표 chart version을 변경한다.
+`inventories/homelab/group_vars/all.yml`의 목표 ArgoCD version을 단계별로 변경한다. Helm chart
+version은 role이 `argocd_version_matrix`에서 선택하므로 직접 변경하지 않는다.
 
 ```yaml
-argocd_chart_version: "7.8.0"
+argocd_version: "2.13.0"  # 현재 단계
+
+# 다음 실행: 2.14.11
+# 그다음 실행: 3.0.0
 ```
+
+현재 구성의 고정된 대응 관계는 `2.13.0 → chart 7.7.0`, `2.14.11 → chart 7.8.28`,
+`3.0.0 → chart 8.0.0`이다. 각 단계의 postcheck가 끝나기 전에 다음 version으로 변경하지 않는다.
 
 실행 전에 Argo CD와 argo-helm release note에서 중간 major version, Kubernetes 호환성,
 CRD 변경과 values migration을 확인한다. Kubernetes 업그레이드와 ArgoCD 업그레이드는 같은
@@ -29,7 +36,8 @@ maintenance 작업에서 동시에 수행하지 않는다.
 make argocd-upgrade-precheck
 ```
 
-precheck는 기존 release가 `deployed`이고 목표 chart가 더 높은 version인지 확인한다. 또한
+precheck는 기존 release가 `deployed`이고 ArgoCD application version이 허용된 다음 단계인지
+확인하며, 선택된 chart의 `appVersion`이 목표 ArgoCD version과 일치하는지도 검사한다. 또한
 ArgoCD Pod, 세 CRD와 모든 Application의 `Synced/Healthy` baseline을 검사한다. 결과와 upstream
 release note를 검토한 후에만 실행한다.
 

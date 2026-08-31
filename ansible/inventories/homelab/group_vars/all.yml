@@ -28,9 +28,13 @@ prod_taint_effect: "NoSchedule"
 helm_version: "v3.19.5"
 helm_install_path: "/usr/local/bin/helm"
 
-# ArgoCD (argocd role 이 helm chart 설치 시 사용)
+# ArgoCD (운영자는 ArgoCD version을 선택하고 role이 대응 Helm chart를 결정)
 argocd_namespace: "argocd"
-argocd_chart_version: "7.7.0"
+argocd_version: "2.13.0"
+argocd_version_matrix:
+  "2.13.0": "7.7.0"
+  "2.14.11": "7.8.28"
+  "3.0.0": "8.0.0"
 argocd_helm_timeout: "10m"
 argocd_postcheck_retries: 60
 argocd_postcheck_delay: 10

@@ -20,6 +20,28 @@
       - "{{ homelab_ansible_user_home }}/argocd-values.yaml"
   changed_when: false
 
+- name: 목표 chart metadata 조회
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - show
+      - chart
+      - argo/argo-cd
+      - --version
+      - "{{ argocd_chart_version }}"
+  register: argocd_target_chart_metadata
+  changed_when: false
+
+- name: 목표 chart의 ArgoCD application version 검증
+  vars:
+    chart_metadata: "{{ argocd_target_chart_metadata.stdout | from_yaml }}"
+  ansible.builtin.assert:
+    that:
+      - chart_metadata.appVersion | regex_replace('^v', '') == argocd_target_version
+    fail_msg: >-
+      chart {{ argocd_chart_version }}의 appVersion {{ chart_metadata.appVersion | default('unknown') }}이
+      목표 ArgoCD {{ argocd_target_version }}과 다릅니다. version matrix를 수정하세요.
+
 - name: Upgrade 전 ArgoCD Pod 상태 조회
   ansible.builtin.command:
     argv: [kubectl, get, pods, --namespace, "{{ argocd_namespace }}", --output, json]
