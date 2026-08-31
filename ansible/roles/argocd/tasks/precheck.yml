@@ -98,6 +98,10 @@
 - name: Upgrade 전 모든 Application Synced/Healthy 검증
   vars:
     applications: "{{ (argocd_apps_before.stdout | from_json)['items'] }}"
+    health_required_applications: >-
+      {{ applications
+         | rejectattr('metadata.name', 'in', argocd_health_exempt_applications | default([]))
+         | list }}
   ansible.builtin.assert:
     that:
       - >-
@@ -106,14 +110,14 @@
          | selectattr('status.sync.status', 'equalto', 'Synced')
          | list | length) == (applications | length)
       - >-
-        (applications
+        (health_required_applications
          | selectattr('status.health.status', 'defined')
          | selectattr('status.health.status', 'equalto', 'Healthy')
-         | list | length) == (applications | length)
+         | list | length) == (health_required_applications | length)
     fail_msg: |-
       Upgrade 전 다음 ArgoCD Application이 Synced/Healthy 상태가 아닙니다.
       {% for app in applications %}
-      {% if (app.status.sync.status | default('Unknown')) != 'Synced' or (app.status.health.status | default('Unknown')) != 'Healthy' %}
+      {% if (app.status.sync.status | default('Unknown')) != 'Synced' or ((app.metadata.name not in (argocd_health_exempt_applications | default([]))) and (app.status.health.status | default('Unknown')) != 'Healthy') %}
       - {{ app.metadata.namespace }}/{{ app.metadata.name }}: sync={{ app.status.sync.status | default('Unknown') }}, health={{ app.status.health.status | default('Unknown') }}
       {% endif %}
       {% endfor %}
