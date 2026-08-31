@@ -1,0 +1,120 @@
+---
+- name: ArgoCD operation 검증
+  ansible.builtin.assert:
+    that:
+      - argocd_operation is defined
+      - argocd_operation in ['bootstrap', 'upgrade']
+      - argocd_chart_version is defined
+      - argocd_chart_version is string
+      - argocd_chart_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+    fail_msg: >-
+      Playbook에서 argocd_operation을 bootstrap 또는 upgrade로 지정하고,
+      argocd_chart_version을 7.7.0 형식의 따옴표 문자열로 설정하세요.
+
+- name: Helm CLI 존재 확인
+  ansible.builtin.stat:
+    path: "{{ helm_install_path }}"
+  register: argocd_helm_cli
+
+- name: Helm CLI 존재 보장
+  ansible.builtin.assert:
+    that:
+      - argocd_helm_cli.stat.exists
+      - argocd_helm_cli.stat.executable
+    fail_msg: "{{ helm_install_path }}가 없습니다. 먼저 make helm을 실행하세요."
+
+- name: ArgoCD deploy용 Helm version 조회
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", version, --short]
+  register: argocd_helm_version_result
+  changed_when: false
+
+- name: ArgoCD deploy용 Helm major 계산
+  ansible.builtin.set_fact:
+    argocd_helm_major: >-
+      {{ (argocd_helm_version_result.stdout
+          | regex_search('v[0-9]+\.[0-9]+\.[0-9]+')
+          | regex_replace('^v', '')).split('.')[0] | int }}
+
+- name: 기존 ArgoCD Helm release 조회
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - status
+      - argocd
+      - --namespace
+      - "{{ argocd_namespace }}"
+      - --output
+      - json
+  register: argocd_release_query
+  changed_when: false
+  failed_when: false
+
+- name: Helm 조회 실패 원인 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        argocd_release_query.rc == 0
+        or 'release: not found' in (argocd_release_query.stderr | lower)
+    fail_msg: >-
+      ArgoCD release 조회에 실패했습니다. 미설치 상태가 아니라 Kubernetes API, kubeconfig,
+      권한 또는 Helm storage 오류일 수 있습니다: {{ argocd_release_query.stderr }}
+
+- name: ArgoCD release 존재 여부 계산
+  ansible.builtin.set_fact:
+    argocd_release_exists: "{{ argocd_release_query.rc == 0 }}"
+
+- name: 기존 ArgoCD release 정보 계산
+  ansible.builtin.set_fact:
+    argocd_current_version: >-
+      {{ (argocd_release_query.stdout | from_json).chart.metadata.version }}
+    argocd_current_release_status: >-
+      {{ (argocd_release_query.stdout | from_json).info.status }}
+  when: argocd_release_exists
+
+- name: Bootstrap 배포 필요 여부 계산
+  ansible.builtin.set_fact:
+    argocd_deploy_required: "{{ not argocd_release_exists }}"
+  when: argocd_operation == 'bootstrap'
+
+- name: Bootstrap에서 기존 release 유지
+  ansible.builtin.debug:
+    msg: >-
+      기존 ArgoCD {{ argocd_current_version }} release를 유지합니다.
+      chart 또는 values 변경은 make argocd-upgrade를 사용하세요.
+  when:
+    - argocd_operation == 'bootstrap'
+    - argocd_release_exists
+
+- name: Upgrade 대상 release 존재와 상태 검증
+  ansible.builtin.assert:
+    that:
+      - argocd_release_exists
+      - argocd_current_release_status == 'deployed'
+    fail_msg: >-
+      Upgrade에는 deployed 상태의 기존 argocd/{{ argocd_namespace }} release가 필요합니다.
+      신규 설치는 make argocd를 사용하세요.
+  when: argocd_operation == 'upgrade'
+
+- name: ArgoCD chart upgrade 경로 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        (argocd_current_version is version(argocd_chart_version, '<'))
+        or
+        ((argocd_upgrade_reconcile | default(false) | bool)
+         and argocd_current_version == argocd_chart_version)
+        or
+        ((argocd_upgrade_postcheck_only | default(false) | bool)
+         and argocd_current_version == argocd_chart_version)
+    fail_msg: >-
+      현재 {{ argocd_current_version }}에서 목표 {{ argocd_chart_version }}로 진행할 수 없습니다.
+      downgrade는 금지하며, 동일 version values reconcile은
+      -e argocd_upgrade_reconcile=true를 명시해야 합니다.
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 배포 필요 여부 계산
+  ansible.builtin.set_fact:
+    argocd_deploy_required: >-
+      {{ not (argocd_upgrade_postcheck_only | default(false) | bool) }}
+  when: argocd_operation == 'upgrade'

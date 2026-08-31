@@ -1,0 +1,92 @@
+---
+- name: ArgoCD Helm release 사후 조회
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", status, argocd, --namespace, "{{ argocd_namespace }}", --output, json]
+  register: argocd_release_after
+  changed_when: false
+
+- name: ArgoCD release 상태와 chart version 검증
+  vars:
+    release: "{{ argocd_release_after.stdout | from_json }}"
+  ansible.builtin.assert:
+    that:
+      - release.info.status == 'deployed'
+      - >-
+        argocd_operation == 'bootstrap'
+        or release.chart.metadata.version == argocd_chart_version
+    fail_msg: >-
+      ArgoCD release가 deployed 상태가 아니거나 목표 {{ argocd_chart_version }}과 다릅니다.
+
+- name: ArgoCD Pod Ready 대기
+  ansible.builtin.command:
+    argv: [kubectl, get, pods, --namespace, "{{ argocd_namespace }}", --output, json]
+  register: argocd_pods_after
+  changed_when: false
+  retries: "{{ argocd_postcheck_retries }}"
+  delay: "{{ argocd_postcheck_delay }}"
+  until:
+    - (argocd_pods_after.stdout | from_json).items | length > 0
+    - >-
+      ((argocd_pods_after.stdout | from_json).items
+       | rejectattr('status.phase', 'in', ['Running', 'Succeeded']) | list | length) == 0
+    - >-
+      ((argocd_pods_after.stdout | from_json).items
+       | selectattr('status.phase', 'equalto', 'Running')
+       | list | length)
+      ==
+      ((argocd_pods_after.stdout | from_json).items
+       | selectattr('status.phase', 'equalto', 'Running')
+       | map(attribute='status.conditions') | flatten
+       | selectattr('type', 'equalto', 'Ready')
+       | selectattr('status', 'equalto', 'True') | list | length)
+
+- name: 모든 ArgoCD Pod Ready 검증
+  vars:
+    pod_ready: >-
+      {{ item.status.conditions | default([])
+         | selectattr('type', 'equalto', 'Ready')
+         | map(attribute='status') | first | default('False') }}
+  ansible.builtin.assert:
+    that:
+      - item.status.phase in ['Running', 'Succeeded']
+      - item.status.phase == 'Succeeded' or pod_ready == 'True'
+    fail_msg: "{{ item.metadata.name }} Pod가 Ready 또는 완료 상태가 아닙니다."
+  loop: "{{ (argocd_pods_after.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Upgrade 후 Application 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, applications.argoproj.io, --all-namespaces, --output, json]
+  register: argocd_apps_after
+  changed_when: false
+  retries: "{{ argocd_postcheck_retries }}"
+  delay: "{{ argocd_postcheck_delay }}"
+  until:
+    - (argocd_apps_after.stdout | from_json).items | length > 0
+    - >-
+      ((argocd_apps_after.stdout | from_json).items
+       | rejectattr('status.sync.status', 'defined') | list | length) == 0
+    - >-
+      ((argocd_apps_after.stdout | from_json).items
+       | rejectattr('status.sync.status', 'equalto', 'Synced') | list | length) == 0
+    - >-
+      ((argocd_apps_after.stdout | from_json).items
+       | rejectattr('status.health.status', 'defined') | list | length) == 0
+    - >-
+      ((argocd_apps_after.stdout | from_json).items
+       | rejectattr('status.health.status', 'equalto', 'Healthy') | list | length) == 0
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 후 모든 Application Synced/Healthy 검증
+  ansible.builtin.assert:
+    that:
+      - item.status.sync.status | default('Unknown') == 'Synced'
+      - item.status.health.status | default('Unknown') == 'Healthy'
+    fail_msg: >-
+      {{ item.metadata.namespace }}/{{ item.metadata.name }}가 제한 시간 안에
+      Synced/Healthy 상태로 복구되지 않았습니다.
+  loop: "{{ (argocd_apps_after.stdout | from_json).items }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+  when: argocd_operation == 'upgrade'

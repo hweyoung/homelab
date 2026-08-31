@@ -30,6 +30,9 @@ helm_install_path: "/usr/local/bin/helm"
 # ArgoCD (argocd role 이 helm chart 설치 시 사용)
 argocd_namespace: "argocd"
 argocd_chart_version: "7.7.0"
+argocd_helm_timeout: "10m"
+argocd_postcheck_retries: 60
+argocd_postcheck_delay: 10
 argocd_domain: "argocd.homelab.local"
 argocd_ingress_class: "traefik"
 argocd_gateway_access_label_key: "homelab.okbear.dev/gateway-access"
