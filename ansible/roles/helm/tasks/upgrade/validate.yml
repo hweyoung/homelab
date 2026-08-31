@@ -1,4 +1,11 @@
 ---
+- name: Helm upgrade 대상 host hardware fact 수집
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!min"
+      - hardware
+
 - name: Helm 목표 version 형식 검증
   ansible.builtin.assert:
     that:
