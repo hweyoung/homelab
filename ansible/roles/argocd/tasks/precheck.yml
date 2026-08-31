@@ -60,7 +60,7 @@
       - item.status.phase in ['Running', 'Succeeded']
       - item.status.phase == 'Succeeded' or pod_ready == 'True'
     fail_msg: "{{ item.metadata.name }} Pod가 Ready 또는 완료 상태가 아닙니다."
-  loop: "{{ (argocd_pods_before.stdout | from_json).items }}"
+  loop: "{{ (argocd_pods_before.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
   when: argocd_operation == 'upgrade'
@@ -79,7 +79,7 @@
       - item.status.health.status | default('Unknown') == 'Healthy'
     fail_msg: >-
       {{ item.metadata.namespace }}/{{ item.metadata.name }}가 Synced/Healthy 상태가 아닙니다.
-  loop: "{{ (argocd_apps_before.stdout | from_json).items }}"
+  loop: "{{ (argocd_apps_before.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
   when: argocd_operation == 'upgrade'
@@ -99,7 +99,7 @@
          | selectattr('type', 'equalto', 'Established')
          | map(attribute='status') | first | default('False')) == 'True'
     fail_msg: "CRD {{ item.metadata.name }}가 Established 상태가 아닙니다."
-  loop: "{{ (argocd_crds_before.stdout | from_json).items }}"
+  loop: "{{ (argocd_crds_before.stdout | from_json)['items'] }}"
   loop_control:
     label: "{{ item.metadata.name }}"
   when: argocd_operation == 'upgrade'
