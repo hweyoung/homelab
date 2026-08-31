@@ -296,6 +296,39 @@ sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system logs \
   -l component=kube-scheduler --tail=200
 ```
 
+event를 기준으로 실패 유형을 구분한다.
+
+| event | 의미 | 다음 확인 |
+| --- | --- | --- |
+| `FailedScheduling`, `unschedulable` | health-check Pod를 배치하지 못함 | cordon, taint, scheduler |
+| `Scheduled`, `Pulled`, `Started` 후 `DeadlineExceeded` | Pod는 실행됐지만 제한 시간 안에 Job 완료 조건이 생기지 않음 | 동일 이미지 Job, controller-manager 안정화 |
+
+두 번째 유형은 control-plane static Pod 재시작 직후 Job controller가 아직 안정화되지 않은
+짧은 구간에서도 발생할 수 있다. 다음과 같이 같은 pause image가 실제로 완료되는지
+검증한다.
+
+```bash
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system create job \
+  pause-health-test --image=registry.k8s.io/pause:3.10 -- /pause -v
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get pod \
+  -l job-name=pause-health-test -o wide
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get job pause-health-test
+```
+
+Pod가 `Completed`, Job이 `1/1`이면 image, container runtime, scheduler와 기본 Job 처리는
+정상이다. 검증 후 임시 Job을 삭제한다.
+
+```bash
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system delete job pause-health-test
+```
+
+Kubespray 재실행 중 health-check를 관찰하려면 별도 terminal에서 복수형 resource를 하나의
+인자로 전달한다.
+
+```bash
+sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get pods,jobs -w
+```
+
 `kubectl get nodes`의 `VERSION=v1.32.8`은 kubelet 버전만 보여준다. `kubeadm upgrade apply`가
 preflight에서 실패했다면 control-plane이 실제로 upgrade됐다는 증거가 아니다.
 
@@ -304,7 +337,30 @@ sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl version
 sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl -n kube-system get pod \
   -l component=kube-apiserver \
   -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[0].image
-sudo kubeadm upgrade plan v1.32.8
+sudo /usr/local/bin/kubeadm upgrade plan v1.32.8
+```
+
+Kubespray는 `kubeadm`을 `/usr/local/bin`에 설치한다. 일반 사용자 PATH에서는 `kubeadm`이
+보여도 `sudo`의 secure PATH에서는 찾지 못할 수 있으므로 절대 경로를 사용한다. `sudo`
+없이 실행하면 `/etc/kubernetes/admin.conf` 읽기 권한 때문에 실패한다.
+
+`upgrade plan`에서 cluster health check가 통과하고 다음처럼 control-plane은 구버전,
+kubelet만 목표 버전으로 표시될 수 있다.
+
+```text
+Cluster version: 1.31.9
+kubeadm version: v1.32.8
+kube-apiserver k8s-master v1.31.9 -> v1.32.8
+kubelet        k8s-master v1.32.8 -> v1.32.8
+```
+
+이는 첫 실행이 kubelet package를 먼저 갱신한 뒤 `kubeadm upgrade apply` preflight에서
+중단된 부분 upgrade 상태다. `upgrade plan`과 pause test가 통과했다면 수동 apply보다 원래
+workflow를 다시 실행해 control-plane, kube-proxy, worker와 cleanup을 함께 수렴시킨다.
+
+```bash
+cd /home/rocky/homelab/ansible
+make kubernetes-upgrade
 ```
 
 event에서 `node.kubernetes.io/unschedulable` 때문에 health-check Pod가 배치되지 않은 것이
@@ -322,8 +378,8 @@ event에서 `node.kubernetes.io/unschedulable` 때문에 health-check Pod가 배
 
 ```bash
 sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl uncordon k8s-master
-sudo kubeadm upgrade plan v1.32.8
-sudo kubeadm upgrade apply -y v1.32.8 \
+sudo /usr/local/bin/kubeadm upgrade plan v1.32.8
+sudo /usr/local/bin/kubeadm upgrade apply -y v1.32.8 \
   --config=/etc/kubernetes/kubeadm-config.yaml \
   --skip-phases=addon/coredns
 ```
