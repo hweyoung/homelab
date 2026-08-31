@@ -43,8 +43,8 @@
     - name: Check mode에서는 ArgoCD upgrade 실행 생략
       ansible.builtin.debug:
         msg: >-
-          Check mode: ArgoCD chart {{ argocd_current_version }}에서
-          {{ argocd_chart_version }}으로 Helm upgrade를 실행할 예정입니다.
+          Check mode: ArgoCD {{ argocd_current_version }} (chart {{ argocd_current_chart_version }})에서
+          {{ argocd_target_version }} (chart {{ argocd_chart_version }})으로 upgrade할 예정입니다.
       when: ansible_check_mode
       tags: [upgrade, argocd_upgrade_run]
 
