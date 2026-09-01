@@ -60,7 +60,7 @@ rg -n "kubespray_version|kube_version|kubespray_argocd|helm_cli_version|argocd_a
 | `kubespray_argocd_enabled` | `false` | Kubespray addon 차단 |
 | `kubespray_argocd_version` | `2.14.5` | Kubespray 내부 checksum 호환값 |
 | `helm_cli_version` | `v3.19.5` | homelab Helm role |
-| `argocd_app_version` | `3.0.0` | homelab ArgoCD role |
+| `argocd_app_version` | upgrade 단계별 목표 version | homelab ArgoCD role |
 
 Kubespray 검증과 충돌하므로 inventory에 전역 `helm_version` 또는 `argocd_version`을
 정의하지 않는다. Kubernetes 버전에도 선행 `v`를 붙이지 않는다.
@@ -500,6 +500,52 @@ kubectl -n argocd get applications \
   -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status'
 ```
 
+중복 검사는 일반 container뿐 아니라 init container도 포함해야 한다. Redis Deployment에는
+Kubespray v2.14.5의 `secret-init`만 남고 Helm Redis container와 이름이 충돌하지 않아
+`1/2` 형태로 드러나지 않을 수 있다.
+
+```text
+Back-off restarting failed container secret-init
+secrets is forbidden: User "system:serviceaccount:argocd:default" cannot create resource "secrets"
+```
+
+이 경우 `default` ServiceAccount에 Secret 생성 RBAC을 부여하지 않는다. Helm Redis Pod에
+원래 존재하지 않아야 할 Kubespray init container가 병합된 것이므로 Helm desired manifest와
+live template을 먼저 비교한다.
+
+```bash
+helm -n argocd get manifest argocd |
+  grep -n -A15 -B10 'name: secret-init'
+
+kubectl -n argocd get deployment argocd-redis \
+  -o jsonpath='{range .spec.template.spec.initContainers[*]}{.name}{"\t"}{.image}{"\n"}{end}'
+```
+
+Helm manifest에는 없고 live template에만 `secret-init / argocd:v2.14.5`가 있다면 해당 init
+container만 제거한다.
+
+```bash
+kubectl -n argocd patch deployment argocd-redis --type=strategic \
+  -p '{"spec":{"template":{"spec":{"initContainers":[{"name":"secret-init","$patch":"delete"}]}}}}'
+kubectl -n argocd rollout status deployment/argocd-redis --timeout=5m
+```
+
+마지막으로 namespace의 모든 workload에서 v2.14.5 container/init container가 남지 않았는지
+확인한다.
+
+```bash
+kubectl -n argocd get deploy,statefulset -o json |
+  jq -r '
+    .items[]
+    | .kind as $kind
+    | .metadata.name as $workload
+    | ((.spec.template.spec.initContainers // []) +
+       (.spec.template.spec.containers // []))[]
+    | select(.image | contains("argocd:v2.14.5"))
+    | [$kind, $workload, .name, .image] | @tsv
+  '
+```
+
 OpenBao는 node drain 뒤 sealed 상태로 다시 시작할 수 있으므로 ArgoCD 복구와 별도로 unseal
 상태를 확인한다. 모든 workload 복구가 끝나면 전체 upgrade를 반복하지 말고 Phase 5의
 postcheck만 실행한다.
@@ -553,6 +599,37 @@ ssh k8s-master 'sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pods -A'
 postcheck가 실패하면 upgrade 성공으로 기록하지 않는다. 실패 workload를 복구한 뒤
 postcheck만 다시 실행한다.
 
+### ArgoCD upgrade 없이 postcheck만 먼저 실행한 경우
+
+ArgoCD postcheck는 Helm upgrade를 수행하지 않고 현재 deployed release가 inventory의 목표
+application/chart version과 일치하는지만 검증한다. 목표를 `3.1.9 / chart 9.0.6`으로 바꾼
+직후 실제 upgrade 없이 postcheck만 실행하면 다음 오류가 정상적으로 발생한다.
+
+```text
+ArgoCD release가 deployed 상태가 아니거나 목표 ArgoCD 3.1.9 (chart 9.0.6)과 다릅니다.
+```
+
+현재 release를 확인한다.
+
+```bash
+helm -n argocd list -o json |
+  jq -r '.[] | [.name, .status, .chart, .app_version] | @tsv'
+helm -n argocd history argocd
+```
+
+현재 release가 이전 version으로 정상 deployed 상태라면 rollback이나 reconcile flag를 쓰지
+않고 다음 순서로 실제 upgrade를 실행한다.
+
+```bash
+make argocd-upgrade-precheck
+make argocd-upgrade
+make argocd-upgrade-postcheck
+```
+
+ArgoCD minor는 `3.0 → 3.1 → 3.2 → 3.3 → 3.4` 순서로 진행하고 각 단계마다 위 세 작업을
+반복한다. `argocd_upgrade_reconcile=true`는 동일 version의 values 재적용 용도이며 minor
+skip 우회 옵션이 아니다.
+
 ## Phase 6. Execution artifact 분석
 
 ```bash
@@ -586,7 +663,9 @@ Secret이나 token이 발견되면 artifact를 공유하지 말고 credential �
 | node별 버전 불일치 | Phase 4 | 변경 범위 확인 후 동일 workflow 재실행 |
 | `upgrade-health-check` 15초 timeout | Phase 4 | event로 scheduler 원인 확인, single control-plane 복구 |
 | ArgoCD `1/2`, `address already in use` | Phase 4 | Kubespray v2 중복 컨테이너 제거 후 addon boolean 경계 수정 |
+| Redis `secret-init:v2.14.5` CrashLoop | Phase 4 | Helm manifest 비교 후 잔여 init container만 제거 |
 | drain/PDB 차단 | Phase 2/4 | topology와 replica/PVC 확인, PDB 강제 삭제 금지 |
 | OpenBao `Running 0/1` | Phase 4 | sealed 여부 확인 후 안전하게 unseal |
 | worker placement label/taint 차이 | Phase 2/5 | 경고 확인 후 필요하면 `make post-kubespray`로 수렴 |
 | postcheck workload 실패 | Phase 5 | workload 복구 후 postcheck 재실행 |
+| ArgoCD chart version postcheck 불일치 | Phase 5 | 실제 upgrade 실행 여부와 Helm history 확인 |
