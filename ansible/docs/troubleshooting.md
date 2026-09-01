@@ -120,9 +120,10 @@ precheck는 대략 다음 순서로 실패를 차단한다.
 4. PDB와 stateful workload의 drain 위험 검증
 5. upgrade 승인 변수 검증
 
-Worker scheduling label과 prod taint는 inventory의 desired state와 일치해야 한다. 누락된
-label 또는 이미 제거된 prod taint를 잘못된 baseline으로 인정하지 않고 precheck에서
-차단한다. 다음 명령으로 먼저 node 구성을 수렴시킨다.
+Worker scheduling label은 inventory의 desired state와 일치해야 한다. 누락된 label을
+잘못된 baseline으로 인정하지 않고 precheck에서 차단한다. prod taint 자체는
+precheck/postcheck assertion 대상에서 제외하고 upgrade cleanup과 운영 확인으로 관리한다.
+다음 명령으로 node 구성을 수렴시킬 수 있다.
 
 ```bash
 make post-kubespray
