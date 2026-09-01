@@ -143,7 +143,8 @@ make kubernetes-upgrade-postcheck
 - [ ] 모든 Node Ready 및 kubelet target version 일치
 - [ ] API server와 APIService 정상
 - [ ] CoreDNS, NodeLocalDNS, CNI와 metrics-server 정상
-- [ ] Node label/taint 유지
+- [ ] Node placement label 유지
+- [ ] upgrade cleanup 이후 prod taint 복원 여부 운영 확인
 - [ ] ArgoCD와 Application Synced/Healthy
 - [ ] PostgreSQL dev/prod 정상
 - [ ] OpenBao unseal 및 Ready
