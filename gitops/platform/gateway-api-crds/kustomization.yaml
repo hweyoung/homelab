@@ -1,9 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Gateway API Standard CRD (GatewayClass / Gateway / HTTPRoute / ReferenceGrant).
-# Traefik Helm chart 와 분리해 별도 Application 으로 관리하며, cert-manager/Traefik 보다
-#먼저 sync 된다(root-app values wave -50). 대용량 CRD 이므로 platform syncPolicy 의
-# ServerSideApply=true 로 적용한다.
+# Gateway API Standard channel CRD upgrade history:
+# - v1.2.1: current
+# - v1.3.0: intermediate upgrade
+# - v1.4.0: required before upgrading Traefik to 3.6
+#
+# 한 번에 한 minor version만 올리고 각 URL 변경을 별도 commit으로 남긴다.
+# 활성 resource는 항상 하나만 유지한다.
 resources:
   - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml

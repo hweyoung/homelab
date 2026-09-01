@@ -16,6 +16,29 @@ hosts:
   infisical: infisical.okbear.dev
   openbao: openbao.okbear.dev
 
+# application version과 실제 배포 artifact의 대응표. activeVersion만 한 단계씩 변경한다.
+platformVersions:
+  cert-manager:
+    activeVersion: "1.16.5"
+    versions:
+      "1.16.1": { chartVersion: "v1.16.1" }
+      "1.16.5": { chartVersion: "v1.16.5" }
+      "1.17.4": { chartVersion: "v1.17.4" }
+      "1.18.6": { chartVersion: "v1.18.6" }
+      "1.19.6": { chartVersion: "v1.19.6" }
+      "1.20.3": { chartVersion: "v1.20.3" }
+      "1.21.1": { chartVersion: "v1.21.1" }
+
+  traefik:
+    activeVersion: "3.2.0"
+    versions:
+      "3.2.0": { chartVersion: "33.0.0" }
+      "3.2.2": { chartVersion: "33.2.1" }
+      "3.3.6": { chartVersion: "35.2.0" }
+      "3.4.3": { chartVersion: "36.3.0" }
+      "3.5.3": { chartVersion: "37.2.0" }
+      "3.6.15": { chartVersion: "39.0.9" }
+
 
 # ==============
 # syncPolicy
@@ -114,7 +137,7 @@ applications:
     wave: -35
     chart: cert-manager
     chartRepo: https://charts.jetstack.io
-    chartVersion: v1.16.1
+    versionRef: cert-manager
     valuesPath: gitops/platform/cert-manager/values.yaml
     syncPolicyRef: platform
 
@@ -137,7 +160,7 @@ applications:
     wave: -25
     chart: traefik
     chartRepo: https://traefik.github.io/charts
-    chartVersion: "33.0.0"
+    versionRef: traefik
     valuesPath: gitops/platform/traefik/values.yaml
     syncPolicyRef: platform
 
