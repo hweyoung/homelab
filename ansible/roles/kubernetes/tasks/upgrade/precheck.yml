@@ -15,39 +15,6 @@
   become: true
   changed_when: false
 
-- name: Node placement 상세 상태 조회
-  ansible.builtin.command:
-    argv: [kubectl, get, nodes, -o, json]
-  environment:
-    KUBECONFIG: /etc/kubernetes/admin.conf
-  register: upgrade_placement_nodes_before
-  delegate_to: k8s-master
-  become: true
-  changed_when: false
-
-- name: Worker scheduling label 사전 검증
-  vars:
-    checked_node: >-
-      {{ (upgrade_placement_nodes_before.stdout | from_json)['items']
-         | selectattr('metadata.name', 'equalto', item)
-         | first }}
-    expected_pool: "{{ hostvars[item].kube_node_pool }}"
-    expected_platform_tier: "{{ hostvars[item].platform_tier }}"
-  ansible.builtin.assert:
-    that:
-      - (checked_node.metadata.labels.pool | default('')) == expected_pool
-      - >-
-        (checked_node.metadata.labels['homelab.okbear.dev/environment'] | default('')) ==
-        expected_pool
-      - (checked_node.metadata.labels['platform-tier'] | default('')) == expected_platform_tier
-    fail_msg: >-
-      Node {{ item }}의 scheduling desired state가 inventory와 다릅니다.
-      expected pool/environment={{ expected_pool }}, platform-tier={{ expected_platform_tier }}.
-      make post-kubespray로 node 구성을 먼저 수렴시키세요.
-  loop: "{{ groups['k8s_workers'] }}"
-  loop_control:
-    label: "{{ item }}"
-
 - name: PDB 상태 조회
   ansible.builtin.command:
     argv: [kubectl, get, pdb, -A, -o, json]

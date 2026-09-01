@@ -14,7 +14,6 @@
   delegate_to: k8s-master
   become: true
   changed_when: "'tainted' in upgrade_restore_prod_taint.stdout"
-  loop: "{{ groups['k8s_workers'] }}"
+  loop: "{{ upgrade_prod_taint_nodes_before | default([]) }}"
   loop_control:
     label: "{{ item }}"
-  when: hostvars[item].kube_node_pool == prod_taint_value
