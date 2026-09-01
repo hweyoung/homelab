@@ -19,7 +19,7 @@ hosts:
 # application version과 실제 배포 artifact의 대응표. activeVersion만 한 단계씩 변경한다.
 platformVersions:
   cert-manager:
-    activeVersion: "1.20.3"
+    activeVersion: "1.21.1"
     versions:
       "1.16.1": { chartVersion: "v1.16.1" }
       "1.16.5": { chartVersion: "v1.16.5" }
