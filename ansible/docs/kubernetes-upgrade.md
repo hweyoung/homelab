@@ -46,9 +46,10 @@ Role은 동일 minor의 patch 상승 또는 바로 다음 minor만 허용하며 
 - worker upgrade 중 stateful workload downtime이 발생할 수 있다.
 - PDB, Stateful Pod 또는 PVC를 자동 강제 삭제하지 않는다.
 - `serial=1`로 node를 순차 처리한다.
-- placement label은 upgrade 중에도 유지한다.
+- placement label과 taint의 desired-state 수렴은 `make post-kubespray`가 소유한다.
 - selector가 없는 health-check/system Pod가 남은 worker에 배치될 수 있도록 prod custom
-  taint만 Kubespray 실행 구간에서 임시 제거하고 `always`에서 복원한다.
+  taint가 실제로 존재했던 node만 Kubespray 실행 구간에서 임시 제거하고 `always`에서
+  원래 대상에 복원한다.
 - PostgreSQL과 OpenBao backup을 VM snapshot으로 대체하지 않는다.
 
 Node scheduling의 canonical 계약은 다음과 같다.
@@ -130,8 +131,8 @@ make kubernetes-upgrade-postcheck
 
 - GitOps 변경 freeze 유지
 - Kubernetes와 application/component version 변경을 동시에 수행하지 않음
-- worker placement label은 제거하지 않음
-- prod custom taint는 자동화가 Kubespray 실행 직전에만 제거하고 `always`에서 복원
+- worker placement label은 upgrade 자동화가 변경하지 않음
+- 기존 prod custom taint는 실행 직전에만 제거하고 `always`에서 원래 대상에 복원
 - control-plane taint와 임의의 다른 taint는 변경하지 않음
 - dev worker 처리 중 ArgoCD reconciliation 일시 중단 가능성 수용
 - prod worker 처리 전 stateful workload downtime 공지
@@ -143,8 +144,8 @@ make kubernetes-upgrade-postcheck
 - [ ] 모든 Node Ready 및 kubelet target version 일치
 - [ ] API server와 APIService 정상
 - [ ] CoreDNS, NodeLocalDNS, CNI와 metrics-server 정상
-- [ ] Node placement label 유지
-- [ ] upgrade cleanup 이후 prod taint 복원 여부 운영 확인
+- [ ] Node placement 변경 경고 확인
+- [ ] 필요하면 `make post-kubespray`로 label/taint 수렴
 - [ ] ArgoCD와 Application Synced/Healthy
 - [ ] PostgreSQL dev/prod 정상
 - [ ] OpenBao unseal 및 Ready

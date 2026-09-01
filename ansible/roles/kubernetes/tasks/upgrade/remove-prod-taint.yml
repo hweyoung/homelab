@@ -1,4 +1,39 @@
 ---
+- name: Upgrade 직전 Node taint 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, nodes, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_nodes_before_taint_removal
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: 복원할 prod taint 대상 초기화
+  ansible.builtin.set_fact:
+    upgrade_prod_taint_nodes_before: []
+
+- name: 기존 prod taint 대상 기록
+  vars:
+    checked_node: >-
+      {{ (upgrade_nodes_before_taint_removal.stdout | from_json)['items']
+         | selectattr('metadata.name', 'equalto', item)
+         | first }}
+    matching_prod_taints: >-
+      {{ checked_node.spec.taints | default([])
+         | selectattr('key', 'equalto', prod_taint_key)
+         | selectattr('value', 'equalto', prod_taint_value)
+         | selectattr('effect', 'equalto', prod_taint_effect)
+         | list }}
+  ansible.builtin.set_fact:
+    upgrade_prod_taint_nodes_before: "{{ upgrade_prod_taint_nodes_before + [item] }}"
+  loop: "{{ groups['k8s_workers'] }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - hostvars[item].kube_node_pool == prod_taint_value
+    - matching_prod_taints | length == 1
+
 - name: Prod worker에서 custom taint 임시 제거
   ansible.builtin.command:
     argv:
@@ -13,7 +48,6 @@
   delegate_to: k8s-master
   become: true
   changed_when: "'untainted' in upgrade_remove_prod_taint.stdout"
-  loop: "{{ groups['k8s_workers'] }}"
+  loop: "{{ upgrade_prod_taint_nodes_before }}"
   loop_control:
     label: "{{ item }}"
-  when: hostvars[item].kube_node_pool == prod_taint_value

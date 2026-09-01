@@ -120,10 +120,9 @@ precheck는 대략 다음 순서로 실패를 차단한다.
 4. PDB와 stateful workload의 drain 위험 검증
 5. upgrade 승인 변수 검증
 
-Worker scheduling label은 inventory의 desired state와 일치해야 한다. 누락된 label을
-잘못된 baseline으로 인정하지 않고 precheck에서 차단한다. prod taint 자체는
-precheck/postcheck assertion 대상에서 제외하고 upgrade cleanup과 운영 확인으로 관리한다.
-다음 명령으로 node 구성을 수렴시킬 수 있다.
+Worker scheduling label과 taint는 Kubernetes health/version gate의 실패 조건이 아니다.
+precheck에서 baseline을 기록하고 postcheck에서 변화가 있으면 경고하되, desired-state
+수렴은 node-config workflow가 소유한다. 다음 명령으로 별도 수렴시킬 수 있다.
 
 ```bash
 make post-kubespray
@@ -213,10 +212,10 @@ variable을 사용하면 이 문자열이 truthy로 평가되어 addon이 실행
 upgrade는 node를 한 번에 하나씩 처리한다. 실패했다고 곧바로 전체 명령을 반복하지 말고
 Phase 4에서 실제 변경 범위를 먼저 확인한다.
 
-Kubespray 실행 직전에는 prod custom taint만 임시 제거된다. placement label과
-control-plane taint는 유지한다. Kubespray가 실패해도 Ansible `always`가
-`homelab.okbear.dev/environment=prod:NoSchedule`을 복원한다. 프로세스 강제 종료 등으로
-cleanup이 실행되지 않았다면 다음 precheck가 missing taint를 명확하게 차단한다.
+Kubespray 실행 직전에는 실제 존재했던 prod custom taint 대상만 기록하고 임시 제거한다.
+placement label과 control-plane taint는 변경하지 않는다. Kubespray가 실패해도 Ansible
+`always`가 기록된 대상에 taint를 복원한다. 처음부터 taint가 없었다면 새로 만들지 않는다.
+프로세스 강제 종료 등으로 cleanup이 실행되지 않았다면 `make post-kubespray`로 수렴한다.
 
 ### 화면 출력이 멈춘 것처럼 보이는 경우
 
@@ -589,5 +588,5 @@ Secret이나 token이 발견되면 artifact를 공유하지 말고 credential �
 | ArgoCD `1/2`, `address already in use` | Phase 4 | Kubespray v2 중복 컨테이너 제거 후 addon boolean 경계 수정 |
 | drain/PDB 차단 | Phase 2/4 | topology와 replica/PVC 확인, PDB 강제 삭제 금지 |
 | OpenBao `Running 0/1` | Phase 4 | sealed 여부 확인 후 안전하게 unseal |
-| worker `pool` label 없음 | Phase 2/5 | `make post-kubespray`로 label과 canonical taint 수렴 |
+| worker placement label/taint 차이 | Phase 2/5 | 경고 확인 후 필요하면 `make post-kubespray`로 수렴 |
 | postcheck workload 실패 | Phase 5 | workload 복구 후 postcheck 재실행 |
