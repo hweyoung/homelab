@@ -15,8 +15,8 @@ homelab_ansible_user_home: >-
   {{ '/root' if ansible_user == 'root' else '/home/' ~ ansible_user }}
 
 # Kubespray / Kubernetes
-kubespray_version: "v2.28.1"
-kube_version: "1.32.8"
+kubespray_version: "v2.29.1"
+kube_version: "1.33.7"
 # ArgoCD는 별도 argocd role이 소유하므로 Kubespray addon은 사용하지 않는다.
 # Kubespray가 disabled addon의 checksum도 평가하므로 해당 release의 지원 version을 함께 고정한다.
 kubespray_argocd_enabled: false
@@ -48,6 +48,7 @@ argocd_version_matrix:
 argocd_helm_timeout: "10m"
 argocd_postcheck_retries: 60
 argocd_postcheck_delay: 10
+
 # AppProject만 소유하는 bootstrap Application은 Synced를 강제하되 workload health gate에서는 제외한다.
 argocd_health_exempt_applications:
   - argocd-control-plane
