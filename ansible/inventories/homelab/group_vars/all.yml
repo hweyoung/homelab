@@ -36,7 +36,7 @@ helm_install_path: "/usr/local/bin/helm"
 
 # ArgoCD (운영자는 ArgoCD version을 선택하고 role이 대응 Helm chart를 결정)
 argocd_namespace: "argocd"
-argocd_app_version: "3.2.6"
+argocd_app_version: "3.3.9"
 argocd_version_matrix: 
   "2.13.0": "7.7.0"
   "2.14.11": "7.8.28"
