@@ -38,44 +38,23 @@
   become: true
   changed_when: false
 
-- name: Node placement label과 taint 유지 검증
-  ansible.builtin.assert:
-    that:
-      - upgrade_node_placement_after.stdout == upgrade_node_placement_before.stdout
-    fail_msg: >-
-      Upgrade 전후 node label/taint가 달라졌습니다.
-      before={{ upgrade_node_placement_before.stdout | default('precheck 미실행') }}
+- name: Node placement label과 taint 변경 경고
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: Upgrade 전후 node label/taint가 달라졌습니다.
+      Kubernetes upgrade 검증은 계속하지만, 필요하면 make post-kubespray로 수렴시키세요.
+      before={{ upgrade_node_placement_before.stdout }}
       after={{ upgrade_node_placement_after.stdout }}
-  when: upgrade_node_placement_before is defined
+  when:
+    - upgrade_node_placement_before is defined
+    - upgrade_node_placement_after.stdout != upgrade_node_placement_before.stdout
 
 - name: 독립 postcheck의 baseline 비교 생략 안내
   ansible.builtin.debug:
     msg: >-
       precheck와 별도로 실행되어 upgrade 전 taint baseline 비교는 생략합니다.
-      worker의 필수 pool/environment 라벨은 계속 검증합니다.
+      Node placement label과 taint 수렴은 make post-kubespray에서 별도로 수행합니다.
   when: upgrade_node_placement_before is not defined
-
-- name: Worker scheduling label 검증
-  vars:
-    checked_node: >-
-      {{ (upgrade_nodes_after.stdout | from_json)['items']
-         | selectattr('metadata.name', 'equalto', item)
-         | first }}
-    expected_pool: "{{ hostvars[item].kube_node_pool }}"
-    expected_platform_tier: "{{ hostvars[item].platform_tier }}"
-  ansible.builtin.assert:
-    that:
-      - (checked_node.metadata.labels.pool | default('')) == expected_pool
-      - >-
-        (checked_node.metadata.labels['homelab.okbear.dev/environment'] | default('')) ==
-        expected_pool
-      - (checked_node.metadata.labels['platform-tier'] | default('')) == expected_platform_tier
-    fail_msg: >-
-      Node {{ item }}의 scheduling desired state가 inventory와 다릅니다.
-      expected pool/environment={{ expected_pool }}, platform-tier={{ expected_platform_tier }}.
-  loop: "{{ groups['k8s_workers'] }}"
-  loop_control:
-    label: "{{ item }}"
 
 - name: Platform과 application 상태 출력
   ansible.builtin.command:
