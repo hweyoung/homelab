@@ -7,10 +7,10 @@
       - "{{ kubespray_inventory_path }}"
       - cluster.yml
       - --become
-      - -e
-      - "argocd_enabled={{ kubespray_argocd_enabled | bool | lower }}"
-      - -e
-      - "argocd_version={{ kubespray_argocd_version }}"
+      - --extra-vars
+      - >-
+        {"argocd_enabled": {{ kubespray_argocd_enabled | bool | to_json }},
+        "argocd_version": {{ kubespray_argocd_version | to_json }}}
   args:
     chdir: "{{ kubespray_root }}"
   environment:

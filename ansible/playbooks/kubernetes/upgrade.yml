@@ -61,11 +61,23 @@
       when: ansible_check_mode
       tags: [upgrade, kubernetes_upgrade_run]
 
-    - name: Kubespray로 Kubernetes upgrade 실행
-      ansible.builtin.import_role:
-        name: kubespray
-        tasks_from: upgrade
+    - name: 임시 scheduling 변경과 Kubespray upgrade
       when: not ansible_check_mode
+      block:
+        - name: Upgrade 동안 prod custom taint 임시 제거
+          ansible.builtin.import_role:
+            name: kubernetes
+            tasks_from: upgrade/remove-prod-taint
+
+        - name: Kubespray로 Kubernetes upgrade 실행
+          ansible.builtin.import_role:
+            name: kubespray
+            tasks_from: upgrade
+      always:
+        - name: Prod custom taint 복원
+          ansible.builtin.import_role:
+            name: kubernetes
+            tasks_from: upgrade/restore-prod-taint
       tags: [upgrade, kubernetes_upgrade_run]
 
     - name: Kubernetes upgrade 후 cluster health 점검

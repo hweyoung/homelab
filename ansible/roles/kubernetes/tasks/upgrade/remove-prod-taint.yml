@@ -1,0 +1,19 @@
+---
+- name: Prod worker에서 custom taint 임시 제거
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - taint
+      - node
+      - "{{ item }}"
+      - "{{ prod_taint_key }}={{ prod_taint_value }}:{{ prod_taint_effect }}-"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_remove_prod_taint
+  delegate_to: k8s-master
+  become: true
+  changed_when: "'untainted' in upgrade_remove_prod_taint.stdout"
+  loop: "{{ groups['k8s_workers'] }}"
+  loop_control:
+    label: "{{ item }}"
+  when: hostvars[item].kube_node_pool == prod_taint_value

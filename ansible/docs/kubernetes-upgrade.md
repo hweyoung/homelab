@@ -46,7 +46,21 @@ Role은 동일 minor의 patch 상승 또는 바로 다음 minor만 허용하며 
 - worker upgrade 중 stateful workload downtime이 발생할 수 있다.
 - PDB, Stateful Pod 또는 PVC를 자동 강제 삭제하지 않는다.
 - `serial=1`로 node를 순차 처리한다.
+- placement label은 upgrade 중에도 유지한다.
+- selector가 없는 health-check/system Pod가 남은 worker에 배치될 수 있도록 prod custom
+  taint만 Kubespray 실행 구간에서 임시 제거하고 `always`에서 복원한다.
 - PostgreSQL과 OpenBao backup을 VM snapshot으로 대체하지 않는다.
+
+Node scheduling의 canonical 계약은 다음과 같다.
+
+```text
+label: homelab.okbear.dev/environment=prod|dev
+taint: homelab.okbear.dev/environment=prod:NoSchedule
+```
+
+`pool=prod|dev`와 `platform-tier=stable|mutable` label도 inventory 호환 계약으로 유지한다.
+이전 `pool=prod:NoSchedule` taint는 node-config 수렴 시 제거한다. control-plane 기본 taint는
+임시 제거 대상이 아니다.
 
 CNPG maintenance가 필요하면 backup 이후 별도 GitOps 변경으로 검토한다.
 
@@ -116,6 +130,9 @@ make kubernetes-upgrade-postcheck
 
 - GitOps 변경 freeze 유지
 - Kubernetes와 application/component version 변경을 동시에 수행하지 않음
+- worker placement label은 제거하지 않음
+- prod custom taint는 자동화가 Kubespray 실행 직전에만 제거하고 `always`에서 복원
+- control-plane taint와 임의의 다른 taint는 변경하지 않음
 - dev worker 처리 중 ArgoCD reconciliation 일시 중단 가능성 수용
 - prod worker 처리 전 stateful workload downtime 공지
 - PDB, maintenance mode, Pod와 PVC를 자동 우회하지 않음
