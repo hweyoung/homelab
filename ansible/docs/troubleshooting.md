@@ -184,12 +184,18 @@ single replica와 `local-path` 조합은 node 이동이 불가능할 수 있다.
 make kubernetes-upgrade
 ```
 
-정상 호출은 Kubespray `upgrade-cluster.yml`에 다음 경계를 전달한다.
+정상 호출은 Kubespray `upgrade-cluster.yml`에 다음 경계를 **타입을 보존하여** 전달한다.
 
 - `kube_version=1.32.8`
 - `serial=1`
-- `argocd_enabled=false`
+- `argocd_enabled=false` (문자열이 아닌 boolean)
 - `argocd_version=2.14.5`
+
+`ansible-playbook -e argocd_enabled=false`처럼 key/value 형식으로 넘기면 nested Ansible에서
+`"false"` 문자열이 될 수 있다. Kubespray의 addon 조건이 `when: argocd_enabled`처럼 bare
+variable을 사용하면 이 문자열이 truthy로 평가되어 addon이 실행될 수 있다. JSON extra-vars
+등으로 boolean 타입을 보존하거나, addon을 사용하지 않을 때 해당 변수를 CLI에서 넘기지
+않고 Kubespray 기본값을 사용해야 한다.
 
 upgrade는 node를 한 번에 하나씩 처리한다. 실패했다고 곧바로 전체 명령을 반복하지 말고
 Phase 4에서 실제 변경 범위를 먼저 확인한다.
@@ -388,6 +394,99 @@ sudo /usr/local/bin/kubeadm upgrade apply -y v1.32.8 \
 동일하게 실패하는 single-control-plane 복구에만 사용한다. 성공 후 `make
 kubernetes-upgrade`를 다시 실행하지 않고 끝내면 worker와 후속 role이 구버전에 남는다.
 
+### Kubespray 실행 후 ArgoCD Pod가 `1/2 CrashLoopBackOff`가 되는 경우
+
+대표 증상은 Helm으로 ArgoCD v3을 배포한 Pod에 Kubespray의 v2 컨테이너가 함께 존재하고,
+v3 컨테이너가 동일 포트를 열지 못해 종료되는 것이다.
+
+```text
+argocd-server  quay.io/argoproj/argocd:v2.14.5
+server         quay.io/argoproj/argocd:v3.0.0
+
+level=fatal msg="listen tcp 0.0.0.0:8080: bind: address already in use"
+```
+
+원인은 nested Kubespray 호출의 `-e argocd_enabled=false`가 boolean이 아니라 `"false"`
+문자열로 전달되고, Kubespray의 bare `when: argocd_enabled` 조건이 이를 truthy로 평가한
+것이다. Kubespray의 client-side apply가 Helm chart 8 리소스를 대체하지 않고 서로 다른
+이름의 v2 컨테이너를 Pod template에 병합한다.
+
+다음 세 증거를 함께 확인한다.
+
+```bash
+helm -n argocd history argocd
+
+helm -n argocd get manifest argocd |
+  grep -nE 'name: (argocd-server|server|argocd-repo-server|repo-server)$|image:.*argocd'
+
+kubectl -n argocd get deploy,statefulset -o json |
+  jq -r '
+    .items[]
+    | select(.spec.template.spec.containers | length > 1)
+    | .kind as $kind
+    | .metadata.name as $name
+    | .spec.template.spec.containers[]
+    | [$kind, $name, .name, .image] | @tsv
+  '
+```
+
+Helm manifest에는 v3 컨테이너만 있지만 live workload에 v2/v3 컨테이너가 함께 있으면
+ownership이 섞인 것이다. managedFields와 last-applied annotation으로 적용 주체와 시간을
+확인한다.
+
+```bash
+kubectl -n argocd get deployment argocd-server -o yaml --show-managed-fields |
+  grep -nE 'manager:|operation:|time:|v2.14.5'
+
+kubectl -n argocd get deployment argocd-server \
+  -o jsonpath='{.metadata.annotations.kubectl\.kubernetes\.io/last-applied-configuration}' |
+  jq -r '.spec.template.spec.containers[] | [.name, .image] | @tsv'
+```
+
+실제 사고에서는 Helm manager 적용 뒤 `kubectl-client-side-apply`가 v2.14.5 manifest를
+적용한 것이 확인됐다. 이 상태는 Helm release 자체의 실패가 아니므로 먼저 rollback하지
+않는다. Kubespray addon 재실행을 막는 코드 경계를 수정한 뒤, live template에서
+Kubespray가 추가한 컨테이너만 제거한다.
+
+```bash
+kubectl -n argocd patch deployment argocd-server --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"argocd-server","$patch":"delete"}]}}}}'
+kubectl -n argocd patch deployment argocd-repo-server --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"argocd-repo-server","$patch":"delete"}]}}}}'
+kubectl -n argocd patch deployment argocd-applicationset-controller --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"argocd-applicationset-controller","$patch":"delete"}]}}}}'
+kubectl -n argocd patch deployment argocd-notifications-controller --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"argocd-notifications-controller","$patch":"delete"}]}}}}'
+kubectl -n argocd patch statefulset argocd-application-controller --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"argocd-application-controller","$patch":"delete"}]}}}}'
+kubectl -n argocd patch deployment argocd-dex-server --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"dex","$patch":"delete"}]}}}}'
+```
+
+제거할 이름은 위의 live/Helm 비교로 먼저 확인한다. StatefulSet이 partitioned 또는
+`OnDelete` 방식이면 template patch만으로 기존 Pod가 교체되지 않는다. template에 v3
+컨테이너 하나만 남은 것을 확인한 뒤 기존 Pod를 재생성한다.
+
+```bash
+kubectl -n argocd get statefulset argocd-application-controller \
+  -o jsonpath='{range .spec.template.spec.containers[*]}{.name}{"\t"}{.image}{"\n"}{end}'
+kubectl -n argocd delete pod argocd-application-controller-0
+kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=5m
+```
+
+복구 완료 기준은 모든 ArgoCD workload의 컨테이너가 Helm v3 기준 하나씩이고, Pod가 Ready,
+Application이 정상적으로 reconcile되는 것이다.
+
+```bash
+kubectl -n argocd get pods
+kubectl -n argocd get applications \
+  -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status'
+```
+
+OpenBao는 node drain 뒤 sealed 상태로 다시 시작할 수 있으므로 ArgoCD 복구와 별도로 unseal
+상태를 확인한다. 모든 workload 복구가 끝나면 전체 upgrade를 반복하지 말고 Phase 5의
+postcheck만 실행한다.
+
 ### CNPG PDB가 drain을 차단하는 경우
 
 ```bash
@@ -469,6 +568,7 @@ Secret이나 token이 발견되면 artifact를 공유하지 말고 credential �
 | `argocd_install_checksums...3.0.0` | Phase 2/3 | Kubespray addon 변수 경계 고정 |
 | node별 버전 불일치 | Phase 4 | 변경 범위 확인 후 동일 workflow 재실행 |
 | `upgrade-health-check` 15초 timeout | Phase 4 | event로 scheduler 원인 확인, single control-plane 복구 |
+| ArgoCD `1/2`, `address already in use` | Phase 4 | Kubespray v2 중복 컨테이너 제거 후 addon boolean 경계 수정 |
 | drain/PDB 차단 | Phase 2/4 | topology와 replica/PVC 확인, PDB 강제 삭제 금지 |
 | OpenBao `Running 0/1` | Phase 4 | sealed 여부 확인 후 안전하게 unseal |
 | postcheck workload 실패 | Phase 5 | workload 복구 후 postcheck 재실행 |
