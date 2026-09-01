@@ -55,21 +55,39 @@
       worker의 필수 pool/environment 라벨은 계속 검증합니다.
   when: upgrade_node_placement_before is not defined
 
-- name: Worker 필수 scheduling label 검증
+- name: Worker scheduling label과 prod taint 검증
   vars:
     checked_node: >-
       {{ (upgrade_nodes_after.stdout | from_json)['items']
          | selectattr('metadata.name', 'equalto', item)
          | first }}
+    expected_pool: "{{ hostvars[item].kube_node_pool }}"
+    expected_platform_tier: "{{ hostvars[item].platform_tier }}"
+    managed_prod_taints: >-
+      {{ checked_node.spec.taints | default([])
+         | selectattr('key', 'equalto', prod_taint_key)
+         | list }}
+    matching_prod_taints: >-
+      {{ checked_node.spec.taints | default([])
+         | selectattr('key', 'equalto', prod_taint_key)
+         | selectattr('value', 'equalto', prod_taint_value)
+         | selectattr('effect', 'equalto', prod_taint_effect)
+         | list }}
   ansible.builtin.assert:
     that:
-      - checked_node.metadata.labels.pool == hostvars[item].kube_node_pool
+      - (checked_node.metadata.labels.pool | default('')) == expected_pool
       - >-
-        checked_node.metadata.labels['homelab.okbear.dev/environment'] ==
-        hostvars[item].kube_node_pool
+        (checked_node.metadata.labels['homelab.okbear.dev/environment'] | default('')) ==
+        expected_pool
+      - (checked_node.metadata.labels['platform-tier'] | default('')) == expected_platform_tier
+      - >-
+        (expected_pool == prod_taint_value and
+         managed_prod_taints | length == 1 and matching_prod_taints | length == 1) or
+        (expected_pool != prod_taint_value and managed_prod_taints | length == 0)
     fail_msg: >-
-      Node {{ item }}의 pool 또는 homelab.okbear.dev/environment 라벨이
-      inventory의 kube_node_pool={{ hostvars[item].kube_node_pool }}와 다릅니다.
+      Node {{ item }}의 scheduling desired state가 inventory와 다릅니다.
+      expected pool/environment={{ expected_pool }}, platform-tier={{ expected_platform_tier }},
+      prod-taint={{ expected_pool == prod_taint_value }}.
   loop: "{{ groups['k8s_workers'] }}"
   loop_control:
     label: "{{ item }}"

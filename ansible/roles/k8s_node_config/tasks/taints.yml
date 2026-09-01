@@ -1,4 +1,15 @@
 ---
+- name: 이전 prod taint 제거
+  ansible.builtin.command: >-
+    {{ kubectl_path.stdout }} taint node {{ item.0 }}
+    {{ item.1 }}={{ prod_taint_value }}:{{ prod_taint_effect }}-
+  loop: "{{ groups['k8s_workers'] | product(legacy_prod_taint_keys | default([])) | list }}"
+  register: remove_legacy_prod_taint
+  changed_when: "'untainted' in remove_legacy_prod_taint.stdout"
+  failed_when:
+    - remove_legacy_prod_taint.rc != 0
+    - "'not found' not in remove_legacy_prod_taint.stderr"
+
 - name: prod 풀 노드에 taint 적용
   ansible.builtin.command: >-
     {{ kubectl_path.stdout }} taint node {{ item }}
