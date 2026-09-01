@@ -22,10 +22,12 @@ kube_version: "1.32.8"
 kubespray_argocd_enabled: false
 kubespray_argocd_version: "2.14.5"
 
-# Post-Kubespray 노드 taint
-prod_taint_key: "pool"
+# Post-Kubespray 노드 taint. GitOps workload의 toleration과 동일한 canonical key를 사용한다.
+prod_taint_key: "homelab.okbear.dev/environment"
 prod_taint_value: "prod"
 prod_taint_effect: "NoSchedule"
+legacy_prod_taint_keys:
+  - pool
 
 # Helm CLI
 # Kubernetes 1.31을 지원하는 Helm 3.19 release line의 최신 patch.
