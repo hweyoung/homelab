@@ -1,6 +1,19 @@
 {{- $root := . -}}
 {{- range $app := .Values.applications }}
 {{- $type := $app.type | default "directory" -}}
+{{- $versionConfig := dict -}}
+{{- $activeVersion := "" -}}
+{{- if $app.versionRef -}}
+{{- $componentVersions := required (printf "application %q references unknown platformVersions entry %q" $app.name $app.versionRef) (index $root.Values.platformVersions $app.versionRef) -}}
+{{- $activeVersion = required (printf "platformVersions.%s requires activeVersion" $app.versionRef) $componentVersions.activeVersion -}}
+{{- $versionConfig = required (printf "platformVersions.%s has no mapping for activeVersion %q" $app.versionRef $activeVersion) (index $componentVersions.versions $activeVersion) -}}
+{{- end -}}
+{{- $chartVersion := $app.chartVersion -}}
+{{- $path := $app.path -}}
+{{- if $versionConfig -}}
+{{- $chartVersion = $versionConfig.chartVersion | default $chartVersion -}}
+{{- $path = $versionConfig.path | default $path -}}
+{{- end -}}
 
 {{/*
   Application 이름 규칙:
@@ -39,6 +52,10 @@ metadata:
     {{- end }}
   annotations:
     argocd.argoproj.io/sync-wave: "{{ $app.wave | default 0 }}"
+    {{- if $activeVersion }}
+    app.homelab/version: {{ $activeVersion | quote }}
+    app.homelab/version-ref: {{ $app.versionRef | quote }}
+    {{- end }}
     {{- with $app.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -55,7 +72,7 @@ spec:
   sources:
     - repoURL: {{ required (printf "application %q requires chartRepo" $app.name) $app.chartRepo }}
       chart: {{ $app.chart }}
-      targetRevision: {{ required (printf "application %q requires chartVersion" $app.name) $app.chartVersion }}
+      targetRevision: {{ required (printf "application %q requires chartVersion or versionRef mapping" $app.name) $chartVersion }}
       {{- with $app.valuesPath }}
       helm:
         valueFiles:
@@ -68,7 +85,7 @@ spec:
   source:
     repoURL: {{ $app.repoURL | default $root.Values.global.repoURL }}
     targetRevision: {{ $app.targetRevision | default $root.Values.global.targetRevision }}
-    path: {{ required (printf "application %q requires a path" $app.name) $app.path }}
+    path: {{ required (printf "application %q requires a path or versionRef mapping" $app.name) $path }}
     {{- if eq $type "helm" }}
     {{- with $app.helm }}
     helm:
