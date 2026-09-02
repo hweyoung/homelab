@@ -14,5 +14,12 @@ kube_proxy_mode: ipvs
 
 enable_nodelocaldns: true
 metrics_server_enabled: true
+
+# single control-plane 환경에서 kubeadm upgrade health-check Job은 정상 완료되지만,
+# kubeadm의 15초 관찰 구간에서 Complete condition을 놓치는 오탐이 반복된다.
+# scheduler/API/CNI 오류 전체가 아니라 확인된 CreateJob preflight만 제한적으로 허용한다.
+kubeadm_ignore_preflight_errors:
+  - CreateJob
+
 # Helm 은 Ansible 이 별도로 설치하므로 Kubespray 의 helm_enabled 는 false 로 둡니다.
 helm_enabled: false
