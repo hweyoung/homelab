@@ -30,7 +30,7 @@ platformVersions:
       "1.21.1": { chartVersion: "v1.21.1" }
 
   traefik:
-    activeVersion: "3.3.6"
+    activeVersion: "3.4.3"
     versions:
       "3.2.0": { chartVersion: "33.0.0" }
       "3.2.2": { chartVersion: "33.2.1" }
