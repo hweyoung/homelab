@@ -14,4 +14,4 @@ commonAnnotations:
 # 한 번에 한 minor version만 올리고 각 URL 변경을 별도 commit으로 남긴다.
 # 활성 resource는 항상 하나만 유지한다.
 resources:
-  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml
