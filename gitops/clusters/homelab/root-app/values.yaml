@@ -63,6 +63,15 @@ syncPolicies:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
+  # CRD 전용 Application은 cluster-scoped resource만 관리한다.
+  # destination namespace를 생성하지 않고 Server-Side Apply로 CRD version을 갱신한다.
+  cluster-crds:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+
   cnpg-manual:
     automated:
       prune: true
@@ -123,10 +132,12 @@ applications:
     group: platform
     project: platform
     type: kustomize
-    namespace: gateway
+    # Application destination에는 namespace가 필요해 이미 존재하는 argocd를 사용한다.
+    # 실제 배포 대상은 cluster-scoped CRD뿐이며 별도 gateway namespace를 만들지 않는다.
+    namespace: argocd
     wave: -40
     path: gitops/platform/gateway-api-crds
-    syncPolicyRef: platform
+    syncPolicyRef: cluster-crds
 
   # --- cert-manager (Helm) ---
   - name: cert-manager
@@ -162,6 +173,10 @@ applications:
     chartRepo: https://traefik.github.io/charts
     versionRef: traefik
     valuesPath: gitops/platform/traefik/values.yaml
+    # Gateway API CRD는 platform-gateway-api-crds Application이 단독 소유한다.
+    # Traefik 3.6 이하 chart에 포함된 crds/ bundle은 Argo CD render에서 제외한다.
+    helm:
+      skipCrds: true
     syncPolicyRef: platform
 
   # --- Traefik Gateway API Resources ---

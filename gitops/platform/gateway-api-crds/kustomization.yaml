@@ -1,6 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# CRD 삭제는 해당 custom resource까지 제거할 수 있으므로 Argo CD 자동 prune 대상에서
+# 제외한다. release bundle에서 CRD가 제거되는 경우에는 영향 범위를 확인한 뒤 수동 정리한다.
+commonAnnotations:
+  argocd.argoproj.io/sync-options: Prune=false
+
 # Gateway API Standard channel CRD upgrade history:
 # - v1.2.1: current
 # - v1.3.0: intermediate upgrade
