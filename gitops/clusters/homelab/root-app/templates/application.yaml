@@ -73,10 +73,15 @@ spec:
     - repoURL: {{ required (printf "application %q requires chartRepo" $app.name) $app.chartRepo }}
       chart: {{ $app.chart }}
       targetRevision: {{ required (printf "application %q requires chartVersion or versionRef mapping" $app.name) $chartVersion }}
-      {{- with $app.valuesPath }}
+      {{- if or $app.helm $app.valuesPath }}
       helm:
+        {{- with $app.helm }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with $app.valuesPath }}
         valueFiles:
           - $values/{{ . }}
+        {{- end }}
       {{- end }}
     - repoURL: {{ $app.repoURL | default $root.Values.global.repoURL }}
       targetRevision: {{ $app.targetRevision | default $root.Values.global.targetRevision }}
