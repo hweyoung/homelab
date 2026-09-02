@@ -15,6 +15,7 @@ hosts:
   argocd: argocd.okbear.dev
   infisical: infisical.okbear.dev
   openbao: openbao.okbear.dev
+  garageImages: images.okbear.dev
 
 # application version과 실제 배포 artifact의 대응표. activeVersion만 한 단계씩 변경한다.
 platformVersions:
@@ -60,6 +61,15 @@ syncPolicies:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+
+  # Namespace는 namespaces Application이 먼저 소유한다.
+  platform-existing-namespace:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
@@ -240,6 +250,26 @@ applications:
     chartVersion: "2.9.0"
     valuesPath: gitops/platform/external-secrets/values.yaml
     syncPolicyRef: platform
+
+  # --- Garage single-node S3-compatible object storage ---
+  - name: garage
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: garage
+    wave: -10
+    path: gitops/platform/garage
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Garage public image delivery (S3 website endpoint only) ---
+  - name: garage-route
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: garage
+    wave: -9
+    path: gitops/platform/garage/exposure
+    syncPolicyRef: platform-existing-namespace
 
   # --- OpenBao public exposure (Gateway API) ---
   # - name: openbao-route
