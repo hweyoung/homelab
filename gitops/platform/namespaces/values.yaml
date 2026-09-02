@@ -14,6 +14,10 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
+  - name: garage
+    environment: prod
+    gatewayAccess: public
+
   # ==================
   # Homelab Workload Namespace
   # ==================
