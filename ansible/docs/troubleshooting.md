@@ -630,6 +630,129 @@ ArgoCD minor는 `3.0 → 3.1 → 3.2 → 3.3 → 3.4` 순서로 진행하고 각
 반복한다. `argocd_upgrade_reconcile=true`는 동일 version의 values 재적용 용도이며 minor
 skip 우회 옵션이 아니다.
 
+### Gateway API CRD Application의 `InvalidSpecError`
+
+#### 증상
+
+`platform-gateway-api-crds` Application에서 다음 condition이 발생할 수 있다.
+
+```text
+InvalidSpecError: application destination server 'https://kubernetes.default.svc'
+and namespace 'argocd' do not match any of the allowed destinations in project 'platform'
+```
+
+동시에 resource 목록의 Gateway API CRD는 `Synced`로 보일 수 있다.
+
+```text
+gatewayclasses.gateway.networking.k8s.io   Synced
+gateways.gateway.networking.k8s.io         Synced
+grpcroutes.gateway.networking.k8s.io       Synced
+httproutes.gateway.networking.k8s.io       Synced
+referencegrants.gateway.networking.k8s.io  Synced
+```
+
+CRD의 이전 sync 결과가 남아 있는 것과 현재 Application spec이 유효한지는 별개다. resource가
+`Synced`여도 `InvalidSpecError`가 있으면 Application은 정상 상태가 아니다.
+
+#### 원인
+
+ArgoCD AppProject는 실제 manifest가 cluster-scoped resource만 포함하더라도 Application의
+`spec.destination.namespace`를 먼저 검증한다. `platform` AppProject가 `argocd` namespace를
+허용하지 않는데 CRD Application의 destination을 `argocd`로 지정하면 spec 자체가 거부된다.
+
+이를 해결하기 위해 `platform` project에 `argocd`를 추가하지 않는다. 그러면 Platform
+Application 전체가 ArgoCD control-plane namespace에 배포할 수 있게 되어 기존 보안 경계가
+불필요하게 넓어진다.
+
+#### Desired state 수정
+
+cluster-scoped CRD Application도 destination namespace 필드는 필요하므로, AppProject가 이미
+허용하고 항상 존재하는 `default`를 placeholder로 사용한다.
+
+```yaml
+# gitops/clusters/homelab/root-app/values.yaml
+- name: gateway-api-crds
+  group: platform
+  project: platform
+  type: kustomize
+  namespace: default
+  path: gitops/platform/gateway-api-crds
+  syncPolicyRef: cluster-crds
+```
+
+`cluster-crds` policy에는 `CreateNamespace=true`를 넣지 않는다. Gateway API CRD는
+cluster-scoped이므로 `default` namespace에 실제 resource가 생성되지 않는다.
+
+```yaml
+cluster-crds:
+  automated:
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - ServerSideApply=true
+```
+
+root-app 렌더 결과와 AppProject 허용 destination을 함께 확인한다.
+
+```bash
+helm template root-app ../gitops/clusters/homelab/root-app |
+  sed -n '/name: platform-gateway-api-crds/,/---/p'
+
+kubectl -n argocd get appproject platform \
+  -o jsonpath='{range .spec.destinations[*]}{.server}{"\t"}{.namespace}{"\n"}{end}'
+```
+
+정상적인 Application destination은 다음과 같다.
+
+```yaml
+destination:
+  server: https://kubernetes.default.svc
+  namespace: default
+```
+
+#### CRD ownership 확인
+
+Gateway API CRD의 단일 소유자는 `platform-gateway-api-crds`다. Traefik Application은 chart의
+CRD 전체를 제외하도록 최종 Application에 다음 설정이 있어야 한다.
+
+```yaml
+spec:
+  sources:
+    - chart: traefik
+      helm:
+        skipCrds: true
+```
+
+`skipCrds`는 Traefik chart values가 아니라 ArgoCD Application Helm source 옵션이다.
+`gitops/platform/traefik/values.yaml`에 넣지 않는다.
+
+```bash
+kubectl -n argocd get application platform-traefik \
+  -o jsonpath='{.spec.sources[0].helm.skipCrds}{"\n"}'
+
+for crd in \
+  gatewayclasses.gateway.networking.k8s.io \
+  gateways.gateway.networking.k8s.io \
+  grpcroutes.gateway.networking.k8s.io \
+  httproutes.gateway.networking.k8s.io \
+  referencegrants.gateway.networking.k8s.io; do
+  kubectl get crd "${crd}" \
+    -o jsonpath='{.metadata.name}{"\t"}{.metadata.annotations.argocd\.argoproj\.io/sync-options}{"\n"}'
+done
+```
+
+기대값은 Traefik `skipCrds=true`와 각 Gateway API CRD의 `Prune=false`다. 기존 이중 소유권을
+정리할 때는 CRD 보호를 먼저 sync하고, 그 다음 Traefik에서 CRD를 제외한다. CRD를 직접
+삭제하거나 AppProject에 `argocd` destination 권한을 추가하는 방식으로 우회하지 않는다.
+
+복구 완료 기준:
+
+- `platform-gateway-api-crds`에 `InvalidSpecError`가 없다.
+- Gateway API CRD 5개가 유지되고 `Synced`다.
+- `platform-traefik`의 `helm.skipCrds`가 `true`다.
+- shared-resource warning이 사라진다.
+- GatewayClass `Accepted`, Gateway `Programmed`, HTTPRoute `Accepted/ResolvedRefs`가 정상이다.
+
 ## Phase 6. Execution artifact 분석
 
 ```bash
@@ -669,3 +792,5 @@ Secret이나 token이 발견되면 artifact를 공유하지 말고 credential �
 | worker placement label/taint 차이 | Phase 2/5 | 경고 확인 후 필요하면 `make post-kubespray`로 수렴 |
 | postcheck workload 실패 | Phase 5 | workload 복구 후 postcheck 재실행 |
 | ArgoCD chart version postcheck 불일치 | Phase 5 | 실제 upgrade 실행 여부와 Helm history 확인 |
+| Gateway CRD App `InvalidSpecError` | Phase 5 | AppProject가 허용하는 `default` destination 사용, `argocd` 권한 확장 금지 |
+| Gateway API CRD shared-resource 경고 | Phase 5 | CRD App을 단일 소유자로 두고 Traefik `helm.skipCrds=true` 확인 |
