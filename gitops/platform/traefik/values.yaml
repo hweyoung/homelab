@@ -1,6 +1,8 @@
 # Traefik Helm values (chart: traefik/traefik, root-app values 의 chartVersion 사용)
 # feature5 Task 5-4. Gateway API Controller 로만 사용하고, GatewayClass/Gateway 는
 # 별도 Git 매니페스트(gitops/platform/gateway/)로 관리한다.
+# Gateway API CRD는 platform-gateway-api-crds Application이 관리하며, root-app에서
+# 이 chart에 helm.skipCrds=true를 적용해 chart의 crds/ bundle을 렌더링하지 않는다.
 
 deployment:
   replicas: 2
