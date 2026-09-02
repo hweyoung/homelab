@@ -39,7 +39,7 @@ argocd-repo-server (KSOPS + age key) ──복호화──▶ 클러스터 Secre
 | ArgoCD repo credentials (부가) | 추가 private repo / helm registry 접근 | `argocd` | `clusters/homelab/argocd-config/` |
 | Cloudflare API token | cert-manager DNS-01 challenge | `cert-manager` | `<cert-manager 워크로드>/` |
 | Dex client secret | OIDC client 인증 | `dex` | `<dex 워크로드>/` |
-| MinIO credentials | 오브젝트 스토리지 root 자격증명 | `minio` | `<minio 워크로드>/` |
+| Garage S3 access key | 애플리케이션별 오브젝트 스토리지 자격증명 | 소비 애플리케이션 namespace | 해당 앱 워크로드 |
 | PostgreSQL dev credentials | dev DB superuser/app 자격증명 | `postgresql-dev` | `<postgresql dev 워크로드>/` |
 | PostgreSQL prod credentials | prod DB superuser/app 자격증명 | `postgresql-prod` | `<postgresql prod 워크로드>/` |
 | GHCR credentials | 컨테이너 이미지 pull(imagePullSecret) | 각 앱 ns | `<앱 워크로드>/` |

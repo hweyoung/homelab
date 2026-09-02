@@ -1,7 +1,7 @@
 ---
 # platform AppProject (cluster-scoped 리소스 허용)
 # - 클러스터 기반 플랫폼 서비스. operator/CRD/ClusterRole 등 cluster-scoped 리소스를 생성해야 하므로 클러스터 리소스를 허용한다. 
-#   대상: cert-manager, traefik, gateway, CNPG, dex, minio, monitoring
+#   대상: cert-manager, traefik, gateway, CNPG, Garage, dex, monitoring
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -10,7 +10,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  description: 클러스터 플랫폼 서비스 (cert-manager, traefik, gateway, CNPG, dex, minio, monitoring)
+  description: 클러스터 플랫폼 서비스 (cert-manager, traefik, gateway, CNPG, Garage, dex, monitoring)
 
   sourceRepos:
     - https://github.com/hweyoung/homelab.git
@@ -68,8 +68,9 @@ spec:
 
     - server: https://kubernetes.default.svc
       namespace: openbao
-    
-    
+
+    - server: https://kubernetes.default.svc
+      namespace: garage
 
   clusterResourceWhitelist:
     - group: '*'
