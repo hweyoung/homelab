@@ -17,7 +17,7 @@ configMapGenerator:
 
 images:
   - name: ghcr.io/umc-commonplant/api-common
-    newTag: sha-399db31051bf715e36ac7d94ed3b5700bbbf359f
+    newTag: sha-e0e8cada565e2e1c00a86d56da7ae3e6aa00b148
 
 patches:
   - path: patch-deployment.yaml
