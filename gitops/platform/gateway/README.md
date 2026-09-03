@@ -5,7 +5,7 @@
 | 파일 | 내용 |
 | --- | --- |
 | `gatewayclass.yaml` | GatewayClass `traefik` (controller `traefik.io/gateway-controller`) |
-| `certificate.yaml` | wildcard 인증서 `*.okbear.dev`, `*.dev.okbear.dev`, `*.images.okbear.dev` → Secret `okbear-wildcard-tls` |
+| `certificate.yaml` | wildcard 인증서 `okbear.dev`, `*.okbear.dev` → Secret `wildcard-okbear-tls` |
 | `gateway.yaml` | Gateway `public` (HTTP 8000 / HTTPS 8443 listener) |
 
 * listener port 는 Traefik entryPoint(`web` 8000 / `websecure` 8443)와 일치한다.
@@ -18,9 +18,8 @@
 
 ```bash
 kubectl get gatewayclass
-kubectl -n traefik get certificate okbear-wildcard
-kubectl -n traefik describe certificate okbear-wildcard
-kubectl -n traefik get secret okbear-wildcard-tls
-kubectl -n traefik get gateway public-gateway
-kubectl -n traefik describe gateway public-gateway   # Accepted / Programmed = True
+kubectl get certificate -n gateway
+kubectl get secret wildcard-okbear-tls -n gateway
+kubectl get gateway -n gateway
+kubectl describe gateway public -n gateway   # Accepted / Programmed = True
 ```

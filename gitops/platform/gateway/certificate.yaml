@@ -17,5 +17,3 @@ spec:
   dnsNames:
     - "*.okbear.dev"
     - "*.dev.okbear.dev"
-    # Garage virtual-hosted image URL (for example, bucket.images.okbear.dev).
-    - "*.images.okbear.dev"

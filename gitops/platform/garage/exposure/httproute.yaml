@@ -15,7 +15,7 @@ spec:
       namespace: traefik
       sectionName: https
   hostnames:
-    - "*.images.okbear.dev"
+    - images.okbear.dev
   rules:
     - matches:
         - path:
