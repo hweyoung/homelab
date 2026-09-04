@@ -24,7 +24,6 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: garage
-          port: 3902
+          name: garage-web-proxy
+          port: 8080
           weight: 1
-

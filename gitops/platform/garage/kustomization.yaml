@@ -7,6 +7,13 @@ resources:
   - pvc.yaml
   - service.yaml
   - deployment.yaml
+  - proxy-service.yaml
+  - proxy-deployment.yaml
+
+configMapGenerator:
+  - name: garage-web-proxy
+    files:
+      - nginx.conf=proxy-nginx.conf
 
 labels:
   - pairs:
