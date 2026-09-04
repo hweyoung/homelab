@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage-web-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/instance: platform-garage
+    app.kubernetes.io/component: web-proxy
