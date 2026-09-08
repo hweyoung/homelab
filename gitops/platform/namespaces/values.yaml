@@ -12,7 +12,11 @@ namespaces:
 
   - name: external-secrets
     environment: prod
-    gatewayAccess: private
+    gatewayAccess: public
+
+  - name: garage
+    environment: prod
+    gatewayAccess: public
 
   - name: garage
     environment: prod
