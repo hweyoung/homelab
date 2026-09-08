@@ -1,275 +1,140 @@
-# GitOps 아키텍처 (리팩토링 후 현재 구조)
+# GitOps 아키텍처
 
-리팩토링(`claude-code-gitops-refactor-guide.md` 기준, Phase 1~10) 완료 후의 **현재 저장소
-구조**를 정리한 문서입니다. 변경 검토용이며, 모든 내용은 `helm template` / `kustomize build`
-로 렌더 검증된 상태를 반영합니다.
+현재 체크아웃의 선언을 기준으로 제어 흐름, 소유권, 권한과 운영 한계를 정리한다.
+`gitops/issues/`의 설계안과 주석 처리된 Application은 현재 배포 상태로 간주하지 않는다.
 
-> 관련 문서: [`gitops-guide.md`](./gitops-guide.md)(동작 흐름), [`argocd-understanding.md`](./argocd-understanding.md)(개념/장단점), [`../gitops/README.md`](../gitops/README.md)(운영 상세)
+## 제어 흐름
 
----
+```mermaid
+flowchart TB
+    TF["Mac / Terraform"] --> AN["infra-bastion / Ansible + Kubespray"]
+    AN -->|"cluster + Argo CD bootstrap"| ARGO["Argo CD"]
+    AN -->|"age key + optional repo PAT"| ARGO
+    GIT["homelab.git / main"] --> ARGO --> ROOT["root-app"]
+    ROOT --> PROJECTS["AppProjects"] --> NS["Namespaces"]
+    NS --> PLATFORM["Platform"] --> DB["PostgreSQL"] --> APPS["Applications"]
+```
 
-## 1. 핵심 요약
+Terraform은 VM과 네트워크, Ansible/Kubespray는 Kubernetes와 Argo CD 설치를 소유한다.
+Ansible이 `bootstrap/root.yaml`을 적용한 뒤 root-app이
+`clusters/homelab/root-app/values.yaml`에서 하위 Application을 생성하고 Argo CD가 Git의
+desired state와 클러스터를 지속적으로 맞춘다.
 
-| 항목 | 리팩토링 전 | 리팩토링 후 (현재) |
+## App-of-Apps와 sync wave
+
+| Wave | Application | Project | 책임 |
+| ---: | --- | --- | --- |
+| -100 | `argocd-control-plane` | `default` | AppProject 생성 |
+| -50 | `platform-namespaces` | `platform` | Namespace와 metadata |
+| -45 | `platform-local-path-provisioner` | `platform` | local-path PV |
+| -40 | `platform-gateway-api-crds` | `platform` | Gateway API CRD |
+| -35 | `platform-cert-manager` | `platform` | certificate controller/CRD |
+| -30 | `platform-cert-manager-config` | `platform` | DNS-01 Secret와 issuer |
+| -25 | `platform-traefik` | `platform` | Gateway controller |
+| -20 | `platform-traefik-gateway` | `platform` | shared Gateway/Certificate |
+| -15 | `platform-cloudflared` | `platform` | external tunnel |
+| -14 | `platform-cloudnative-pg` | `platform` | PostgreSQL operator |
+| -13 | `platform-openbao` | `platform` | secret store server |
+| -12 | `platform-external-secrets` | `platform` | secret sync controller |
+| -11 | `platform-kargo` | `platform` | promotion controller/CRD |
+| -10 | `platform-garage` | `platform` | S3-compatible storage |
+| -10 | `argocd-server` | `argocd-system` | Argo CD 노출 리소스 |
+| -9 | `platform-garage-route` | `platform` | public image route |
+| 10 | `databases-postgres-{dev,prod}` | `databases` | CNPG Cluster |
+| 30 | `apps-nginx-{dev,prod}`, `apps-api-common-dev` | `apps-*` | workload |
+
+root-app은 21개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
+controller Ready를 보장하지 않는다. PostgreSQL 적용 전 CNPG CRD/controller readiness처럼
+런타임 의존성을 별도로 확인해야 한다.
+
+외부 Helm chart는 chart와 Git values를 결합한 multi-source Application이다. 현재 중앙
+버전 매핑은 cert-manager `1.21.1`, Traefik app `3.6.15`/chart `39.0.9`, Kargo `1.11.0`이다.
+CloudNativePG `0.29.0`, OpenBao `0.29.2`, External Secrets Operator `2.9.0`은 Application에
+직접 고정되어 있다.
+
+## 권한과 소유권
+
+```mermaid
+flowchart LR
+    CP["argocd-control-plane"] --> P0["argocd-system"]
+    CP --> P1["platform"]
+    CP --> P2["databases"]
+    CP --> P3["apps-dev"]
+    CP --> P4["apps-prod"]
+    P1 -->|"cluster-scoped 허용"| PLATFORM["CRD / operator"]
+    P2 -->|"postgres-*, infisical"| DB["database"]
+    P3 -->|"api-*-dev"| DEV["dev workload"]
+    P4 -->|"api-*-prod"| PROD["prod workload"]
+    P0 -->|"argocd namespace"| SERVER["Argo CD server"]
+```
+
+- `argocd-control-plane`은 아직 없는 project가 자신을 생성하는 self-reference를 피하려고
+  `default` project를 쓰는 bootstrap 예외다.
+- `platform`은 CRD, ClusterRole, Namespace 등 cluster-scoped 리소스를 허용한다.
+- `databases`는 destination을 postgres-dev/prod와 infisical로 한정한다.
+- `apps-dev`와 `apps-prod`는 namespace 패턴과 허용 kind가 분리되며 prod가 더 좁다.
+- `argocd-system`은 argocd namespace 자원만 담당해 일반 platform 권한과 분리한다.
+
+Namespace의 단일 owner는 `platform/namespaces` Helm chart다. root-app destination과
+`CreateNamespace`는 Application 옵션일 뿐 Namespace label/metadata의 owner가 아니다.
+Gateway 접근 label도 Namespace catalog에서 관리한다.
+
+## 트래픽과 데이터
+
+```mermaid
+flowchart LR
+    NET["Internet"] --> CF["Cloudflare"] --> TUN["cloudflared"]
+    TUN --> GW["Traefik Gateway"] --> ROUTE["HTTPRoute"] --> APP["Application"]
+    CM["cert-manager"] -->|"wildcard TLS"| GW
+    APP --> PG["CNPG PostgreSQL"]
+    APP --> GARAGE["Garage S3 API"]
+    IMG["images.okbear.dev"] --> PROXY["Garage web proxy"] --> GARAGE
+```
+
+외부 트래픽은 Cloudflare Tunnel과 Traefik Gateway API를 거친다. cert-manager가 DNS-01
+wildcard certificate를 제공한다. Garage의 S3/RPC/Admin endpoint는 내부에 두고 website
+endpoint만 route로 공개한다.
+
+Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
+bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
+OpenBao와 ESO는 설치되지만 현재 workload Secret을 ExternalSecret으로 이전한 상태는 아니다.
+상세 절차는 [`gitops/SECRETS.md`](../gitops/SECRETS.md)에 있다.
+
+## 이미지 승격 경계
+
+```mermaid
+flowchart LR
+    ORG["Organization app repo"] --> CI["GitHub Actions"] --> GHCR["GHCR digest"]
+    GHCR --> KARGO["Kargo Freight"] -->|"verified digest"| GITOPS["personal GitOps repo"]
+    GITOPS --> ARGO["Argo CD"] --> ENV["dev / prod"]
+```
+
+애플리케이션 CI에 개인 GitOps repo write 권한을 직접 주지 않고 Kargo가 immutable
+digest/Freight를 승격하는 경계를 목표로 한다. 현재는 Kargo controller 설치까지만 선언되어
+있고 Stage/Warehouse/PromotionTask 파이프라인은 없다. 따라서 동일 digest의 dev→prod
+승격은 아직 라이브 완료 상태가 아니다.
+
+## 운영 한계
+
+- 단일 control plane/worker는 노드 장애를 견디는 HA가 아니다.
+- local-path PV 데이터는 Pod와 함께 다른 노드로 이동하지 않는다.
+- Garage single-node는 분산 복제 내구성을 제공하지 않는다.
+- OpenBao single Raft는 secret platform 설치와 HA가 별개임을 뜻한다.
+- automated sync와 prune이 활성화되어 Git의 삭제도 자동 반영될 수 있다.
+
+이 구조는 작은 homelab에서 소유권과 복구 경로를 명확히 하는 데 초점을 둔다. HA는 노드,
+스토리지, control plane을 함께 확장해야 하며 replica 수만 늘려 해결되지 않는다.
+
+## 검증 경계
+
+| 구분 | 확인 | 의미 |
 | --- | --- | --- |
-| 부트스트랩 진입 | `bootstrap/` 에 root + app-of-apps 혼재 | **`bootstrap/root.yaml` 하나만** |
-| App-of-Apps 위치 | `bootstrap/app-of-apps/` | `clusters/homelab/root-app/` |
-| Application 정의 | `templates/{platform,databases,apps}/*.yaml` 다수 | **단일 `templates/application.yaml`** + `values.yaml`의 `applications` 목록 |
-| 실제 리소스 | `manifests/{platform,databases,apps}/` | `platform/`, `databases/`, `apps/` (승격) |
-| AppProject | `default` 위주 | **`platform` / `databases` / `apps`** 분리 |
-| 보안 baseline | `components/security-baseline/` 단일 | 5개 작은 component 로 분리 |
-| dev/prod 자동화 | 공통 | `syncPolicies` 로 차등 (prod 보수적) |
-| CI | 없음 | `.github/workflows/gitops-validate.yaml` |
+| 정적 | Helm render, Kustomize build, YAML/Secret 검사 | 선언과 렌더 계약 |
+| 라이브 | Application `Synced/Healthy`, Pod/webhook Ready, CRD discovery | controller 적용 |
+| 서비스 | Certificate/HTTPRoute, DB readiness, 실제 HTTP/S3 요청 | end-to-end 동작 |
 
----
-
-## 2. 진입 흐름 (부트스트랩 → 전체 발화)
-
-```mermaid
-flowchart TD
-    A["Ansible argocd role<br/>(최초 1회)"] --> B["kubectl apply -f<br/>bootstrap/root.yaml"]
-    B --> C["root-app Application<br/>path: clusters/homelab/root-app<br/>prune:false, selfHeal:true"]
-    C --> D["Helm 렌더<br/>templates/application.yaml"]
-    D -->|"range .Values.applications"| E["16개 자식 Application 생성"]
-    E --> F["sync-wave 순서대로 클러스터 적용"]
-```
-
-- `bootstrap/` 에는 **`root.yaml` 하나만** 존재 (진입점 역할 명확화).
-- `root-app` 은 보수적으로 `prune:false` (자식 Application 실수 삭제 방지).
-- 서비스 추가/삭제는 `clusters/homelab/root-app/values.yaml` 의 `applications` 목록만 수정.
-
----
-
-## 3. 디렉토리 구조
-
-```mermaid
-flowchart LR
-    subgraph entry["진입점"]
-        R["bootstrap/root.yaml"]
-    end
-    subgraph chart["App-of-Apps 차트"]
-        RA["clusters/homelab/root-app/<br/>Chart.yaml · values.yaml ·<br/>templates/application.yaml"]
-    end
-    subgraph argocd["argocd/ (ArgoCD 자기 영역)"]
-        CFG["config/projects/*<br/>config/kustomization.yaml<br/>repo-credentials.sops.yaml<br/>argocd-cm-patch.yaml"]
-        ADD["addons/image-updater/"]
-    end
-    subgraph content["실제 리소스"]
-        PLAT["platform/*"]
-        DB["databases/postgresql-{dev,prod}/"]
-        APP["apps/api-server/{base,overlays/*}/"]
-    end
-    subgraph comp["components/ (Kustomize Component)"]
-        C1["resource-defaults"]
-        C2["network-default-deny"]
-        C3["network-egress-dns"]
-        C4["network-allow-gateway"]
-        C5["network-allow-cnpg"]
-        C6["rbac-default"]
-    end
-    R --> RA
-    RA -->|"applications 목록"| PLAT & DB & APP & CFG
-    APP -.참조.-> comp
-    DB -.참조.-> comp
-```
-
-```text
-gitops/
-├── bootstrap/root.yaml                # 최초 1회 진입점 (이 파일만)
-├── clusters/homelab/root-app/         # App-of-Apps Helm chart
-│   ├── Chart.yaml
-│   ├── values.yaml                    # global / hosts / syncPolicies / applications
-│   └── templates/{_helpers.tpl, application.yaml}
-├── argocd/
-│   ├── config/{projects/*, argocd-cm-patch.yaml, repo-credentials.sops.yaml, kustomization.yaml}
-│   └── addons/image-updater/{values.yaml}   # Application 은 root-app 목록이 생성(wave -5)
-├── platform/{cert-manager, cert-manager-issuers, traefik, gateway,
-│             cloudnative-pg, dex, minio, monitoring/*}
-├── databases/{postgresql-dev, postgresql-prod}/
-├── apps/api-server/{base, overlays/{dev,prod}}/
-├── components/{resource-defaults, network-default-deny, network-egress-dns,
-│               network-allow-gateway, network-allow-cnpg, rbac-default}/
-└── docs/{architecture.md, adr/}
-```
-
----
-
-## 4. Application 목록 · Sync Wave · Project
-
-`values.yaml` 의 `applications` 목록이 곧 아래 표입니다. 15개 Application 이 wave 순서대로 발화합니다.
-
-```mermaid
-flowchart TD
-    W_10["wave -10<br/>argocd-config (default)"] --> W0
-    W0["wave 0-1<br/>cert-manager · issuers"] --> W2
-    W2["wave 2-3<br/>traefik · gateway"] --> W4
-    W4["wave 4-6<br/>cloudnative-pg · minio · dex"] --> W7
-    W7["wave 7-9<br/>kube-prometheus-stack · loki · alloy"] --> W20
-    W20["wave 20-21<br/>postgresql-dev · postgresql-prod"] --> W30
-    W30["wave 30-40<br/>api-server-dev · api-server-prod"]
-```
-
-| Wave | Application | type | project | syncPolicy |
-| --- | --- | --- | --- | --- |
-| -10 | argocd-config | kustomize | `default` | platform |
-| -5 | argocd-image-updater | helm | platform | platform |
-| 0 | cert-manager | helm | platform | platform |
-| 1 | cert-manager-issuers | kustomize | platform | platform |
-| 2 | traefik | helm | platform | platform |
-| 3 | gateway | kustomize | platform | platform |
-| 4 | cloudnative-pg | helm | platform | platform |
-| 5 | minio | helm | platform | platform |
-| 6 | dex | helm | platform | platform |
-| 7 | kube-prometheus-stack | helm | platform | platform |
-| 8 | loki | helm | platform | platform |
-| 9 | alloy | helm | platform | platform |
-| 20 | postgresql-dev | kustomize | databases | databases |
-| 21 | postgresql-prod | kustomize | databases | databases |
-| 30 | api-server-dev | kustomize | apps | **dev** |
-| 40 | api-server-prod | kustomize | apps | **prod** |
-
-> 차트 버전은 기존 저장소 값을 유지했습니다 (cert-manager v1.16.1, traefik 32.1.1,
-> cloudnative-pg 0.22.1, minio 5.2.0, dex 0.19.1, kps 65.1.1, loki 6.16.0, alloy 0.10.0).
-
-### 단일 템플릿 렌더 방식
-
-```mermaid
-flowchart LR
-    V["values.yaml<br/>applications[]"] --> T["templates/application.yaml<br/>range"]
-    T -->|"type: helm"| H["multi-source<br/>(외부 차트 + $values)"]
-    T -->|"type: kustomize"| K["single source<br/>(repo path)"]
-    T -->|"annotations[]"| AN["image-updater 등<br/>어노테이션 머지"]
-    T -->|"syncPolicyRef"| SP["syncPolicies[name]"]
-```
-
----
-
-## 5. AppProject 권한 경계
-
-```mermaid
-flowchart TD
-    subgraph platform["project: platform"]
-        P1["cert-manager, traefik, gateway,<br/>cnpg, minio, dex, monitoring"]
-        PN["clusterResourceWhitelist: * <br/>(CRD/ClusterRole 허용)"]
-    end
-    subgraph databases["project: databases"]
-        D1["postgresql-dev/prod"]
-        DN["cluster-scoped 차단<br/>ns: postgresql-dev/prod 한정"]
-    end
-    subgraph apps["project: apps"]
-        A1["api-server-dev/prod"]
-        AN["cluster-scoped 차단<br/>ns: *-dev / *-prod"]
-    end
-    ROOT["argocd-config<br/>project: default<br/>(부트스트랩 self-reference 회피)"] -.생성.-> platform & databases & apps
-```
-
-- **platform**: 플랫폼만 CRD/ClusterRole 등 클러스터 스코프 리소스 설치 허용.
-- **databases / apps**: cluster-scoped 리소스 **차단** — 필요 시 platform 계층으로 분리.
-- **argocd-config** 만 예외적으로 `default` — platform 프로젝트를 스스로 만드는 부트스트랩이라
-  self-reference 데드락을 피하기 위함.
-
----
-
-## 6. 동기화 정책 (dev/prod 차등)
-
-```mermaid
-flowchart LR
-    subgraph pol["syncPolicies"]
-        PL["platform<br/>prune:false selfHeal:true"]
-        DBP["databases<br/>prune:false selfHeal:true"]
-        DEV["dev<br/>prune:TRUE selfHeal:true"]
-        PROD["prod<br/>prune:false selfHeal:true"]
-    end
-    PL --> plat["플랫폼 11개"]
-    DBP --> db["postgresql-dev/prod"]
-    DEV --> ad["api-server-dev"]
-    PROD --> ap["api-server-prod"]
-```
-
-| 정책 | prune | 대상 | 이미지 갱신 |
-| --- | --- | --- | --- |
-| platform / databases / prod | **false** (보수적) | 플랫폼, DB, prod 앱 | prod = **semver** |
-| dev | true (적극 정리) | dev 앱 | dev = latest |
-
-prod 는 자동 prune 을 끄고 이미지도 semver 만 추적해 보수적으로 운영합니다.
-
----
-
-## 7. 런타임 트래픽 & 보안 (NetworkPolicy)
-
-```mermaid
-flowchart TD
-    Net["Internet"] --> CF["Cloudflare"] --> TR["Traefik (Gateway API)"]
-    TR --> GW["Gateway homelab-gateway<br/>:443 TLS (homelab-tls)"]
-    CM["cert-manager + Certificate<br/>Cloudflare DNS-01"] -->|homelab-tls Secret| GW
-    GW --> HR["HTTPRoute"] --> APPPOD["api-server Pod"]
-    APPPOD -->|"egress 5432 (overlay 정책)"| DBPOD["postgresql Pod"]
-
-    subgraph np["namespace 기본 정책 (component)"]
-        DENY["network-default-deny<br/>(+ allow-same-namespace)"]
-        DNS["network-egress-dns (53)"]
-        GWN["network-allow-gateway<br/>(앱만, DB 제외)"]
-    end
-```
-
-- 모든 앱/DB namespace 는 **default-deny ingress** 후 필요한 것만 component 로 허용.
-- 앱 namespace: `resource-defaults`, `network-default-deny`, `network-egress-dns`,
-  `network-allow-gateway`, `rbac-default` (+ DB egress 5432).
-- DB namespace: `network-allow-gateway` **제외**(gateway 노출 안 함), 대신
-  `network-allow-cnpg`(오퍼레이터 접근) + `allow-ingress-api-server-{env}`(앱→DB 5432 ingress) 추가.
-- 앱→DB 연결은 **앱 egress + DB ingress 양쪽** 정책이 짝을 이뤄야 성립.
-
----
-
-## 8. Secret / SOPS
-
-```mermaid
-flowchart LR
-    Plain["평문 값 입력"] --> Enc["sops --encrypt --in-place<br/>*.sops.yaml"]
-    Enc --> Git["Git 커밋 (암호문만)"]
-    Git --> RS["ArgoCD repo-server<br/>(ksops 복호화)"]
-    RS --> K8s["Secret 적용"]
-    CI["CI: sops: 메타데이터 검사"] -.미암호화면 실패.-> Git
-```
-
-- 모든 Secret 은 `*.sops.yaml` 로만, age 암호화 상태로 커밋. 평문 커밋 금지.
-- 대상: `argocd/config/repo-credentials.sops.yaml`,
-  `platform/cert-manager-issuers/cloudflare-token.sops.yaml`, `platform/dex/secret.sops.yaml`,
-  `platform/minio/secret.sops.yaml`, `databases/postgresql-{dev,prod}/secret.sops.yaml`.
-- ⚠️ **현재는 6개 모두 placeholder(미암호화)** — 실제 age 키로 암호화해야 CI 통과.
-
----
-
-## 9. CI 검증 (`.github/workflows/gitops-validate.yaml`)
-
-`gitops/**` 변경 시 실행, `working-directory: gitops`:
-
-```mermaid
-flowchart LR
-    PR["PR / push(main)"] --> F["금지 파일 검사"]
-    F --> S["SOPS 암호화 검사"]
-    S --> H["helm template root-app"]
-    H --> KB["kustomize build<br/>argocd/config · platform · databases · apps"]
-```
-
-| 스텝 | 현재 로컬 결과 |
-| --- | --- |
-| 금지 파일 | ✅ |
-| SOPS 암호화 | ⚠️ 6개 미암호화 (암호화 후 통과) |
-| helm template (15 apps) | ✅ |
-| kustomize build (7경로) | ✅ |
-
----
-
-## 10. 검토 시 확인 포인트 & 남은 작업
-
-**설계상 판단이 들어간 지점 (가이드와 다르게 처리):**
-1. 차트 버전 — 기존 값 유지 (가이드 예시 상향 무시).
-2. `argocd-config` project = `default` — 부트스트랩 self-reference 데드락 회피.
-3. 템플릿에 `annotations` 맵 지원 추가 — image-updater 자동갱신 기능 보존.
-4. `network-default-deny` 에 `allow-same-namespace` 동봉 — 기존 동작 유지.
-
-**실제 사용 전 남은 작업 (환경/키 필요):**
-- `*.sops.yaml` 6개 age 암호화 + `.sops.yaml` 의 age 공개키 교체.
-- placeholder 치환: `REPO_URL`(GitHub owner), `homelab.example.com`(도메인).
-- `git add -A` 후 커밋 (대량 파일 이동 포함).
+KSOPS는 plugin과 age key가 없는 로컬 환경에서 완전히 렌더할 수 없다. 또한 현재
+`ghcr-secret-generator.sops.yaml`이라는 잘못 이름 붙은 비암호화 generator 때문에 CI의
+SOPS filename 검사는 실패한다. 이 문서 갱신은 현재 파일 구조의 정적 대조 결과이며 cluster
+상태와 실제 트래픽은 검증하지 않았다. 운영 절차는
+[`gitops/README.md`](../gitops/README.md)를 참고한다.

@@ -1,428 +1,470 @@
-# Kubernetes 기반 GitOps Platform
-실무에서 경험한 **변경 검증, 운영 자동화, 장애 분석 방식**을 Kubernetes 환경으로 확장하기 위해 구축하고 있는 홈랩 프로젝트입니다.
+# Homelab Kubernetes GitOps Platform
 
-기존에는 팀 토이프로젝트의 Spring Boot 애플리케이션을 AWS에 배포하는 방식을 고려했습니다. 그러나 Free Tier의 사용 범위가 제한적이고, 프로젝트를 장기간 운영할수록 클라우드 비용이 부담될 수 있다고 판단했습니다. 이에 개인 홈 서버를 기반으로 인프라 구성부터 애플리케이션 배포, 모니터링, 운영 자동화까지 직접 다룰 수 있는 환경을 만들고 있습니다.
+Proxmox 위에 Kubernetes 클러스터를 구성하고, 인프라 생성부터 애플리케이션 배포까지의
+소유권을 Terraform, Ansible/Kubespray, Argo CD로 분리한 홈랩 프로젝트입니다.
 
-이 홈랩은 단순한 테스트 서버가 아니라, 팀원들과 개발하는 애플리케이션을 안정적으로 배포하고 운영하기 위한 기반 환경입니다. 개발 변경 사항을 dev 환경에서 먼저 검증한 뒤 prod에 반영할 수 있도록 환경과 배포 정책을 분리하고, 향후 MSA 구조와 추가 서비스 배포까지 수용할 수 있는 플랫폼을 목표로 합니다.
+단순히 서비스를 설치하는 데서 끝나지 않고 다음 운영 질문에 답할 수 있는 환경을 목표로
+합니다.
 
----
+- 같은 인프라와 클러스터를 코드로 다시 만들 수 있는가?
+- Git의 선언과 클러스터의 실제 상태가 다르면 이를 탐지하고 복구할 수 있는가?
+- dev와 prod의 배치, 권한, 데이터가 서로 침범하지 않는가?
+- Secret, 인증서, 외부 트래픽의 흐름을 끝까지 추적할 수 있는가?
+- Kubernetes 업그레이드와 노드 장애 후 상태를 안전하게 복구할 수 있는가?
 
-## 프로젝트 목표
+> 이 문서는 `2026-09-08` 현재 저장소에 선언된 구성을 기준으로 합니다.
 
-- Terraform과 Ansible을 이용해 인프라 및 클러스터 구성을 재현 가능하게 관리
-- ArgoCD를 기준으로 플랫폼과 애플리케이션의 배포 상태를 Git에 선언
-- dev와 prod의 배포 권한, 대상 Namespace, 동기화 정책 분리
-- SOPS와 age를 이용해 Secret을 암호화한 상태로 Git에서 관리
-- Gateway API, cert-manager, Cloudflare Tunnel을 이용해 안전한 외부 진입 경로 구성
-- 이미지 빌드부터 배포까지 이어지는 CI/CD와 GitOps 흐름 구성
-- 로그·메트릭·배포 이력을 연결해 장애 원인을 확인할 수 있는 관측 환경 구성
-- 구현 과정과 장애 해결 내역을 GitHub Project와 Issue에 기록
+## 현재 상태
 
----
-
-## 현재 진행 상태
-
-`2026-07-30 기준`
-
-| 구분 | 상태 | 구현 범위 |
+| 영역 | 상태 | 저장소 기준 범위 |
 | --- | --- | --- |
-| 가상화 인프라 | 완료 | Proxmox 기반 Bastion, Control Plane, dev/prod Worker VM 구성 |
-| 서버 구성 자동화 | 완료 | Ansible 기반 OS 초기 설정, SSH, Tailscale 및 Kubernetes 설치 절차 구성 |
-| Kubernetes 클러스터 | 완료 | Kubespray 기반 클러스터 설치와 Worker 역할 분리 |
-| ArgoCD Bootstrap | 완료 | Helm 설치, Private Repository 인증, Root Application 구성 |
-| GitOps 권한 분리 | 완료 | `platform`, `databases`, `apps-dev`, `apps-prod` AppProject 분리 |
-| 공통 진입 경로 | 검증 중 | Traefik, Gateway API, cert-manager, HTTPRoute 구성 |
-| Secret 관리 | 검증 중 | SOPS·age와 KSOPS를 이용한 암호화 및 ArgoCD 복호화 |
-| 외부 접근 | 구성 중 | Cloudflare Tunnel을 통한 인바운드 포트 비개방 구조 |
-| 애플리케이션 배포 | 구성 중 | GitHub Actions, GHCR, ArgoCD Image Updater 연계 |
-| Observability | 예정 | Prometheus, Grafana, Loki 기반 메트릭·로그 수집 |
+| Proxmox VM | 구성됨 | Bastion, 단일 Control Plane, dev/prod Worker |
+| OS 및 네트워크 자동화 | 구성됨 | Rocky Linux, SSH, `/etc/hosts`, Tailscale |
+| Kubernetes | 구성됨 | Kubespray 기반 설치, 노드 후처리, 기존 클러스터 순차 업그레이드 |
+| Argo CD bootstrap | 구성됨 | Helm 설치, private repository 인증, root Application |
+| GitOps 플랫폼 | 구성됨 | Namespace, StorageClass, Gateway API, cert-manager, Traefik, cloudflared, CNPG |
+| Secret 플랫폼 | 연동 중 | OpenBao와 ESO 설치 선언, 애플리케이션 SecretStore/ExternalSecret 전환 필요 |
+| Promotion | 구성 중 | Kargo controller 설치 선언, Stage/Warehouse/Promotion 정책은 후속 범위 |
+| 데이터베이스 | 구성됨 | dev/prod CloudNativePG Cluster, `local-path` 영속 볼륨 |
+| 애플리케이션 | 부분 구성 | test-nginx dev/prod, CommonPlant API dev |
+| Observability | 예정 | Prometheus, Grafana, Loki, Alloy |
 
-완료 여부는 리소스가 생성된 시점이 아니라, **재배포 가능 여부와 기능 검증 기준을 통과한 시점**을 기준으로 판단합니다.
+완료 여부는 리소스가 한 번 생성됐는지가 아니라 재실행, 상태 확인, 장애 복구 기준까지
+검증됐는지를 기준으로 판단합니다.
 
----
-
-## Architecture
-
-### Physical Host
-
-| 구분 | 사양 |
-| --- | --- |
-| 모델 | Intel NUC 12 Pro Kit (`NUC12WSKi7`) |
-| CPU | Intel Core i7-1260P, 12 Core(P-Core 4 + E-Core 8) / 16 Thread |
-| 메모리 | Samsung DDR4-3200 32 GB × 2, 총 64 GB |
-| 스토리지 | WD Blue SN550 NVMe 1 TB |
-| 확장 슬롯 | M.2 2280 NVMe × 1, M.2 2242 × 1 |
-| 네트워크 | Intel i225 2.5 GbE, Wi-Fi 6E |
-| 소비 전력 | Idle 약 8–12 W, 부하 시 약 40–50 W |
-
-저전력 소형 서버를 사용해 24시간 운영 시의 전력 부담을 낮추면서도, Control Plane과 dev/prod Workload를 역할별 VM로 분리할 수 있도록 구성했습니다.
-
-### 인프라 구성
+## 전체 아키텍처
 
 ```mermaid
 flowchart TB
-    P["Proxmox Host"]
-    P --> B["Bastion<br/>2 vCPU · 2 GB"]
-    P --> M["Control Plane<br/>2 vCPU · 4 GB"]
-    P --> WP["Prod Worker<br/>4 vCPU · 24 GB"]
-    P --> WD["Dev Worker<br/>4 vCPU · 24 GB"]
+    subgraph workstation["Operator Mac"]
+        TF["Terraform"]
+    end
 
-    B --> M
-    B --> WP
-    B --> WD
+    subgraph proxmox["Proxmox / Intel NUC"]
+        B["infra-bastion<br/>Ansible · Kubespray"]
+        CP["k8s-master<br/>Control Plane · etcd"]
+        PROD["k8s-worker-prod<br/>stable platform · prod"]
+        DEV["k8s-worker-dev<br/>mutable platform · dev"]
+    end
+
+    subgraph cluster["Kubernetes GitOps"]
+        ARGO["Argo CD<br/>root-app"]
+        PLATFORM["Gateway · TLS · Storage · CNPG"]
+        SECRETS["OpenBao · ESO"]
+        KARGO["Kargo"]
+        APPS["dev / prod workloads"]
+    end
+
+    TF -->|"Proxmox API"| proxmox
+    B -->|"SSH · Ansible"| CP & PROD & DEV
+    B -->|"bootstrap only"| ARGO
+    ARGO -->|"reconcile"| PLATFORM & SECRETS & KARGO & APPS
 ```
 
-| 노드 | 역할 | 사양 | 운영 기준 |
+### 관리 영역의 소유권
+
+```text
+Mac
+└── Terraform: Proxmox VM 수명주기
+    └── infra-bastion
+        ├── Ansible: OS, SSH, Tailscale, 운영 도구
+        ├── Kubespray: Kubernetes 최초 설치
+        └── Ansible: Argo CD와 root Application 최초 bootstrap
+            └── Argo CD: Namespace, 플랫폼, DB, 애플리케이션의 최종 소유자
+```
+
+Terraform은 Mac에서 실행하고 Ansible/Kubespray는 `infra-bastion`을 실행 기준점으로
+사용합니다. Argo CD가 기동된 뒤에는 플랫폼이나 애플리케이션 리소스를 Ansible로 중복
+관리하지 않습니다.
+
+## 도구 선택 이유
+
+### Terraform — 인프라의 선언적 수명주기
+
+Proxmox VM은 생성, 사양 변경, 삭제처럼 명확한 리소스 수명주기를 가지므로 Terraform이
+담당합니다. Plan으로 변경 영향을 먼저 확인하고 VM 사양과 네트워크 구성을 코드로
+재현할 수 있다는 점을 선택 기준으로 삼았습니다. Kubernetes 리소스까지 Terraform이
+관리하게 하지는 않아 상태 파일의 영향 범위와 도구 간 소유권 충돌을 줄였습니다.
+
+### Ansible과 Kubespray — 호스트 구성과 클러스터 bootstrap
+
+SSH로 접근 가능한 서버의 패키지, 설정 파일, Tailscale, 운영 도구는 절차적이고 멱등적인
+구성이 필요하므로 Ansible이 담당합니다. Kubernetes 자체는 직접 역할을 다시 작성하는
+대신 검증된 Kubespray를 사용합니다. 신규 설치와 기존 클러스터 업그레이드는 별도
+Playbook으로 분리했습니다. 업그레이드는 현재 버전과 목표 버전을 비교해 downgrade와 minor
+건너뛰기를 차단하고, 사전·사후 health gate와 명시적 승인 후 `upgrade-cluster.yml`을
+실행합니다. 작업 중 임시로 변경한 prod taint는 성공 여부와 관계없이 복원합니다.
+
+### Argo CD — Kubernetes의 지속적 상태 조정
+
+클러스터가 준비된 이후의 Namespace, Operator, 데이터베이스, 애플리케이션은 Git을
+원본으로 지속적으로 reconcile해야 하므로 Argo CD가 담당합니다. App-of-Apps와 sync wave로
+CRD와 Controller의 순서를 제어하고, AppProject로 dev/prod 및 cluster-scoped 권한을
+제한합니다. UI와 Git 이력을 통해 변경과 drift를 함께 추적할 수 있다는 점도 선택 이유입니다.
+
+## 물리 호스트와 노드
+
+물리 호스트는 Intel NUC 12 Pro Kit(`NUC12WSKi7`), Core i7-1260P, 메모리 64GB,
+NVMe 1TB 구성입니다. VM은 Rocky Linux cloud-init 템플릿에서 생성됩니다.
+
+| 노드 | 역할 | 기본 사양 | Kubernetes 배치 기준 |
 | --- | --- | --- | --- |
-| `infra-bastion` | Terraform·Ansible 실행 및 관리 진입점 | 2 vCPU / 2 GB / 20 GB | 클러스터 외부 관리 |
-| `k8s-master` | Kubernetes Control Plane | 2 vCPU / 4 GB / 40 GB | 일반 Workload 미배치 |
-| `k8s-worker-prod` | prod Workload | 4 vCPU / 24 GB / 200 GB | prod 전용 Taint·Label |
-| `k8s-worker-dev` | dev Workload | 4 vCPU / 24 GB / 150 GB | dev 전용 Taint·Label |
+| `infra-bastion` | 관리 진입점, Ansible/Kubespray 실행 | 2 vCPU / 6GB / 40GB | 클러스터에 포함하지 않음 |
+| `k8s-master` | Control Plane, etcd | 2 vCPU / 8GB / 80GB | 일반 workload 미배치 |
+| `k8s-worker-prod` | prod 및 안정 플랫폼 | 4 vCPU / 24GB / 400GB | `pool=prod`, `platform-tier=stable` |
+| `k8s-worker-dev` | dev 및 변경 가능 workload | 4 vCPU / 20GB / 300GB | `pool=dev`, `platform-tier=mutable` |
 
-### VM 분리 기준
+dev/prod는 별도 Worker와 Namespace, Label/Taint, AppProject로 논리적으로 격리합니다.
+다만 하나의 물리 호스트와 단일 Control Plane을 공유하므로 물리 장애 격리나 고가용성을
+제공하지는 않습니다.
 
-#### `infra-bastion`
+## GitOps 구성
 
-홈랩의 관리 진입점입니다. 각 VM의 관리 포트를 외부에 직접 노출하지 않고 Bastion을 기준으로 인프라 구성과 SSH 접근을 수행합니다.
-
-- SSH Jump Host
-- Terraform과 Ansible 실행
-- Kubespray 기반 Kubernetes 설치
-- Tailscale을 통한 원격 관리 접근
-- 향후 운영 스크립트와 백업 작업 실행
-
-#### `k8s-master`
-
-Kubernetes Control Plane 전용 노드입니다. `kube-apiserver`, `etcd`, `kube-controller-manager`, `kube-scheduler`가 실행되므로 일반 Worker Workload와 분리해 관리 영역의 자원 경합을 줄입니다.
-
-#### `k8s-worker-prod`
-
-운영 Workload를 우선 배치하는 노드입니다. Spring Boot 운영 애플리케이션과 prod PostgreSQL, 안정성이 필요한 일부 플랫폼 리소스를 대상으로 합니다. `pool=prod` Label과 Taint를 적용해 의도하지 않은 dev Workload가 배치되지 않도록 구성합니다.
-
-#### `k8s-worker-dev`
-
-개발 및 테스트 Workload를 우선 배치하는 노드입니다. dev 애플리케이션과 dev PostgreSQL, PR Preview, 실험적인 플랫폼 리소스를 대상으로 하며, 운영 배포 전에 변경 사항을 검증하는 환경으로 사용합니다.
-
----
-
-### GitOps 및 외부 요청 흐름
+Argo CD의 진입점은 [`gitops/bootstrap/root.yaml`](gitops/bootstrap/root.yaml)입니다.
+root Application은 `main` 브랜치의 root-app Helm chart를 읽어 자식 Application을
+렌더링합니다.
 
 ```mermaid
-flowchart TB
-    DEV["Source Push"] --> CI["GitHub Actions<br/>(구성 중)"]
-    CI --> REG["GHCR"]
-    REG -. "이미지 버전 감지" .-> UPD["ArgoCD Image Updater<br/>(구성 중)"]
-    UPD -. "Git 변경" .-> GIT["GitOps Repository"]
-    GIT --> ARGO["ArgoCD"]
-    ARGO --> K8S["Kubernetes dev/prod"]
-
-    CF["Cloudflare"] --> CFD["cloudflared<br/>(구성 중)"]
-    CFD --> GW["Traefik · Gateway API"]
-    GW --> K8S
-    CM["cert-manager<br/>DNS-01"] --> GW
+flowchart LR
+    ROOT["root.yaml"] --> APP["root-app"]
+    APP --> PROJECTS["AppProjects<br/>wave -100"]
+    PROJECTS --> NS["Namespaces<br/>wave -50"]
+    NS --> CRD["Storage · Gateway API · Operators"]
+    CRD --> CONFIG["Gateway · Issuers · cloudflared"]
+    CONFIG --> DB["PostgreSQL dev/prod<br/>wave 10"]
+    DB --> WORKLOAD["Applications<br/>wave 30"]
 ```
 
-점선으로 표시된 구간은 현재 구성 또는 검증 중인 흐름입니다.
-
----
-
-## 기술 구성
-
-| 영역 | 기술 | 적용 목적 |
+| AppProject | 대상 | 권한 모델 |
 | --- | --- | --- |
-| Virtualization | Proxmox | 물리 서버 위에 역할별 VM 구성 |
-| IaC | Terraform | VM과 인프라 구성을 코드로 관리 |
-| Configuration | Ansible | OS 초기 설정과 클러스터 설치 절차 자동화 |
-| Kubernetes | Kubespray, Kubernetes | Control Plane과 dev/prod Worker 구성 |
-| GitOps | ArgoCD, Helm | 선언적 배포와 클러스터 상태 동기화 |
-| Secret | SOPS, age, KSOPS | Git에 저장되는 Secret 암호화 및 배포 시 복호화 |
-| Network | Traefik, Gateway API | 공통 진입점과 Route 관리 |
-| TLS | cert-manager, Cloudflare DNS-01 | 인증서 발급 및 갱신 자동화 |
-| External Access | Cloudflare Tunnel | 공유기 인바운드 포트 비개방 |
-| CI/CD | GitHub Actions, GHCR, ArgoCD Image Updater | 이미지 빌드·저장·배포 자동화 |
-| Observability | Prometheus, Grafana, Loki | 메트릭·로그 기반 상태 확인 |
+| `platform` | Operator, CRD, Gateway, Secret 플랫폼 | 필요한 cluster-scoped 리소스 허용 |
+| `databases` | `postgres-dev`, `postgres-prod` | 지정 DB Namespace로 제한 |
+| `apps-dev` | `api-*-dev` | dev Namespace와 허용된 리소스 종류로 제한 |
+| `apps-prod` | `api-*-prod` | prod Namespace와 허용된 리소스 종류로 제한 |
+| `argocd-system` | Argo CD HTTPRoute 등 | `argocd` Namespace로 제한 |
 
----
+Namespace 메타데이터는 [`gitops/platform/namespaces`](gitops/platform/namespaces)가
+소유합니다. root-app은 Namespace를 중복 정의하지 않고 Application 등록과 순서만
+담당합니다.
 
-## 주요 설계 결정
+## 네트워크와 외부 요청 흐름
 
-### 1. Bootstrap과 GitOps 관리 범위 분리
-
-ArgoCD가 존재하지 않는 최초 설치 단계는 Ansible이 담당하고, ArgoCD가 기동된 이후의 플랫폼 리소스는 GitOps로 관리합니다.
-
-```
-Ansible
-└─ Helm CLI 및 ArgoCD 최초 설치
-   └─ Root Application 적용
-      └─ 이후 플랫폼 리소스는 ArgoCD가 Git 기준으로 관리
+```mermaid
+flowchart LR
+    USER["Internet"] --> CF["Cloudflare"]
+    CF --> TUNNEL["cloudflared"]
+    TUNNEL --> TRAEFIK["Traefik ClusterIP"]
+    TRAEFIK --> GW["Gateway API"]
+    GW --> ROUTE["HTTPRoute"]
+    ROUTE --> SVC["Service"] --> POD["Pod"]
+    CERT["cert-manager"] -->|"DNS-01"| CF
+    CERT -->|"TLS Secret"| GW
 ```
 
-이 경계를 둔 이유는 ArgoCD가 자신을 설치할 수 없는 초기 의존성을 해결하면서도, 설치 이후에는 수동 변경을 최소화하기 위해서입니다.
+- 공유기와 노드의 HTTP/HTTPS 인바운드 포트를 직접 공개하지 않습니다.
+- `cloudflared`가 외부로 연결을 시작하고 Traefik ClusterIP로 요청을 전달합니다.
+- Traefik은 Kubernetes Gateway provider만 사용하고 Gateway/HTTPRoute는 Git이 소유합니다.
+- cert-manager는 Cloudflare DNS-01로 wildcard 인증서를 발급합니다.
+- 관리용 접근은 Tailscale을 기본 경로로 사용합니다.
 
-### 2. Root Application 기반 App-of-Apps 구성
+OpenBao의 HTTPRoute는 매니페스트만 존재하고 root-app 등록은 비활성화되어 있습니다.
+초기화, unseal, 인증 정책 구성이 끝나기 전에 외부에서 초기화 API에 접근하지 못하게 하기
+위한 의도입니다.
 
-Root Application은 하위 Application을 직접 배포하는 진입점입니다. 관리자는 클러스터에 여러 Application을 개별 적용하지 않고, Root Application이 참조하는 Git 경로를 변경합니다.
+## Secret 설계
 
-- Application 정의와 Helm Values를 Git에서 관리
-- 공통 플랫폼과 환경별 애플리케이션의 배포 경로 분리
-- Sync Wave를 이용해 CRD, Controller, 사용자 리소스의 적용 순서 제어
-- Git 변경 이력으로 배포 구성과 변경 사유 추적
+목표 흐름은 OpenBao를 Secret 원본 저장소로, ESO를 Kubernetes Secret 동기화 계층으로
+사용하는 것입니다.
 
-### 3. AppProject로 배포 권한 분리
+```mermaid
+flowchart LR
+    OP["Operator"] --> BAO["OpenBao KV v2"]
+    SA["App ServiceAccount"] -->|"short-lived JWT"| AUTH["Kubernetes Auth"]
+    AUTH --> POLICY["namespace/path policy"] --> BAO
+    ESO["ESO"] --> AUTH
+    BAO --> ESO --> SECRET["Kubernetes Secret"] --> APP["Pod"]
+```
 
-`default` Project에 모든 권한을 부여하지 않고, 리소스 성격과 대상 환경에 따라 Project를 나눴습니다.
+- `ClusterSecretStore` 대신 애플리케이션별 namespaced `SecretStore`를 사용합니다.
+- OpenBao role은 ServiceAccount, Namespace, audience를 모두 제한합니다.
+- policy는 각 애플리케이션 KV 경로의 읽기 권한만 부여합니다.
+- 초기 root token과 unseal key는 Git과 Kubernetes Secret에 저장하지 않습니다.
+- bootstrap 값과 전환 전 Secret은 SOPS/age/KSOPS로 유지합니다.
+- 현재는 OpenBao와 ESO 설치 구성이 있으며 애플리케이션 SecretStore/ExternalSecret 전환은
+  아직 저장소에 반영되지 않았습니다.
 
-| AppProject | 대상 | 권한 기준 |
+OpenBao는 prod Worker의 단일 Raft replica와 10Gi `local-path` PVC를 사용합니다. 자원
+제약을 고려한 선택이지만 HA가 아니므로 외부 snapshot과 수동 unseal 절차가 필요합니다.
+
+## 데이터와 애플리케이션
+
+CloudNativePG Operator와 실제 PostgreSQL Cluster의 소유권을 분리합니다.
+
+- `platform-cloudnative-pg`: CRD와 Operator
+- `databases-postgres-dev`: dev Cluster와 CommonPlant DB role
+- `databases-postgres-prod`: prod Cluster
+- StorageClass: 단일 `local-path`
+- PVC는 특정 Worker에 결합되므로 노드 손실 시 자동 복구를 보장하지 않음
+
+| Application | Namespace | 용도 |
 | --- | --- | --- |
-| `platform` | cert-manager, Traefik, Gateway, Monitoring 등 | CRD·ClusterRole 등 Cluster-scoped 리소스 허용 |
-| `databases` | PostgreSQL, MinIO 등 데이터 서비스 | 지정된 Repository와 Namespace만 허용 |
-| `apps-dev` | 개발 애플리케이션 | dev Namespace만 배포 가능 |
-| `apps-prod` | 운영 애플리케이션 | prod Namespace만 배포 가능 |
+| `apps-nginx-dev` | `api-nginx-dev` | Gateway와 dev 배치 검증 |
+| `apps-nginx-prod` | `api-nginx-prod` | Gateway와 prod 배치 검증 |
+| `apps-api-common-dev` | `api-common-dev` | CommonPlant Spring Boot dev workload |
 
-허용되지 않은 Repository나 Namespace를 지정했을 때 Application이 `InvalidSpecError`로 차단되는지 확인해 권한 경계를 검증합니다.
+### 이미지 빌드와 환경 승격
 
-### 4. dev/prod 배포 정책 분리
+CommonPlant 애플리케이션은 팀이 관리하는 Organization 저장소에서 빌드하고, 홈랩의 배포
+상태는 개인 GitOps 저장소에서 관리합니다. 애플리케이션 CI에 홈랩 저장소의 쓰기 권한을
+넘기지 않으면서 동일한 이미지를 dev에서 검증한 뒤 prod로 승격하기 위해 Kargo를 경계에
+둡니다.
 
-개발 환경은 빠른 검증을 위해 자동화를 우선하고, 운영 환경은 명시적인 검토 기록을 남기는 방향으로 설계했습니다.
+```mermaid
+flowchart LR
+    SOURCE["Organization app repository"] --> CI["GitHub Actions<br/>test · build"]
+    CI -->|"immutable tag + digest"| GHCR["GHCR"]
+    GHCR --> WAREHOUSE["Kargo Warehouse"]
+    WAREHOUSE --> DEV["dev Stage"]
+    DEV -->|"검증된 동일 Freight"| PROD["prod Stage"]
+    DEV --> GIT["Personal GitOps repository"]
+    PROD --> GIT
+    GIT --> ARGO["Argo CD"]
+    ARGO --> CLUSTER["dev / prod workloads"]
+```
 
-| 항목 | dev | prod |
+빌드는 한 번만 수행하고 환경별로 다시 빌드하지 않습니다. 승격 단위는 mutable tag가 아니라
+Freight가 가리키는 image digest이며, ConfigMap·Secret·DB endpoint·domain은 각 overlay에
+남깁니다. 현재 변경은 Kargo controller 설치까지만 포함합니다. API/UI, 외부 webhook,
+repository credential, Warehouse와 Stage는 인증 및 승인 정책과 함께 후속 변경으로
+구성합니다.
+
+## 선언된 버전
+
+버전은 [`ansible/inventories/homelab/group_vars/all.yml`](ansible/inventories/homelab/group_vars/all.yml)과
+[`gitops/clusters/homelab/root-app/values.yaml`](gitops/clusters/homelab/root-app/values.yaml)을
+기준으로 정리했습니다.
+
+### 인프라와 bootstrap
+
+| 구성 요소 | 선언 버전 |
+| --- | --- |
+| Proxmox Terraform Provider | `telmate/proxmox 3.0.2-rc04` |
+| Ansible | `11.13.0` |
+| Kubespray | `v2.30.0` |
+| Kubernetes | `v1.34.3` |
+| Helm CLI | `v3.19.5` |
+| Argo CD | app `3.4.6`, chart `10.2.2` |
+
+### GitOps 플랫폼과 workload
+
+| 구성 요소 | Chart/Image 버전 | 비고 |
 | --- | --- | --- |
-| 기준 브랜치 | `develop` | `main` 및 Release Tag |
-| 이미지 태그 | `sha-<commit>` | `v<major>.<minor>.<patch>` |
-| 이미지 식별 | 태그와 Digest 기록 | 변경하지 않는 Release Tag와 Digest 사용 |
-| GitOps 반영 | Image Updater 자동 반영 | Git 변경 PR 검토 후 반영 |
-| ArgoCD Sync | 자동 Sync·Self Heal | 승인 후 Sync |
-| Prune | 활성화 | 초기에는 비활성화 후 영향 검증 |
-| Rollback | 이전 Git Revision으로 복구 | 승인된 이전 Release Revision으로 복구 |
+| cert-manager | chart `v1.21.1` | Kubernetes 1.34 지원, CRD 포함 |
+| Traefik | app `3.6.15`, chart `39.0.9` | Gateway API 전용 |
+| CloudNativePG | chart `0.29.0` | PostgreSQL Operator |
+| OpenBao | chart `0.29.2`, image `2.6.2` | single Raft |
+| External Secrets Operator | chart `2.9.0` | namespaced Store만 처리 |
+| Kargo | chart `1.11.0` | API 비활성화 |
+| cloudflared | image `2026.7.3` | 2 replicas |
+| test-nginx | image `nginx:1.30.4-alpine` | dev/prod 검증 |
+| platform-namespaces | local chart `0.1.0` | Namespace label 소유 |
 
-`latest`와 같은 Mutable Tag는 배포 시점의 이미지를 정확히 추적하기 어렵기 때문에 사용하지 않습니다.
+Gateway API CRD와 local-path-provisioner는 현재 별도의 릴리스 버전이 명시되지 않았습니다.
+재현성을 높이기 위해 immutable tag 또는 commit으로 고정하는 작업이 필요합니다.
 
-### 5. SOPS 기반 Secret 관리
+## 디렉터리 구성
 
-Secret 원문을 Git에 저장하지 않기 위해 SOPS와 age를 사용합니다.
+저장소의 최상위 디렉터리는 실행 도구가 아니라 **리소스의 수명주기와 최종 소유자**를
+기준으로 나눴습니다. Terraform은 VM을 만들고, Ansible은 클러스터가 GitOps를 시작할 수
+있는 상태까지 부트스트랩하며, 그 이후 Kubernetes 리소스는 Argo CD가 지속적으로
+조정합니다. 아래 tree에는 전체 파일 대신 구조를 이해하는 데 필요한 핵심 경로만 표시합니다.
 
-- 저장소에는 `.sops.yaml` 암호문만 Commit
-- age Private Key는 Bootstrap 단계에서 ArgoCD Namespace에 별도 주입
-- ArgoCD repo-server의 KSOPS Plugin이 Sync 시점에 복호화
-- Secret이 필요한 Controller보다 먼저 생성되도록 의존성과 Sync 순서 관리
-- Private Key와 복호화된 Secret은 README, Issue, 로그에 기록하지 않음
+### `terraform/` — Proxmox 인프라 수명주기
 
-### 6. Gateway API와 Cloudflare Tunnel
-
-애플리케이션 Route를 공통 진입점과 분리하기 위해 Gateway API를 사용합니다. 외부 요청은 공유기의 인바운드 포트를 개방하지 않고 Cloudflare Tunnel을 통해 Traefik Service로 전달하는 구조를 구성하고 있습니다.
-
-- `Gateway`: Listener와 인증서 등 공통 진입 정책
-- `HTTPRoute`: 서비스별 Hostname과 Backend 연결
-- `cert-manager`: Cloudflare DNS-01을 이용한 인증서 발급
-- `cloudflared`: 외부 요청을 Kubernetes 내부 Traefik으로 전달
-- Cloudflare WAF: 한국 외 지역 접근 제한 예정
-- Cloudflare Access: ArgoCD·Grafana 등 관리 화면의 사용자 인증 예정
-
----
-
-## 배포 흐름
-
-### dev
-
-1. `develop` 브랜치에 변경 사항을 Push합니다.
-2. GitHub Actions가 테스트와 빌드를 수행합니다.
-3. `ghcr.io/<owner>/<project>:sha-<commit>` 형식으로 이미지를 저장합니다.
-4. ArgoCD Image Updater가 새 이미지 버전을 확인해 GitOps Repository를 변경합니다.
-5. ArgoCD가 변경된 Revision을 감지하고 dev 환경에 자동 Sync합니다.
-6. Pod 상태, Probe, HTTP 응답과 배포 이미지를 확인합니다.
-
-### prod
-
-1. 검증된 변경을 `main`에 Merge하고 Release Tag를 생성합니다.
-2. GitHub Actions가 동일한 소스 기준으로 운영 이미지를 빌드합니다.
-3. GitOps Repository 변경 PR에서 이미지 Tag와 Digest를 검토합니다.
-4. PR 승인 후 ArgoCD가 운영 환경에 변경을 반영합니다.
-5. 배포 후 상태와 핵심 기능을 확인하고, 실패하면 이전 Git Revision으로 복구합니다.
-
-> 위 배포 흐름 중 GitHub Actions, GHCR, ArgoCD Image Updater 연계는 현재 구성 중입니다.
-> 
-
----
-
-## 검증 기준
-
-구성 요소가 설치되었다는 사실보다 다음 질문에 답할 수 있는지를 기준으로 검증합니다.
-
-### Infrastructure
-
-- Terraform Plan에서 예상하지 않은 VM 변경이 없는가
-- Ansible Playbook을 다시 실행해도 동일한 결과를 유지하는가
-- 각 노드의 Label·Taint와 Workload 배치가 설계와 일치하는가
-
-### GitOps
-
-- ArgoCD Application의 `Sync`와 `Health` 상태가 정상인가
-- Git의 선언 상태와 클러스터의 실제 상태가 다른 경우 Drift를 탐지하는가
-- 허용되지 않은 Repository·Namespace·Cluster Resource를 AppProject가 차단하는가
-- CRD와 Controller, 사용자 리소스가 올바른 순서로 적용되는가
-
-### Network and TLS
-
-- `CertificateRequest → Order → Challenge → Certificate` 상태를 순서대로 확인할 수 있는가
-- DNS-01 Challenge가 정상적으로 제출되고 Certificate가 `Ready=True`가 되는가
-- 외부 요청이 Cloudflare Tunnel, Traefik, HTTPRoute, Service, Pod 순서로 전달되는가
-- 관리용 Endpoint가 일반 사용자에게 노출되지 않는가
-
-### Deployment
-
-- Commit SHA와 실행 중인 이미지 Tag·Digest를 연결할 수 있는가
-- readinessProbe가 실패한 Pod가 트래픽을 받지 않는가
-- 실패한 배포를 이전 Git Revision으로 복구할 수 있는가
-- dev의 자동 배포가 prod로 직접 이어지지 않는가
-
----
-
-## Troubleshooting
-
-### cert-manager DNS-01 Challenge가 Pending 상태에 머문 문제
-
-**현상**
-
-Wildcard Certificate가 `Ready=True`로 전환되지 않고 Challenge가 `Pending` 상태에 머물렀습니다.
-
-```
-error getting cloudflare secret:
-secrets "cloudflare-api-token" not found
+```text
+terraform/
+├── provider.tf              # Proxmox 연결
+├── variables.tf             # VM 입력값
+├── main.tf                  # VM 정의
+├── outputs.tf               # VM/IP 출력
+└── terraform.tfvars.example # 입력 예시
 ```
 
-**확인**
+Terraform 디렉터리는 Proxmox VM의 생성·변경·삭제만 소유합니다. OS 설정이나 Kubernetes
+리소스를 함께 넣지 않아 Terraform state의 영향 범위를 가상 인프라로 한정하고, 생성된
+호스트 정보를 다음 단계인 Ansible에 넘기는 경계로 사용합니다. 실제 `terraform.tfvars`와
+state는 로컬 운영 데이터이므로 문서 구조와 Git 관리 대상에서 제외합니다.
 
-1. `CertificateRequest`, `Order`, `Challenge` 순서로 상태를 확인했습니다.
-2. Challenge Controller가 참조하는 Namespace에 `cloudflare-api-token` Secret이 없는 것을 확인했습니다.
-3. 저장소에는 SOPS 암호화 파일이 있었지만, 파일 존재만으로 Kubernetes Secret이 생성되는 것은 아니라는 점을 확인했습니다.
-4. ArgoCD Application 경로, KSOPS 복호화 설정, Secret의 대상 Namespace와 Sync 순서를 점검했습니다.
+### `ansible/` — 호스트 구성과 bootstrap 절차
 
-**개선 방향**
-
-- Secret이 실제로 생성되는 Application 경로와 Namespace 일치 여부 검증
-- cert-manager가 참조하는 `secretKeyRef`와 Secret Key 이름 확인
-- Controller 배포 전에 Secret이 준비되도록 Sync 순서 조정
-- 인증서 검증 Runbook에 Secret 의존성 확인 절차 추가
-
-**완료 기준**
-
-- Secret 생성 확인
-- Challenge의 `presented=true` 확인
-- Certificate의 `Ready=true` 확인
-- HTTPS 요청 정상 응답 확인
-
-이 사례는 최종 검증이 끝난 뒤 실제 조치 결과와 관련 Issue 링크를 추가할 예정입니다.
-
-### ArgoCD Private Repository 인증 실패
-
-**현상**
-
-Root Application Sync 과정에서 Private Git Repository의 Reference를 가져오지 못하고 인증 오류가 발생했습니다.
-
-**원인 분석**
-
-- ArgoCD Application이 Git을 로컬에 미리 Clone해서 사용하는 구조가 아니라, repo-server가 Sync 시점에 원격 Repository를 조회한다는 점을 기준으로 접근했습니다.
-- Root Application보다 Repository Credential이 먼저 준비되어야 한다는 Bootstrap 의존성을 확인했습니다.
-- Git 계정 비밀번호가 아닌 PAT 기반 인증이 필요하며, Repository URL과 Credential Scope가 일치해야 한다는 점을 확인했습니다.
-
-**조치**
-
-- PAT를 SOPS 암호화 대상에 포함
-- Bootstrap 단계에서 Repository Credential을 먼저 주입
-- Credential 확인 이후 Root Application을 적용하도록 순서 분리
-
-**검증**
-
-- Repository Connection 상태 확인
-- Root Application Manifest 렌더링 확인
-- 하위 Application 생성 및 Sync 상태 확인
-
-### AppProject 권한으로 잘못된 배포 대상 차단
-
-**검증 목적**
-
-Application이 실수로 다른 환경의 Namespace나 허용되지 않은 Repository를 사용할 때 배포가 차단되는지 확인했습니다.
-
-**검증 항목**
-
-- `apps-dev` Application이 prod Namespace를 대상으로 지정할 때 차단
-- `apps-prod` Application이 dev Namespace를 대상으로 지정할 때 차단
-- 허용 목록에 없는 Helm·Git Repository 사용 차단
-- Namespaced Application에서 Cluster-scoped 리소스 생성 차단
-
-**결과**
-
-Application이 `InvalidSpecError` 상태로 전환되는 것을 기준으로 권한 경계를 확인했습니다. 이를 통해 Git 저장소에 잘못된 설정이 Merge되더라도 ArgoCD Project 수준에서 한 번 더 배포를 제한하도록 구성했습니다.
-
----
-
-## Repository 관리 방식
-
-작업은 GitHub Project에서 Feature와 Task로 나누어 관리합니다.
-
-```
-Feature
-├─ 목표와 범위
-├─ 설계 기준
-└─ Task
-   ├─ 구현 내용
-   ├─ 검증 방법
-   ├─ 완료 기준
-   └─ 관련 Commit 또는 PR
+```text
+ansible/
+├── Makefile                 # 운영 명령
+├── inventories/homelab/     # 호스트와 변수
+├── playbooks/               # 실행 순서와 정책
+│   ├── bootstrap.yml        # 최초 구성
+│   ├── upgrade.yml          # 기존 환경 변경
+│   ├── bastion/             # 관리 노드
+│   ├── network/             # 관리망
+│   ├── kubernetes/          # 클러스터 lifecycle
+│   └── platform/            # Helm·Argo CD
+├── roles/                   # 재사용 작업
+│   ├── kubespray/           # 클러스터 실행
+│   ├── kubernetes/          # 상태 검증
+│   └── argocd/              # GitOps bootstrap
+├── scripts/                 # 실행 wrapper
+└── docs/                    # 운영 runbook
 ```
 
-Issue에는 단순 작업 목록뿐 아니라 다음 내용을 남기는 것을 원칙으로 합니다.
+#### Ansible 구성 전략
 
-- 왜 필요한가
-- 어떤 대안을 검토했는가
-- 어떤 기준으로 방식을 선택했는가
-- 실제로 무엇을 구현했는가
-- 어떤 명령과 상태로 검증했는가
-- 어떤 문제가 발생했고 어떻게 원인을 좁혔는가
-- 남은 한계와 후속 작업은 무엇인가
+Ansible은 `infra-bastion`에서 실행되는 **절차의 소유자**입니다. `playbooks/`와 `roles/`를
+분리한 이유는 실행 정책과 구현을 섞지 않기 위해서입니다. Playbook은 어느 호스트에서 어떤
+순서와 승인 조건으로 실행할지를 결정하고, Role은 검증·설치·사후 확인처럼 재사용 가능한
+작업 단위를 제공합니다. Role의 암묵적인 `tasks/main.yml`에 전체 순서를 숨기지 않으므로
+운영 흐름을 Playbook에서 바로 추적할 수 있습니다.
 
----
+최초 구성과 기존 환경 변경도 의도적으로 분리했습니다.
 
-### 대표 Feature·Issue
+- `playbooks/bootstrap.yml`은 Bastion → 관리망 → Kubernetes → Helm → Argo CD 순서의 신규
+  환경용 진입점이며 upgrade 절차를 포함하지 않습니다.
+- `playbooks/upgrade.yml`은 Kubernetes, Helm, Argo CD upgrade를 등록하지만 Makefile이
+  component별 tag로 정확히 한 workflow만 선택합니다. 여러 핵심 구성 요소를 한 번에
+  변경하는 target은 제공하지 않습니다.
+- Kubespray Role은 upstream 실행 환경과 `cluster.yml`/`upgrade-cluster.yml` 호출을,
+  Kubernetes Role은 버전 경로·API·Node·PDB·PVC health gate를 담당합니다. 이를 분리해
+  upstream 도구 실행과 홈랩 고유의 안전 정책을 독립적으로 검토할 수 있습니다.
+- Argo CD Role은 bootstrap과 upgrade가 공유하는 validate/precheck/deploy/postcheck를
+  유지하되 Playbook의 `argocd_operation`으로 정책을 구분합니다. bootstrap은 미설치
+  release만 허용하고, upgrade/reconcile은 기존 release와 명시적 승인을 요구합니다.
+- `scripts/`와 `runs/`는 명령 실행, 민감값 마스킹, 실행 이력 보존을 공통화합니다. 따라서
+  운영자는 내부 Playbook 경로를 직접 조합하기보다 Make target을 사용합니다.
 
-| 구분 | 내용 | 링크 |
-| --- | --- | --- |
-| Feature | 홈랩 구성 의도 및 설계 | https://github.com/hweyoung/homelab/issues/4 |
-| Feature | ArgoCD Root Application과 AppProject 권한 설계 | https://github.com/hweyoung/homelab/issues/17 |
-| Task | 민감정보 파일 sops + age 암호화 및 KSOPS 복호화 구성 | https://github.com/hweyoung/homelab/issues/115 |
-| Feature | TLS 및 외부 진입 경로 구성 | https://github.com/hweyoung/homelab/issues/25 |
-| Task | Cloudflare Tunnel 구성 | https://github.com/hweyoung/homelab/issues/145 |
-| Feature | GitHub Actions·GHCR·ArgoCD Image Updater 배포 | https://github.com/hweyoung/homelab/issues/34 |
-| Troubleshooting | cert-manager Secret 오류 분석 및 복구 | https://github.com/hweyoung/homelab/issues/127#issuecomment-5102434082 |
-| Project | 전체 진행 현황 | https://github.com/users/hweyoung/projects/7/views/7 |
+Ansible의 책임은 Argo CD와 root Application을 기동하는 handoff까지입니다. 이후 플랫폼
+리소스를 Ansible에 추가하지 않는 이유는 동일한 Kubernetes 리소스를 Ansible과 Argo CD가
+동시에 소유하면서 발생하는 drift와 덮어쓰기를 막기 위해서입니다.
 
----
+### `gitops/` — Argo CD가 조정하는 Kubernetes 목표 상태
 
-## 현재 구성의 한계와 추후 개선 계획
+```text
+gitops/
+├── bootstrap/root.yaml              # 최초 root Application
+├── clusters/homelab/
+│   ├── root-app/                    # Application 등록과 순서
+│   ├── argocd-control-plane/        # AppProject 권한
+│   └── argocd-server/               # Argo CD 경로
+├── platform/                        # 공용 플랫폼 (대표 경로)
+│   ├── namespaces/                  # Namespace 소유
+│   ├── gateway/                     # 외부 트래픽
+│   ├── cloudnative-pg/              # DB Operator
+│   └── openbao/                     # Secret 저장소
+├── databases/postgres/              # DB base·overlay
+├── apps/                            # 앱 base·overlay
+└── SECRETS.md                       # Secret 정책
+```
 
-- 단일 Control Plane으로 구성되어 있어 Control Plane 고가용성을 검증하지 못했습니다.
-- dev와 prod를 논리적으로 분리했지만 동일한 물리 서버를 사용하므로 실제 운영 수준의 장애 격리는 아닙니다.
-- Kubernetes는 개인 프로젝트 경험이며, 대규모 트래픽과 다중 클러스터 운영을 검증하지 못했습니다.
-- GitHub Actions·GHCR·ArgoCD Image Updater 기반 배포 흐름은 현재 구성 중입니다.
-- Prometheus·Grafana·Loki 기반 Observability와 배포 알림은 후속 단계로 진행할 예정입니다.
-- Cloudflare Access를 이용한 관리 화면 접근 제어와 WAF 정책은 외부 진입 경로 검증 후 적용할 예정입니다.
+#### Argo CD 구성 전략
 
-다음 단계에서는 기능 추가보다 **실패한 배포의 복구, Secret 의존성 검증, 메트릭·로그·배포 이력을 연결한 장애 분석**을 우선할 계획입니다.
+`bootstrap/root.yaml`만 Ansible이 적용하고, root Application이
+`clusters/homelab/root-app`을 읽어 나머지 Application을 생성합니다. root-app에는 실제
+workload manifest를 넣지 않고 **Application 등록, 버전 선택, 동기화 정책과 순서**만 둡니다.
+각 리소스의 내용은 `platform/`, `databases/`, `apps/`의 기존 owner가 담당하므로 등록 계층과
+구현 계층의 책임이 섞이지 않습니다.
 
----
+Application graph는 의존성을 sync wave로 드러냅니다. AppProject(`-100`)가 권한 경계를
+먼저 만들고, Namespace(`-50`), Storage/CRD/Operator, platform config, Database(`10`),
+Application(`30`) 순으로 조정됩니다. wave는 Pod의 readiness를 대신하는 장치가 아니라
+API와 소유권이 준비되는 순서를 표현하며, controller별 health check는 각 Application에서
+별도로 확인합니다.
 
-## 배운 점
+- `argocd-control-plane/`의 AppProject는 platform, databases, apps-dev, apps-prod,
+  argocd-system을 분리합니다. dev/prod Application이 임의의 Namespace나 cluster-scoped
+  리소스를 만들지 못하도록 destination과 kind를 제한합니다.
+- `platform/namespaces/`가 Namespace metadata의 단일 owner입니다. root-app이나 개별
+  workload가 같은 Namespace label을 중복 선언하지 않아 Gateway 접근 및 배치 정책의
+  변경 지점을 한곳으로 유지합니다.
+- Operator와 instance를 분리합니다. 예를 들어 `platform/cloudnative-pg`는 CRD/controller,
+  `databases/postgres`는 실제 Cluster를 소유합니다. upgrade와 데이터 lifecycle을 서로
+  독립적으로 다룰 수 있기 때문입니다.
+- 애플리케이션과 DB는 공통 `base`에 변하지 않는 계약을 두고 `overlays`에는 dev/prod의
+  image, endpoint, placement 같은 차이만 둡니다. 복사를 줄이면서 환경별 변경 범위를
+  명확히 합니다.
+- 자동 sync와 self-heal은 Git을 최종 상태로 유지하지만, CRD·stateful service·Secret은
+  각자의 upgrade 및 암호화 계약을 먼저 검증합니다. sync wave만 믿고 파괴적 변경을
+  자동화하지 않습니다.
 
-- GitOps는 배포 도구를 추가하는 것이 아니라, Git과 실제 환경의 차이를 지속적으로 확인하고 되돌릴 수 있게 만드는 운영 방식이라는 점
-- 자동화된 Sync와 Prune은 편리하지만, 권한·환경·삭제 범위를 먼저 분리하지 않으면 위험할 수 있다는 점
-- Kubernetes 장애는 Pod 로그만 보는 것이 아니라, Application, Controller, Custom Resource, Event와 의존 Secret을 순서대로 따라가야 한다는 점
-- Secret 파일을 암호화해 Git에 저장하는 것과, 배포 시점에 올바른 Namespace에 Secret이 생성되는 것은 별개의 문제라는 점
-- 운영 환경에서는 원인 규명과 함께 변경 전 검증, 복구 기준, 작업 결과를 남기는 과정이 중요하다는 점
+## 실행 흐름
 
----
+### 1. VM 생성 — Mac
 
-### Contact
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+```
 
-- GitHub: https://github.com/hweyoung
-- Blog: okbear3.tistory.com
-- Email: gnldud0516@gmail.com
+### 2. Bastion 준비와 Kubernetes bootstrap
+
+```bash
+cd ansible
+make prepare
+make inventory
+make syntax
+make bootstrap
+```
+
+### 3. GitOps 운영
+
+bootstrap 이후에는 `gitops/` 변경을 `main`에 반영하고 Argo CD가 reconcile하도록 합니다.
+
+```bash
+helm template root-app gitops/clusters/homelab/root-app
+kustomize build gitops/platform/gateway
+git diff --check
+```
+
+KSOPS overlay는 age key와 plugin이 준비된 Argo CD repo-server 또는 별도 검증 환경에서
+렌더합니다. 키가 없다는 이유로 Secret을 재생성하거나 평문으로 바꾸지 않습니다.
+
+## Kubernetes 업그레이드 전략
+
+기존 클러스터는 [`ansible/playbooks/kubernetes/upgrade.yml`](ansible/playbooks/kubernetes/upgrade.yml)을
+통해 Kubespray `upgrade-cluster.yml`로 업그레이드합니다. bootstrap과 upgrade의 정책을
+분리하고 다음 안전장치를 코드로 강제합니다.
+
+- 현재 버전에서 동일 minor patch 또는 바로 다음 minor로만 이동
+- API server, Node, system Pod, APIService의 사전·사후 health gate
+- 실제 실행 전 `kubernetes_upgrade_confirm=true` 승인
+- prod custom taint를 실행 구간에만 제거하고 `always`에서 복원
+- Kubernetes와 Argo CD, Helm 등 플랫폼 버전을 한 번에 변경하지 않음
+- PDB, Stateful Pod, PVC와 CNPG maintenance 상태를 자동으로 우회하지 않음
+
+단일 Control Plane과 `local-path` PV라는 한계 때문에 자동화가 가용성을 만들어 주지는
+않습니다. etcd, PostgreSQL과 OpenBao backup을 확인한 뒤 실행하고, OpenBao가 재시작되면
+운영자가 수동으로 unseal합니다. 자세한 절차와 복구 기준은
+[`ansible/docs/kubernetes-upgrade.md`](ansible/docs/kubernetes-upgrade.md)에 기록합니다.
+
+## 현재 한계와 다음 단계
+
+- 단일 물리 호스트와 단일 Control Plane이므로 HA가 아닙니다.
+- `local-path` PVC는 노드에 결합되며 자동 원격 복제를 제공하지 않습니다.
+- OpenBao audit, 외부 Raft snapshot, 복구 테스트가 필요합니다.
+- OpenBao Kubernetes Auth와 애플리케이션 SecretStore/ExternalSecret 전환이 필요합니다.
+- Kargo의 실제 promotion graph와 승인 정책은 아직 없습니다.
+- CommonPlant prod overlay와 CI/CD 승격 흐름은 아직 완성되지 않았습니다.
+- Prometheus, Grafana, Loki, Alloy 기반 관측성이 후속 범위입니다.
+- Git 목표 버전과 실제 클러스터 버전의 drift를 자동 보고하는 검증이 필요합니다.
+
+## 관련 문서
+
+- [Terraform 운영](terraform/README.md)
+- [Ansible/Kubespray 운영](ansible/README.md)
+- [GitOps 운영](gitops/README.md)
+- [Secret 관리](gitops/SECRETS.md)
+- [GitOps 상세 아키텍처](docs/gitops-architecture.md)
+
+## Contact
+
+- GitHub: <https://github.com/hweyoung>
+- Blog: <https://okbear3.tistory.com>
