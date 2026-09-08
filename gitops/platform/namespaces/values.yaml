@@ -18,6 +18,28 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
+  - name: garage
+    environment: prod
+    gatewayAccess: public
+
+  - name: kargo
+    environment: prod
+    gatewayAccess: private
+
+  # Kargo keeps namespaced resources referenced by cluster-scoped configuration
+  # and optional credentials shared by future promotion projects separately.
+  - name: kargo-cluster-secrets
+    environment: prod
+    gatewayAccess: private
+
+  - name: kargo-system-resources
+    environment: prod
+    gatewayAccess: private
+
+  - name: kargo-shared-resources
+    environment: prod
+    gatewayAccess: private
+
   # ==================
   # Homelab Workload Namespace
   # ==================

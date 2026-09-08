@@ -25,6 +25,7 @@ spec:
     - https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
     - https://charts.external-secrets.io
     - https://openbao.github.io/openbao-helm
+    - ghcr.io/akuity/kargo-charts
   
   destinations:
     - server: https://kubernetes.default.svc
@@ -71,6 +72,18 @@ spec:
 
     - server: https://kubernetes.default.svc
       namespace: garage
+
+    - server: https://kubernetes.default.svc
+      namespace: kargo
+
+    - server: https://kubernetes.default.svc
+      namespace: kargo-cluster-secrets
+
+    - server: https://kubernetes.default.svc
+      namespace: kargo-system-resources
+
+    - server: https://kubernetes.default.svc
+      namespace: kargo-shared-resources
 
   clusterResourceWhitelist:
     - group: '*'

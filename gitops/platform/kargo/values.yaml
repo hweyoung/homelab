@@ -1,0 +1,86 @@
+# Kargo is installed as an internal, declaratively managed promotion controller.
+# API/UI authentication and external webhook exposure are intentionally deferred
+# to a separate change so the initial installation needs no bootstrap credential.
+
+global:
+  # Namespace objects remain owned by gitops/platform/namespaces.
+  createClusterSecretsNamespace: false
+  createClusterSecretsRBAC: true
+
+  systemResources:
+    namespace: kargo-system-resources
+    createNamespace: false
+    createRBAC: true
+
+  sharedResources:
+    namespace: kargo-shared-resources
+    createNamespace: false
+    createRBAC: true
+
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+
+crds:
+  install: true
+  keep: true
+
+api:
+  enabled: false
+
+controller:
+  argocd:
+    integrationEnabled: true
+    namespace: argocd
+    watchArgocdNamespaceOnly: true
+  rollouts:
+    # Argo Rollouts is not installed in this cluster. Stage verification can
+    # still use Argo CD Application health and built-in promotion steps.
+    integrationEnabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+managementController:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+webhooksServer:
+  enabled: true
+  tls:
+    # cert-manager is installed before Kargo by the root-app sync waves.
+    selfSignedCert: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+externalWebhooksServer:
+  enabled: false
+
+garbageCollector:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

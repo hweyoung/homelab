@@ -40,6 +40,11 @@ platformVersions:
       "3.5.3": { chartVersion: "37.2.0" }
       "3.6.15": { chartVersion: "39.0.9" }
 
+  kargo:
+    activeVersion: "1.11.0"
+    versions:
+      "1.11.0": { chartVersion: "1.11.0" }
+
 
 # ==============
 # syncPolicy
@@ -269,6 +274,19 @@ applications:
     namespace: garage
     wave: -9
     path: gitops/platform/garage/exposure
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Kargo promotion controller (CRDs + controllers) ---
+  - name: kargo
+    group: platform
+    project: platform
+    type: helm
+    namespace: kargo
+    wave: -11
+    chart: kargo
+    chartRepo: ghcr.io/akuity/kargo-charts
+    versionRef: kargo
+    valuesPath: gitops/platform/kargo/values.yaml
     syncPolicyRef: platform-existing-namespace
 
   # --- OpenBao public exposure (Gateway API) ---
