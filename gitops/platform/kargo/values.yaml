@@ -30,15 +30,6 @@ crds:
   install: true
   keep: true
 
-# The platform AppProject intentionally cannot deploy into the argocd namespace.
-# Argo CD integration stays enabled at runtime, while its namespace-scoped RBAC
-# is owned by gitops/clusters/homelab/argocd-control-plane.
-argocd:
-  dataPlane:
-    install: false
-    kargoController:
-      install: false
-
 api:
   enabled: false
 
