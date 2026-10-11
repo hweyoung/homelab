@@ -243,6 +243,16 @@ applications:
     valuesPath: gitops/platform/openbao/values.yaml
     syncPolicyRef: platform
 
+    # --- OpenBao public exposure (Gateway API) ---
+  - name: openbao-route
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: openbao
+    wave: -12
+    path: gitops/platform/openbao/exposure
+    syncPolicyRef: platform
+
   # --- External Secrets Operator (CRDs + controllers) ---
   - name: external-secrets
     group: platform
@@ -289,15 +299,7 @@ applications:
     valuesPath: gitops/platform/kargo/values.yaml
     syncPolicyRef: platform-existing-namespace
 
-  # --- OpenBao public exposure (Gateway API) ---
-  # - name: openbao-route
-  #   group: platform
-  #   project: platform
-  #   type: kustomize
-  #   namespace: openbao
-  #   wave: -12
-  #   path: gitops/platform/openbao/exposure
-  #   syncPolicyRef: platform
+
 
   # # --- Infisical 전용 PostgreSQL (CNPG) ---
   # - name: infisical-postgres

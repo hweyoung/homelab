@@ -18,10 +18,6 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
-  - name: garage
-    environment: prod
-    gatewayAccess: public
-
   - name: kargo
     environment: prod
     gatewayAccess: private
