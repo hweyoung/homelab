@@ -1,0 +1,20 @@
+---
+- name: Kubespray cluster.yml 실행
+  ansible.builtin.command:
+    argv:
+      - "{{ kubespray_venv_root }}/bin/ansible-playbook"
+      - -i
+      - "{{ kubespray_inventory_path }}"
+      - cluster.yml
+      - --become
+      - --extra-vars
+      - >-
+        {"argocd_enabled": {{ kubespray_argocd_enabled | bool | to_json }},
+        "argocd_version": {{ kubespray_argocd_version | to_json }}}
+  args:
+    chdir: "{{ kubespray_root }}"
+  environment:
+    ANSIBLE_CONFIG: "{{ kubespray_root }}/ansible.cfg"
+    ANSIBLE_INVENTORY: "{{ kubespray_inventory_path }}"
+    ANSIBLE_ROLES_PATH: "{{ kubespray_root }}/roles"
+  changed_when: true

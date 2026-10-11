@@ -1,4 +1,75 @@
 ---
+- name: ArgoCD server rollout 완료 확인
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - rollout
+      - status
+      - deployment/argocd-server
+      - -n
+      - "{{ argocd_namespace }}"
+      - --timeout=5m
+  changed_when: false
+
+- name: ArgoCD repo-server rollout 완료 확인
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - rollout
+      - status
+      - deployment/argocd-repo-server
+      - -n
+      - "{{ argocd_namespace }}"
+      - --timeout=5m
+  changed_when: false
+
+- name: ArgoCD root Application 생성 대기
+  ansible.builtin.command:
+    argv: [kubectl, get, application, root-app, -n, "{{ argocd_namespace }}", -o, json]
+  register: argocd_root_application
+  changed_when: false
+  failed_when: false
+  retries: 30
+  delay: 10
+  until: argocd_root_application.rc == 0
+
+- name: ArgoCD root Application 생성 보장
+  ansible.builtin.assert:
+    that:
+      - argocd_root_application.rc == 0
+    fail_msg: >-
+      root.yaml 적용 후 root-app이 생성되지 않았습니다.
+      ArgoCD API와 적용 결과를 확인하세요.
+
+- name: ArgoCD root Application 동기화 대기
+  ansible.builtin.command:
+    argv: [kubectl, get, application, root-app, -n, "{{ argocd_namespace }}", -o, json]
+  register: argocd_root_application_status
+  changed_when: false
+  failed_when: false
+  retries: 60
+  delay: 10
+  until:
+    - argocd_root_application_status.rc == 0
+    - >-
+      ((argocd_root_application_status.stdout | default('{}', true) | from_json)
+       .get('status', {}).get('sync', {}).get('status', '')) == 'Synced'
+    - >-
+      ((argocd_root_application_status.stdout | default('{}', true) | from_json)
+       .get('status', {}).get('health', {}).get('status', '')) == 'Healthy'
+
+- name: ArgoCD root Application 상태 보장
+  vars:
+    root_application: >-
+      {{ argocd_root_application_status.stdout | default('{}', true) | from_json }}
+  ansible.builtin.assert:
+    that:
+      - root_application.get('status', {}).get('sync', {}).get('status', '') == 'Synced'
+      - root_application.get('status', {}).get('health', {}).get('status', '') == 'Healthy'
+    fail_msg: >-
+      root-app이 제한 시간 안에 Synced/Healthy 상태가 되지 않았습니다.
+      ArgoCD repository 연결과 Application 상태를 확인하세요.
+
 - name: ArgoCD Ingress 조회
   ansible.builtin.command: "kubectl get ingress -n {{ argocd_namespace }}"
   register: ingress_output
@@ -8,17 +79,11 @@
   ansible.builtin.debug:
     msg: "{{ ingress_output.stdout_lines }}"
 
-- name: 초기 admin 비밀번호 추출
-  ansible.builtin.shell: >
-    kubectl -n {{ argocd_namespace }}
-    get secret argocd-initial-admin-secret
-    -o jsonpath="{.data.password}" | base64 -d
-  register: argocd_password
-  changed_when: false
-
 - name: ArgoCD 접속 정보 출력
   ansible.builtin.debug:
     msg:
       - "URL      : http://{{ argocd_domain }}"
       - "ID       : admin"
-      - "Password : {{ argocd_password.stdout }}"
+      - >-
+        초기 비밀번호는 execution artifact에 기록하지 않습니다.
+        필요할 때 argocd-initial-admin-secret을 직접 조회하세요.

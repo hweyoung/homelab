@@ -1,5 +1,5 @@
 ---
-# 인벤토리 호스트명을 infra-bastion 에서 로컬로 해석할 수 있도록 /etc/hosts 에 등록.
+# Inventory hostname을 infra-bastion에서 해석할 수 있도록 관리한다.
 
 - name: /etc/hosts 블록 빌드
   ansible.builtin.set_fact:

@@ -1,0 +1,6 @@
+---
+# 기존 환경 upgrade entrypoint. 전체 동시 실행 target은 제공하지 않는다.
+# Makefile은 component별 tag로 정확히 하나의 upgrade workflow만 선택한다.
+- import_playbook: kubernetes/upgrade.yml
+- import_playbook: platform/helm/upgrade.yml
+- import_playbook: platform/argocd/upgrade.yml

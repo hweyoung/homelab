@@ -1,0 +1,92 @@
+---
+- name: Helm upgrade staging 경로 계산
+  ansible.builtin.set_fact:
+    helm_upgrade_archive: "/tmp/helm-{{ helm_target_version }}-linux-{{ helm_architecture }}.tar.gz"
+    helm_upgrade_staging_dir: "/tmp/helm-upgrade-{{ helm_target_version }}-{{ helm_architecture }}"
+    helm_backup_path: >-
+      {{ helm_install_path }}.backup-{{ helm_current_version }}
+
+- name: Helm upgrade staging 디렉터리 생성
+  ansible.builtin.file:
+    path: "{{ helm_upgrade_staging_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: 목표 Helm archive와 공식 checksum 다운로드
+  ansible.builtin.get_url:
+    url: "https://get.helm.sh/helm-{{ helm_target_version }}-linux-{{ helm_architecture }}.tar.gz"
+    dest: "{{ helm_upgrade_archive }}"
+    mode: "0644"
+    checksum: >-
+      sha256:https://get.helm.sh/helm-{{ helm_target_version }}-linux-{{ helm_architecture }}.tar.gz.sha256sum
+
+- name: 목표 Helm archive 압축 해제
+  ansible.builtin.unarchive:
+    src: "{{ helm_upgrade_archive }}"
+    dest: "{{ helm_upgrade_staging_dir }}"
+    remote_src: true
+    creates: "{{ helm_upgrade_staging_dir }}/linux-{{ helm_architecture }}/helm"
+
+- name: Staging Helm version 검증
+  ansible.builtin.command:
+    argv: ["{{ helm_upgrade_staging_dir }}/linux-{{ helm_architecture }}/helm", version, --short]
+  register: helm_upgrade_staged_version
+  changed_when: false
+
+- name: Staging Helm 목표 version 보장
+  ansible.builtin.assert:
+    that:
+      - helm_target_version in helm_upgrade_staged_version.stdout
+    fail_msg: >-
+      다운로드한 Helm version({{ helm_upgrade_staged_version.stdout }})이 목표
+      {{ helm_target_version }}과 다릅니다.
+
+- name: 기존 Helm release baseline 조회
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", list, --all-namespaces, --all, --output, json]
+  register: helm_releases_before
+  changed_when: false
+
+- name: Staging Helm의 기존 release 조회 호환성 검증
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_upgrade_staging_dir }}/linux-{{ helm_architecture }}/helm"
+      - list
+      - --all-namespaces
+      - --all
+      - --output
+      - json
+  register: helm_releases_with_target
+  changed_when: false
+
+- name: 기존과 목표 Helm의 release 인식 결과 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        (helm_releases_before.stdout | from_json | map(attribute='name') | list | sort)
+        ==
+        (helm_releases_with_target.stdout | from_json | map(attribute='name') | list | sort)
+      - >-
+        (helm_releases_before.stdout | from_json | map(attribute='namespace') | list | sort)
+        ==
+        (helm_releases_with_target.stdout | from_json | map(attribute='namespace') | list | sort)
+    fail_msg: "목표 Helm 바이너리가 기존 release 목록을 동일하게 인식하지 못합니다."
+
+- name: 설치된 Helm plugin baseline 조회
+  ansible.builtin.command:
+    argv: ["{{ helm_install_path }}", plugin, list]
+  register: helm_plugins_before
+  changed_when: false
+  failed_when: false
+
+- name: Major upgrade plugin 검토 안내
+  ansible.builtin.debug:
+    msg: >-
+      Major upgrade 전 plugin 호환성을 수동 검토하세요: {{ helm_plugins_before.stdout_lines }}
+  when:
+    - helm_target_major | int > helm_current_major | int
+    - helm_plugins_before.stdout_lines | default([]) | length > 1
+
+- name: Helm upgrade precheck 통과 기록
+  ansible.builtin.set_fact:
+    helm_upgrade_precheck_passed: true

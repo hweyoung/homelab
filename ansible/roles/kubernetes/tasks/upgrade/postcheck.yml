@@ -1,0 +1,83 @@
+---
+- name: 모든 Node kubelet version 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, nodes, -o, json]
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_nodes_after
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: 모든 Node가 목표 Kubernetes version인지 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.status.nodeInfo.kubeletVersion | regex_replace('^v', '')) ==
+        kubernetes_target_version_normalized
+    fail_msg: >-
+      Node {{ item.metadata.name }}의 kubelet은 {{ item.status.nodeInfo.kubeletVersion }}이며
+      목표 {{ kube_version }}와 일치하지 않습니다.
+  loop: "{{ (upgrade_nodes_after.stdout | from_json)['items'] }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Node placement label과 taint 재조회
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - get
+      - nodes
+      - --sort-by=.metadata.name
+      - -o=custom-columns=NAME:.metadata.name,POOL:.metadata.labels.pool,ENV:.metadata.labels.homelab\.okbear\.dev/environment,TAINTS:.spec.taints
+      - --no-headers
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_node_placement_after
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+
+- name: Node placement label과 taint 변경 경고
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: Upgrade 전후 node label/taint가 달라졌습니다.
+      Kubernetes upgrade 검증은 계속하지만, 필요하면 make post-kubespray로 수렴시키세요.
+      before={{ upgrade_node_placement_before.stdout }}
+      after={{ upgrade_node_placement_after.stdout }}
+  when:
+    - upgrade_node_placement_before is defined
+    - upgrade_node_placement_after.stdout != upgrade_node_placement_before.stdout
+
+- name: 독립 postcheck의 baseline 비교 생략 안내
+  ansible.builtin.debug:
+    msg: >-
+      precheck와 별도로 실행되어 upgrade 전 taint baseline 비교는 생략합니다.
+      Node placement label과 taint 수렴은 make post-kubespray에서 별도로 수행합니다.
+  when: upgrade_node_placement_before is not defined
+
+- name: Platform과 application 상태 출력
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - get
+      - applications.argoproj.io,clusters.postgresql.cnpg.io,externalsecrets.external-secrets.io,secretstores.external-secrets.io,gateways.gateway.networking.k8s.io,httproutes.gateway.networking.k8s.io
+      - -A
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_platform_status
+  delegate_to: k8s-master
+  become: true
+  changed_when: false
+  failed_when: false
+
+- name: Platform과 application 사후 상태
+  ansible.builtin.debug:
+    var: upgrade_platform_status.stdout_lines
+
+- name: 조회할 수 없는 Platform resource 경고
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: 일부 Platform CRD/resource 상태를 조회하지 못했습니다:
+      {{ upgrade_platform_status.stderr }}
+  when: upgrade_platform_status.rc != 0

@@ -1,9 +1,0 @@
----
-- import_tasks: install.yml
-  tags: ['tailscale', 'install']
-
-- import_tasks: configure.yml
-  tags: ['tailscale', 'configure']
-
-- import_tasks: join.yml
-  tags: ['tailscale', 'join']

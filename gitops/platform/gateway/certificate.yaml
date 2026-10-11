@@ -7,6 +7,10 @@ metadata:
   namespace: traefik
 spec:
   secretName: okbear-wildcard-tls
+  # cert-manager 1.18부터 바뀌는 기본값을 desired state로 명시한다.
+  revisionHistoryLimit: 1
+  privateKey:
+    rotationPolicy: Always
   issuerRef:
     kind: ClusterIssuer
     name: letsencrypt-prod

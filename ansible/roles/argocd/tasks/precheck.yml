@@ -1,0 +1,148 @@
+---
+- name: ArgoCD values 렌더링
+  ansible.builtin.template:
+    src: argocd-values.yaml.j2
+    dest: "{{ homelab_ansible_user_home }}/argocd-values.yaml"
+    mode: "0600"
+
+- name: 목표 ArgoCD chart와 values 렌더 검증
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - template
+      - argocd
+      - argo/argo-cd
+      - --namespace
+      - "{{ argocd_namespace }}"
+      - --version
+      - "{{ argocd_chart_version }}"
+      - --values
+      - "{{ homelab_ansible_user_home }}/argocd-values.yaml"
+  changed_when: false
+
+- name: 목표 chart metadata 조회
+  ansible.builtin.command:
+    argv:
+      - "{{ helm_install_path }}"
+      - show
+      - chart
+      - argo/argo-cd
+      - --version
+      - "{{ argocd_chart_version }}"
+  register: argocd_target_chart_metadata
+  changed_when: false
+
+- name: 목표 chart의 ArgoCD application version 검증
+  vars:
+    chart_metadata: "{{ argocd_target_chart_metadata.stdout | from_yaml }}"
+  ansible.builtin.assert:
+    that:
+      - chart_metadata.appVersion | regex_replace('^v', '') == argocd_target_version
+    fail_msg: >-
+      chart {{ argocd_chart_version }}의 appVersion {{ chart_metadata.appVersion | default('unknown') }}이
+      목표 ArgoCD {{ argocd_target_version }}과 다릅니다. version matrix를 수정하세요.
+
+- name: Upgrade 전 ArgoCD Pod 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, pods, --namespace, "{{ argocd_namespace }}", --output, json]
+  register: argocd_pods_before
+  changed_when: false
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 ArgoCD Pod 상태 요약 초기화
+  ansible.builtin.set_fact:
+    argocd_pod_health_before: []
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 ArgoCD Pod 상태 요약 생성
+  vars:
+    pod_ready: >-
+      {{ item.status.conditions | default([])
+         | selectattr('type', 'equalto', 'Ready')
+         | map(attribute='status') | first | default('False') }}
+  ansible.builtin.set_fact:
+    argocd_pod_health_before: >-
+      {{ argocd_pod_health_before + [{
+           'name': item.metadata.name,
+           'phase': item.status.phase | default('Unknown'),
+           'ready': pod_ready | bool,
+           'healthy': ((item.status.phase | default('Unknown')) == 'Succeeded')
+                      or (((item.status.phase | default('Unknown')) == 'Running') and (pod_ready | bool))
+         }] }}
+  loop: "{{ (argocd_pods_before.stdout | from_json)['items'] }}"
+  no_log: true
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 모든 ArgoCD Pod Ready 검증
+  vars:
+    unhealthy_pods: >-
+      {{ argocd_pod_health_before
+         | rejectattr('healthy', 'equalto', true) | list }}
+  ansible.builtin.assert:
+    that:
+      - unhealthy_pods | length == 0
+    fail_msg: |-
+      Upgrade 전 다음 ArgoCD Pod가 Ready 또는 완료 상태가 아닙니다.
+      {% for pod in unhealthy_pods %}
+      - {{ pod.name }}: phase={{ pod.phase }}, ready={{ pod.ready }}
+      {% endfor %}
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 ArgoCD Application 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, applications.argoproj.io, --all-namespaces, --output, json]
+  register: argocd_apps_before
+  changed_when: false
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 모든 Application Synced/Healthy 검증
+  vars:
+    applications: "{{ (argocd_apps_before.stdout | from_json)['items'] }}"
+    health_required_applications: >-
+      {{ applications
+         | rejectattr('metadata.name', 'in', argocd_health_exempt_applications | default([]))
+         | list }}
+  ansible.builtin.assert:
+    that:
+      - >-
+        (applications
+         | selectattr('status.sync.status', 'defined')
+         | selectattr('status.sync.status', 'equalto', 'Synced')
+         | list | length) == (applications | length)
+      - >-
+        (health_required_applications
+         | selectattr('status.health.status', 'defined')
+         | selectattr('status.health.status', 'equalto', 'Healthy')
+         | list | length) == (health_required_applications | length)
+    fail_msg: |-
+      Upgrade 전 다음 ArgoCD Application이 Synced/Healthy 상태가 아닙니다.
+      {% for app in applications %}
+      {% if (app.status.sync.status | default('Unknown')) != 'Synced' or ((app.metadata.name not in (argocd_health_exempt_applications | default([]))) and (app.status.health.status | default('Unknown')) != 'Healthy') %}
+      - {{ app.metadata.namespace }}/{{ app.metadata.name }}: sync={{ app.status.sync.status | default('Unknown') }}, health={{ app.status.health.status | default('Unknown') }}
+      {% endif %}
+      {% endfor %}
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 ArgoCD CRD Established 상태 조회
+  ansible.builtin.command:
+    argv: [kubectl, get, crd, applications.argoproj.io, applicationsets.argoproj.io, appprojects.argoproj.io, --output, json]
+  register: argocd_crds_before
+  changed_when: false
+  when: argocd_operation == 'upgrade'
+
+- name: Upgrade 전 ArgoCD CRD Established 검증
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.status.conditions | default([])
+         | selectattr('type', 'equalto', 'Established')
+         | map(attribute='status') | first | default('False')) == 'True'
+    fail_msg: "CRD {{ item.metadata.name }}가 Established 상태가 아닙니다."
+  loop: "{{ (argocd_crds_before.stdout | from_json)['items'] }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: argocd_operation == 'upgrade'
+
+- name: ArgoCD precheck 통과 기록
+  ansible.builtin.set_fact:
+    argocd_precheck_passed: true

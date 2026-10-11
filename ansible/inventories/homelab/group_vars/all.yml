@@ -2,22 +2,56 @@
 # 프로젝트 전역 변수.
 # 호스트별로 다르지 않은 값은 전부 여기 모아 둡니다.
 
-# Kubespray / Kubernetes
-kubespray_version: "v2.26.0"
-kube_version: "v1.30.4"
+# Ansible 프로젝트 경로
+# Playbook 위치와 실행 host가 달라도 경로가 변하지 않도록 활성 ansible.cfg를 기준으로
+# ansible/ 루트를 계산한다. inventory_dir는 implicit localhost에서 정의되지 않을 수 있다.
+ansible_project_root: "{{ ansible_config_file | dirname }}"
+kubespray_root: "{{ ansible_project_root }}/kubespray"
+kubespray_venv_root: "{{ ansible_project_root }}/.kubespray-venv"
+kubespray_inventory_path: "{{ ansible_project_root }}/inventories/homelab/hosts.yml"
+gitops_root: "{{ ansible_project_root }}/../gitops"
+# root와 일반 SSH 사용자 모두 같은 Playbook을 사용할 수 있도록 홈 경로를 정규화한다.
+homelab_ansible_user_home: >-
+  {{ '/root' if ansible_user == 'root' else '/home/' ~ ansible_user }}
 
-# Post-Kubespray 노드 taint
-prod_taint_key: "pool"
+# Kubespray / Kubernetes
+kubespray_version: "v2.30.0"
+kube_version: "1.34.3"
+# ArgoCD는 별도 argocd role이 소유하므로 Kubespray addon은 사용하지 않는다.
+# Kubespray가 disabled addon의 checksum도 평가하므로 해당 release의 지원 version을 함께 고정한다.
+kubespray_argocd_enabled: false
+kubespray_argocd_version: "2.14.5"
+
+# Post-Kubespray 노드 taint. GitOps workload의 toleration과 동일한 canonical key를 사용한다.
+prod_taint_key: "homelab.okbear.dev/environment"
 prod_taint_value: "prod"
 prod_taint_effect: "NoSchedule"
+legacy_prod_taint_keys:
+  - pool
 
 # Helm CLI
-helm_version: "v3.15.4"
+# Kubernetes 1.31을 지원하는 Helm 3.19 release line의 최신 patch.
+helm_cli_version: "v3.19.5"
 helm_install_path: "/usr/local/bin/helm"
 
-# ArgoCD (argocd role 이 helm chart 설치 시 사용)
+# ArgoCD (운영자는 ArgoCD version을 선택하고 role이 대응 Helm chart를 결정)
 argocd_namespace: "argocd"
-argocd_chart_version: "7.7.0"
+argocd_app_version: "3.4.6"
+argocd_version_matrix: 
+  "2.13.0": "7.7.0"
+  "2.14.11": "7.8.28"
+  "3.0.0": "8.0.0"
+  "3.1.9": "9.0.6"
+  "3.2.6": "9.3.7"
+  "3.3.9": "9.5.11"
+  "3.4.6": "10.2.2"
+argocd_helm_timeout: "10m"
+argocd_postcheck_retries: 60
+argocd_postcheck_delay: 10
+
+# AppProject만 소유하는 bootstrap Application은 Synced를 강제하되 workload health gate에서는 제외한다.
+argocd_health_exempt_applications:
+  - argocd-control-plane
 argocd_domain: "argocd.homelab.local"
 argocd_ingress_class: "traefik"
 argocd_gateway_access_label_key: "homelab.okbear.dev/gateway-access"
@@ -30,4 +64,4 @@ argocd_repo_username: "hweyoung"
 argocd_repo_secret_name: "argocd-repo-homelab"
 
 # GitOps root Application 경로
-gitops_root_app_path: "{{ playbook_dir }}/../gitops/bootstrap/root.yaml"
+gitops_root_app_path: "{{ gitops_root }}/bootstrap/root.yaml"

@@ -1,0 +1,19 @@
+---
+- name: Prod worker custom taint 복원
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - taint
+      - node
+      - "{{ item }}"
+      - "{{ prod_taint_key }}={{ prod_taint_value }}:{{ prod_taint_effect }}"
+      - --overwrite
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: upgrade_restore_prod_taint
+  delegate_to: k8s-master
+  become: true
+  changed_when: "'tainted' in upgrade_restore_prod_taint.stdout"
+  loop: "{{ upgrade_prod_taint_nodes_before | default([]) }}"
+  loop_control:
+    label: "{{ item }}"

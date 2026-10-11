@@ -1,0 +1,41 @@
+---
+- name: 4. Kubespray 실행 (localhost 래퍼)
+  hosts: localhost
+  # implicit localhost는 로컬 실행되며, delegate_to task는 대상 node의 SSH 연결을 사용한다.
+  gather_facts: false
+  tags: [kubernetes, kubespray]
+  tasks:
+    - name: Kubespray 실행 환경 검증
+      ansible.builtin.import_role:
+        name: kubespray
+        tasks_from: validate
+      vars:
+        kubespray_entrypoint: cluster.yml
+
+    - name: 목표 Kubernetes version 검증
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: validate/version
+
+    - name: 기존 Kubernetes cluster 상태 확인
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: install/state
+
+    - name: Kubernetes 설치 전 사전 점검
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: install/precheck
+      when: kubernetes_install_required
+
+    - name: 신규 Kubernetes cluster 설치
+      ansible.builtin.import_role:
+        name: kubespray
+        tasks_from: install
+      when: kubernetes_install_required
+
+    - name: Kubernetes 설치 결과 점검
+      ansible.builtin.import_role:
+        name: kubernetes
+        tasks_from: install/postcheck
+      when: kubernetes_install_required

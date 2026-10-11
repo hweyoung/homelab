@@ -1,0 +1,65 @@
+global:
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+
+replicaCount: 1
+
+installCRDs: true
+
+# This cluster uses namespace-scoped SecretStore and ExternalSecret resources.
+# Do not install or reconcile cluster-wide and push-secret APIs. The upstream
+# chart still installs its namespaced generator CRDs alongside ExternalSecret.
+crds:
+  createClusterExternalSecret: false
+  createClusterSecretStore: false
+  createSecretStore: true
+  createClusterGenerator: false
+  createClusterPushSecret: false
+  createPushSecret: false
+  unsafeServeV1Beta1: false
+
+processClusterExternalSecret: false
+processClusterPushSecret: false
+processClusterStore: false
+processSecretStore: true
+processClusterGenerator: false
+processPushSecret: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 512Mi
+
+webhook:
+  create: true
+  replicaCount: 1
+  failurePolicy: Fail
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+certController:
+  create: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+serviceMonitor:
+  enabled: false

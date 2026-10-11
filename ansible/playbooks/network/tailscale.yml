@@ -1,0 +1,23 @@
+---
+- name: 3. Tailscale 설치 및 Tailnet 조인
+  hosts: tailscale_nodes
+  become: true
+  tags: [ tailscale, management ]
+  tasks:
+    - name: Tailscale 설치
+      ansible.builtin.import_role:
+        name: tailscale
+        tasks_from: install
+      tags: [tailscale, install]
+
+    - name: Tailscale network 설정
+      ansible.builtin.import_role:
+        name: tailscale
+        tasks_from: configure
+      tags: [tailscale, configure]
+
+    - name: Tailscale Tailnet 연결
+      ansible.builtin.import_role:
+        name: tailscale
+        tasks_from: join
+      tags: [tailscale, join]
