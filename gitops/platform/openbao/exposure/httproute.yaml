@@ -27,6 +27,6 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: openbao
+          name: platform-openbao-ui
           port: 8200
           weight: 1
