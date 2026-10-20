@@ -27,6 +27,6 @@ Closes #
 
 ## ✅ 체크리스트
 - [ ] 평문 Secret·토큰이 포함되지 않았습니다 (`*.sops.yaml` 암호화 확인)
-- [ ] `gitops-validate` 워크플로가 통과합니다
+- [ ] `GitOps Validate` 워크플로가 통과합니다
 - [ ] prod 변경은 dev에서 먼저 확인했습니다 (해당 시)
 - [ ] 관련 문서(README · runbook)를 함께 수정했습니다 (해당 시)
