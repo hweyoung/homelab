@@ -20,8 +20,17 @@ spec:
     - group: "*"
       kind: "*"
 
-  # Nginx 테스트에서 필요한 Namespace 범위 리소스만 허용
+  # 앱 workload와 ESO 인증에 필요한 Namespace 범위 리소스만 허용
   namespaceResourceWhitelist:
+    - group: ""
+      kind: ServiceAccount
+
+    - group: external-secrets.io
+      kind: SecretStore
+
+    - group: external-secrets.io
+      kind: ExternalSecret
+
     - group: apps
       kind: Deployment
 

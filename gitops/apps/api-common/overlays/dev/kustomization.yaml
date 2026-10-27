@@ -6,9 +6,7 @@ namespace: api-common-dev
 resources:
   - ../../base
   - httproute.yaml
-
-generators:
-  - secret-generator.yaml
+  - external-secrets
 
 configMapGenerator:
   - name: api-common-config
