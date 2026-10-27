@@ -44,6 +44,7 @@ gitops/
 
 현재 활성 구성은 AppProject와 Namespace, local-path storage, Gateway API, cert-manager,
 Traefik, Cloudflare Tunnel, CloudNativePG, OpenBao, External Secrets Operator, Garage, Kargo,
+kube-prometheus-stack(Prometheus, Grafana),
 PostgreSQL dev/prod, test-nginx dev/prod, api-common dev다. Infisical과 OpenBao 외부 route는
 디렉터리가 있지만 root-app 항목이 주석 처리되어 배포 대상이 아니다. 디렉터리 존재가 아니라
 `applications`의 활성 항목을 기준으로 판단한다.

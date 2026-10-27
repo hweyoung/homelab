@@ -16,6 +16,7 @@ hosts:
   infisical: infisical.okbear.dev
   openbao: openbao.okbear.dev
   garageImages: images.okbear.dev
+  grafana: grafana.okbear.dev
 
 # application version과 실제 배포 artifact의 대응표. activeVersion만 한 단계씩 변경한다.
 platformVersions:
@@ -44,6 +45,11 @@ platformVersions:
     activeVersion: "1.11.0"
     versions:
       "1.11.0": { chartVersion: "1.11.0" }
+
+  kube-prometheus-stack:
+    activeVersion: "92.14.0"
+    versions:
+      "92.14.0": { chartVersion: "92.14.0" }
 
 
 # ==============
@@ -297,6 +303,42 @@ applications:
     chartRepo: ghcr.io/akuity/kargo-charts
     versionRef: kargo
     valuesPath: gitops/platform/kargo/values.yaml
+    syncPolicyRef: platform-existing-namespace
+
+  # ------------------
+  # --- Monitoring ---
+  # ------------------
+  # --- Grafana admin Secret (OpenBao + ESO) ---
+  - name: monitoring-secrets
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: monitoring
+    wave: -8
+    path: gitops/platform/monitoring/external-secrets
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Prometheus Operator, Prometheus, Grafana (CRDs + controllers) ---
+  - name: kube-prometheus-stack
+    group: platform
+    project: platform
+    type: helm
+    namespace: monitoring
+    wave: -7
+    chart: kube-prometheus-stack
+    chartRepo: https://prometheus-community.github.io/helm-charts
+    versionRef: kube-prometheus-stack
+    valuesPath: gitops/platform/monitoring/values.yaml
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Grafana public exposure (Gateway API) ---
+  - name: grafana-route
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: monitoring
+    wave: -6
+    path: gitops/platform/monitoring/exposure
     syncPolicyRef: platform-existing-namespace
 
 

@@ -1,0 +1,159 @@
+# kube-prometheus-stack Helm values (chart version은 root-app platformVersions에서 관리)
+# Prometheus Operator, Prometheus, Grafana, kube-state-metrics, node-exporter를 설치한다.
+# Grafana admin 계정은 monitoring/external-secrets의 ExternalSecret이 OpenBao에서 동기화한다.
+
+# release 이름(platform-kube-prometheus-stack)이 chart의 26자 이름 제한에서 잘리지 않도록 고정한다.
+fullnameOverride: kube-prometheus-stack
+
+# Prometheus Operator CRD는 chart와 함께 설치한다. 큰 CRD는 Argo CD ServerSideApply로 적용한다.
+crds:
+  enabled: true
+
+# 알림 경로는 후속 범위다. Alert rule 평가는 Prometheus에서 계속 수행한다.
+alertmanager:
+  enabled: false
+
+# Kubespray 기본 구성에서 etcd는 host 서비스(mTLS)이고 kube-proxy metrics는
+# 127.0.0.1에만 bind되므로 scrape 대상과 기본 rule을 비활성화한다.
+kubeEtcd:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+defaultRules:
+  rules:
+    etcd: false
+    kubeProxy: false
+    alertmanager: false
+
+prometheusOperator:
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+  admissionWebhooks:
+    patch:
+      nodeSelector:
+        homelab.okbear.dev/environment: prod
+      tolerations:
+        - key: homelab.okbear.dev/environment
+          operator: Equal
+          value: prod
+          effect: NoSchedule
+
+prometheus:
+  prometheusSpec:
+    # chart release label이 없는 ServiceMonitor/PodMonitor/Rule도 수집한다.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+    retention: 15d
+    retentionSize: 18GB
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+
+    nodeSelector:
+      homelab.okbear.dev/environment: prod
+    tolerations:
+      - key: homelab.okbear.dev/environment
+        operator: Equal
+        value: prod
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 3Gi
+
+grafana:
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  # local-path RWO PVC는 동시에 두 Pod가 mount할 수 없다.
+  deploymentStrategy:
+    type: Recreate
+
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+
+  grafana.ini:
+    server:
+      root_url: https://grafana.okbear.dev
+    auth.anonymous:
+      enabled: false
+    users:
+      allow_sign_up: false
+
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+kube-state-metrics:
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# node-exporter는 DaemonSet이다. chart 기본 toleration(NoSchedule Exists)으로
+# control plane, prod, dev 노드 모두에 배치된다.
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
