@@ -18,6 +18,10 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
+  - name: monitoring
+    environment: prod
+    gatewayAccess: public
+
   - name: kargo
     environment: prod
     gatewayAccess: private

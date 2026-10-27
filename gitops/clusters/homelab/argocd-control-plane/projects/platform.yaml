@@ -61,6 +61,10 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: monitoring
 
+    # kube-prometheus-stack이 control plane scrape용 Service를 kube-system에 생성한다.
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+
     - server: https://kubernetes.default.svc
       namespace: infisical
 

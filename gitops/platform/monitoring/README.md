@@ -1,0 +1,80 @@
+# monitoring
+
+kube-prometheus-stack chart로 Prometheus Operator, Prometheus, Grafana, kube-state-metrics,
+node-exporter를 `monitoring` Namespace에 설치한다. Alertmanager와 Loki/Alloy는 후속 범위다.
+
+| Application | wave | 경로 | 리소스 |
+| --- | --- | --- | --- |
+| platform-monitoring-secrets | -8 | `external-secrets/` | SA, SecretStore, ExternalSecret |
+| platform-kube-prometheus-stack | -7 | `values.yaml` | CRD, operator, Prometheus, Grafana, exporter |
+| platform-grafana-route | -6 | `exposure/` | `grafana.okbear.dev` HTTPRoute |
+
+Namespace는 namespaces Application이 소유하므로 세 Application 모두
+`platform-existing-namespace` 정책을 사용한다. chart 버전은 root-app `platformVersions`의
+`kube-prometheus-stack.activeVersion`으로 변경한다. chart는 control plane scrape용 Service를
+`kube-system`에 만들기 때문에 platform AppProject가 `kube-system` destination을 허용한다.
+
+## 수집 범위
+
+- Prometheus는 release label과 관계없이 모든 Namespace의 ServiceMonitor, PodMonitor,
+  PrometheusRule을 선택한다.
+- 보존 기간은 15일/18GB, 저장소는 `local-path` 20Gi PVC다. Grafana도 5Gi PVC를 쓰므로
+  `Recreate` 전략으로 배포한다. 두 PVC 모두 prod Worker에 결합된다.
+- Kubespray 기본 구성에서 etcd(host 서비스, mTLS)와 kube-proxy(127.0.0.1 bind) metrics는
+  수집할 수 없으므로 비활성화했다. controller-manager와 scheduler target은 sync 후 `up`
+  상태를 확인하고, bind 주소 때문에 down이면 Kubespray 변수로 조정하거나 비활성화한다.
+
+## Grafana admin Secret
+
+ExternalSecret `grafana-admin`이 OpenBao KV v2에서 같은 이름의 Secret을 만든다. Grafana는
+`admin.existingSecret`으로 이 Secret만 참조하고 chart가 admin Secret을 생성하지 않는다.
+
+| Kubernetes Secret 키 | OpenBao 엔진 내부 경로 | 원본 키 |
+| --- | --- | --- |
+| admin-user | platform/monitoring/grafana | admin-user |
+| admin-password | platform/monitoring/grafana | admin-password |
+
+OpenBao에는 sync 전에 값, Policy, Kubernetes Auth Role을 준비한다. Role은 SA
+`eso-monitoring`과 Namespace `monitoring`에 바인딩하고 audience는 `openbao`로 맞춘다.
+
+```bash
+bao kv put secret/platform/monitoring/grafana admin-user=admin admin-password=-
+
+bao policy write monitoring - <<'EOF'
+path "secret/data/platform/monitoring/*" {
+  capabilities = ["read"]
+}
+EOF
+
+bao write auth/kubernetes/role/monitoring \
+  bound_service_account_names=eso-monitoring \
+  bound_service_account_namespaces=monitoring \
+  audience=openbao \
+  policies=monitoring \
+  ttl=1h
+```
+
+Grafana는 admin 값을 최초 DB 생성 시에만 반영한다. PVC가 이미 있는 상태에서 값을 바꾸면
+`grafana cli admin reset-admin-password`로 맞추거나 Pod를 재시작한 뒤 로그인을 확인한다.
+
+## 검증
+
+```bash
+kustomize build gitops/platform/monitoring/external-secrets
+kustomize build gitops/platform/monitoring/exposure
+helm template root-app gitops/clusters/homelab/root-app
+```
+
+Argo CD sync 후:
+
+```bash
+kubectl -n monitoring wait --for=condition=Ready secretstore/openbao-monitoring --timeout=120s
+kubectl -n monitoring wait --for=condition=Ready externalsecret/grafana-admin --timeout=120s
+kubectl -n monitoring get pod,pvc
+kubectl -n monitoring get prometheus,servicemonitor
+kubectl -n monitoring get httproute grafana-route
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090
+```
+
+Prometheus UI의 Status → Targets에서 down target을 확인하고, Grafana는
+`https://grafana.okbear.dev`에서 로그인과 기본 Kubernetes dashboard를 확인한다.
