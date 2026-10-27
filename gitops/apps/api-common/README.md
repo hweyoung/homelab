@@ -30,17 +30,15 @@ dev ExternalSecret 하나가 고정 이름 `api-common-secret`을 생성한다.
 | DB_USERNAME | apps/common/dev/database | username |
 | DB_PASSWORD | apps/common/dev/database | password |
 | JWT_SECRET | apps/common/dev/auth | jwt-secret |
-| GARAGE_ACCESS_KEY (dev) | apps/common/dev/image | GARAGE_ACCESS_KEY |
-| GARAGE_SECRET_KEY (dev) | apps/common/dev/image | GARAGE_SECRET_KEY |
+| GARAGE_ACCESS_KEY (dev) | apps/common/dev/image | garage-access-key |
+| GARAGE_SECRET_KEY (dev) | apps/common/dev/image | garage-secret-key |
 
-dev 이미지 인증은 운영자가 구성한 `secret/apps/common/dev/image`의 대문자 키를 조회한다.
 OpenBao DB 값은 실제 PostgreSQL
 계정과 일치해야 한다. 앱 ExternalSecret은 DB 계정 비밀번호를 변경하지 않는다.
 
-dev overlay의 앱 Secret용 KSOPS generator 연결을 제거했다. 기존 `secret-generator.yaml`과
-`secret.sops.env`는 비활성 상태로 남겨두며 렌더링에 포함하지 않는다. Deployment는 기존
-`api-common-secret` 참조를 유지하며, KSOPS의 해시 이름 대신 ESO의 고정 이름을 사용한다.
-GHCR pull Secret과 CNPG DB 계정 Secret은 기존 방식으로 유지한다.
+dev 앱 Secret은 ESO로 전환을 완료했고 기존 KSOPS `secret-generator.yaml`과 `secret.sops.env`는
+삭제했다. Deployment는 기존 `api-common-secret` 참조를 유지하며, KSOPS의 해시 이름 대신
+ESO의 고정 이름을 사용한다. GHCR pull Secret과 CNPG DB 계정 Secret은 기존 SOPS 방식으로 유지한다.
 
 전환 전 기존 Deployment가 해시 Secret을 참조하는지 확인한다. 필요하면 먼저 ExternalSecret만
 선적용하여 동기화 성공을 확인한 뒤 앱 변경을 sync한다. 고정 이름 Secret을 이미 다른 주체가
