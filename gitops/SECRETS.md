@@ -21,9 +21,9 @@ root repo PAT를 GitOps에 두면 private repo를 읽기 위한 Secret을 그 re
 의존성이 생긴다. 따라서 `sops-age`와 선택적 `argocd-repo-homelab`은 Ansible role이 먼저
 만든다. public repo이면 PAT 주입은 생략한다.
 
-OpenBao와 External Secrets Operator는 설치 대상이지만 현재 활성 workload credential은
-SOPS/KSOPS 파일을 직접 소비한다. ExternalSecret 전환 시 같은 Secret 이름을 양쪽이 동시에
-소유하지 않도록 명시적으로 ownership을 이전해야 한다.
+api-common dev 앱 Secret(`api-common-secret`)은 OpenBao + ESO ExternalSecret으로 전환했다.
+그 외 활성 workload credential은 SOPS/KSOPS 파일을 직접 소비한다. ExternalSecret 전환 시 같은
+Secret 이름을 양쪽이 동시에 소유하지 않도록 명시적으로 ownership을 이전해야 한다.
 
 ## 현재 파일과 소비 경로
 
