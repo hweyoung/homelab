@@ -19,7 +19,8 @@ Namespace는 namespaces Application이 소유하므로 세 Application 모두
 - Prometheus는 release label과 관계없이 모든 Namespace의 ServiceMonitor, PodMonitor,
   PrometheusRule을 선택한다.
 - 보존 기간은 15일/18GB, 저장소는 `local-path` 20Gi PVC다. Grafana도 5Gi PVC를 쓰므로
-  `Recreate` 전략으로 배포한다. 두 PVC 모두 prod Worker에 결합된다.
+  `Recreate` 전략으로 배포한다. Prometheus PVC는 prod Worker에, Grafana PVC는
+  prod/dev taint를 모두 허용해 최초 배치된 Worker에 결합된다.
 - Kubespray 기본 구성에서 etcd(host 서비스, mTLS)와 kube-proxy(127.0.0.1 bind) metrics는
   수집할 수 없으므로 비활성화했다. controller-manager와 scheduler target은 sync 후 `up`
   상태를 확인하고, bind 주소 때문에 down이면 Kubespray 변수로 조정하거나 비활성화한다.

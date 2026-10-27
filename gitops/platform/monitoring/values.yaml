@@ -116,12 +116,10 @@ grafana:
     users:
       allow_sign_up: false
 
-  nodeSelector:
-    homelab.okbear.dev/environment: prod
+  # prod/dev Worker taint를 모두 허용한다. 최초 배치 후에는 local-path PV가 Pod를 해당 노드에 고정한다.
   tolerations:
     - key: homelab.okbear.dev/environment
-      operator: Equal
-      value: prod
+      operator: Exists
       effect: NoSchedule
   resources:
     requests:
