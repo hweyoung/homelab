@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: gitops-validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -56,11 +60,65 @@ jobs:
           set -euo pipefail
           kdirs=$(find gitops -name 'kustomization.y*ml' -printf '%h\n' | sort -u)
           if [ -z "$kdirs" ]; then echo "build 할 kustomize 디렉토리 없음"; exit 0; fi
+          # KSOPS generator 는 CI 에 복호화 키가 없어 실행할 수 없다.
+          # 복사본에서 generators 를 제거하고 나머지 구성만 build 한다(암호화 여부는 3단계에서 검사).
+          cp -r gitops "$RUNNER_TEMP/"
+          find "$RUNNER_TEMP/gitops" -name 'kustomization.y*ml' -exec yq -i 'del(.generators)' {} \;
           for d in $kdirs; do
             echo "::group::kustomize build $d"
-            kustomize build "$d" >/dev/null
+            kustomize build "$RUNNER_TEMP/$d" >/dev/null
             echo "::endgroup::"
           done
+
+      # 2-1. Argo CD Application 검사 — root-app 이 렌더한 Application 의 참조와 원격 차트 values 를 검증
+      - name: Argo CD Application check
+        run: |
+          set -euo pipefail
+          fail=0
+          apps=$(helm template root-app gitops/clusters/homelab/root-app \
+            | yq -o=json -I=0 'select(.kind == "Application")')
+          while read -r app; do
+            name=$(jq -r '.metadata.name' <<<"$app")
+
+            # 레포 내부 path (kustomize / helm / directory 타입)
+            path=$(jq -r '.spec.source.path // empty' <<<"$app")
+            if [ -n "$path" ] && [ ! -d "$path" ]; then
+              echo "❌ $name: path 가 없음 → $path"
+              fail=1
+            fi
+
+            # 원격 Helm 차트 + git values (multi-source)
+            chart=$(jq -r '.spec.sources[0].chart // empty' <<<"$app")
+            [ -z "$chart" ] && continue
+            repo=$(jq -r '.spec.sources[0].repoURL' <<<"$app")
+            version=$(jq -r '.spec.sources[0].targetRevision' <<<"$app")
+            args=(--version "$version")
+            if [[ "$repo" == *://* ]]; then
+              ref="$chart"; args+=(--repo "$repo")
+            else
+              ref="oci://$repo/$chart"
+            fi
+            for v in $(jq -r '.spec.sources[0].helm.valueFiles[]? | sub("^\\$values/"; "")' <<<"$app"); do
+              if [ ! -f "$v" ]; then
+                echo "❌ $name: valuesPath 가 없음 → $v"
+                fail=1
+                continue 2
+              fi
+              args+=(-f "$v")
+            done
+            [ "$(jq -r '.spec.sources[0].helm.skipCrds // false' <<<"$app")" = true ] && args+=(--skip-crds)
+
+            echo "::group::helm template $name ($ref $version)"
+            if ! helm template "$name" "$ref" "${args[@]}" \
+                --namespace "$(jq -r '.spec.destination.namespace' <<<"$app")" >/dev/null; then
+              echo "❌ $name: 원격 차트 렌더 실패"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done <<<"$apps"
+
+          [ "$fail" -eq 0 ] && echo "✅ Application 참조/차트 렌더 정상"
+          exit $fail
 
       # 3. SOPS 암호화 검사 — *.sops.yaml 은 반드시 sops: 블록(암호문)을 포함해야 함
       - name: SOPS encryption check
@@ -84,7 +142,7 @@ jobs:
           fail=0
 
           # 4a) kind: Secret 인데 *.sops.yaml / *.example.yaml 이 아닌 파일
-          secret_files=$(grep -rlE '^kind:[[:space:]]*Secret' gitops/ \
+          secret_files=$(grep -rlE '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/ \
             --include='*.yaml' --include='*.yml' 2>/dev/null \
             | grep -vE '\.sops\.ya?ml$|\.example\.ya?ml$' || true)
           if [ -n "$secret_files" ]; then
@@ -94,7 +152,8 @@ jobs:
           fi
 
           # 4b) 민감 키 패턴 스캔 (암호화/예시 파일 제외)
-          hits=$(grep -rnE '(password|token|secret|clientSecret)[[:space:]]*:' gitops/ \
+          #     같은 줄에 값이 있는 경우만 — `secret:` 아래에 name 등이 오는 참조 블록은 제외
+          hits=$(grep -rnE '(password|token|secret|clientSecret)[[:space:]]*:[[:space:]]*[^[:space:]#]' gitops/ \
             --include='*.yaml' --include='*.yml' 2>/dev/null \
             | grep -vE '\.sops\.ya?ml:|\.example\.ya?ml:' || true)
           if [ -n "$hits" ]; then
