@@ -79,4 +79,4 @@ Run Directory는 `0700`, 파일은 `0600`으로 생성된다. Vault 파일은 �
 Inventory, Role path와 execution artifact 계약을 놓칠 수 있다. 반드시 `ansible/` 루트에서
 Makefile을 사용한다.
 
-상세 실행 및 보안 정책은 [execution.md](../docs/execution.md)를 참고한다.
+상세 실행 및 보안 정책은 [execution.md](../../docs/ansible/execution.md)를 참고한다.

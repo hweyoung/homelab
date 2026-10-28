@@ -5,6 +5,9 @@ Helm 기반 플랫폼 component의 application version과 chart version 대응�
 실제 배포 버전은 component별 `activeVersion`이며, 한 번에 한 component의 한 단계만
 변경한다. 각 단계는 별도 commit으로 남기고 Argo CD health 검증 후 다음 단계로 진행한다.
 
+Kargo, kube-prometheus-stack, Loki, Alloy도 `platformVersions`에 등록되어 있지만 현재는
+버전이 하나만 매핑되어 있다. 업그레이드할 때 같은 방식으로 다음 버전을 추가한다.
+
 Gateway API CRD는 chart 대응표가 필요하지 않으므로
 `gitops/platform/gateway-api-crds/kustomization.yaml`의 단일 release URL로 관리한다.
 버전 이력은 해당 파일의 주석과 Git commit에 남긴다. 이 Application이 Gateway API CRD의
