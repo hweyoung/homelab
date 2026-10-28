@@ -19,6 +19,7 @@ flowchart LR
         LOKI["Loki SingleBinary<br/>30Gi PVC · 14d"]
         OP["Prometheus Operator"]
         KSM["kube-state-metrics"]
+        AM["Alertmanager<br/>2Gi PVC"]
     end
 
     GRAF["Grafana<br/>5Gi PVC"]
@@ -30,6 +31,8 @@ flowchart LR
     GRAF -->|"PromQL"| PROM
     GRAF -->|"LogQL"| LOKI
     OP -.->|"ServiceMonitor → scrape 설정"| PROM
+    PROM -->|"alert"| AM -->|"webhook"| DISCORD["Discord"]
+    BAO -->|"ESO ExternalSecret"| AMSEC["alertmanager-discord Secret"] --> AM
 ```
 
 | 구분 | 수집 방식 | 저장소 | 조회 |
@@ -102,8 +105,8 @@ chart는 chart와 Git의 values 파일을 묶은 multi-source Application이고,
 | wave | Application | 종류 | 경로 | 내용 |
 | ---: | --- | --- | --- | --- |
 | -50 | `namespaces` | Helm(내부) | `platform/namespaces` | `monitoring` Namespace |
-| -8 | `platform-monitoring-secrets` | Kustomize | `monitoring/external-secrets` | SA, SecretStore, ExternalSecret |
-| -7 | `platform-kube-prometheus-stack` | Helm 92.14.0 | `monitoring/values.yaml` | CRD, operator, Prometheus, Grafana, exporter |
+| -8 | `platform-monitoring-secrets` | Kustomize | `monitoring/external-secrets` | SA, SecretStore, ExternalSecret(Grafana admin, Discord webhook) |
+| -7 | `platform-kube-prometheus-stack` | Helm 92.14.0 | `monitoring/values.yaml` | CRD, operator, Prometheus, Alertmanager, Grafana, exporter |
 | -6 | `platform-grafana-route` | Kustomize | `monitoring/exposure` | Grafana HTTPRoute |
 | -6 | `platform-loki` | Helm 7.5.0 (Loki 3.6.16) | `monitoring/loki/values.yaml` | Loki StatefulSet |
 | -5 | `platform-alloy` | Helm 1.14.3 (Alloy 1.21.2) | `monitoring/alloy/values.yaml` | Alloy DaemonSet |
@@ -120,7 +123,7 @@ Namespace의 HTTPRoute만 허용한다.
 
 | 구성 요소 | 배치 | 이유 |
 | --- | --- | --- |
-| Prometheus, operator, kube-state-metrics | prod Worker 고정 | 다른 플랫폼 구성 요소와 같은 안정 노드 |
+| Prometheus, Alertmanager, operator, kube-state-metrics | prod Worker 고정 | 다른 플랫폼 구성 요소와 같은 안정 노드 |
 | Loki | prod Worker 고정 | 로그 PVC를 안정 노드에 둔다 |
 | Grafana | prod/dev taint 모두 허용 | UI는 어느 Worker에 떠도 무방하다 |
 | node-exporter, Alloy | 모든 노드 | 노드 단위 수집이라 control plane까지 포함한다 |
@@ -265,12 +268,15 @@ platform AppProject의 destination에 `kube-system`이 없으면 sync가 거부�
 ```bash
 kubectl -n monitoring get pod,pvc
 kubectl -n monitoring wait --for=condition=Ready externalsecret/grafana-admin --timeout=120s
-kubectl -n monitoring get prometheus,servicemonitor
+kubectl -n monitoring wait --for=condition=Ready externalsecret/alertmanager-discord --timeout=120s
+kubectl -n monitoring get prometheus,alertmanager,servicemonitor,podmonitor
 kubectl -n monitoring rollout status daemonset/platform-alloy
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090
 ```
 
 - Prometheus UI Status → Targets에서 down target이 없는지 본다.
+- Alertmanager UI(`svc/kube-prometheus-stack-alertmanager` 9093)에서 Watchdog 외 firing alert와
+  Discord 전송 오류가 없는지 본다.
 - `https://grafana.okbear.dev`에서 로그인하고 Kubernetes 기본 dashboard를 연다.
 - Grafana Explore에서 Loki를 선택하고 `{namespace="api-common-dev"}`로 로그가 들어오는지 본다.
 

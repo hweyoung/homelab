@@ -41,8 +41,8 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | -10 | `platform-garage` | `platform` | S3-compatible storage |
 | -10 | `argocd-server` | `argocd-system` | Argo CD 노출 리소스 |
 | -9 | `platform-garage-route` | `platform` | public image route |
-| -8 | `platform-monitoring-secrets` | `platform` | Grafana admin ExternalSecret |
-| -7 | `platform-kube-prometheus-stack` | `platform` | Prometheus/Grafana/operator |
+| -8 | `platform-monitoring-secrets` | `platform` | Grafana admin, Discord webhook ExternalSecret |
+| -7 | `platform-kube-prometheus-stack` | `platform` | Prometheus/Alertmanager/Grafana/operator |
 | -6 | `platform-grafana-route`, `platform-loki` | `platform` | Grafana route, 로그 저장소 |
 | -5 | `platform-alloy` | `platform` | Pod 로그 수집 DaemonSet |
 | 10 | `databases-postgres-{dev,prod}` | `databases` | CNPG Cluster |
@@ -103,7 +103,7 @@ endpoint만 route로 공개한다.
 
 Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
 bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
-OpenBao와 ESO 경로는 api-common dev 앱 Secret과 Grafana admin Secret에 적용되어 있고, 나머지
+OpenBao와 ESO 경로는 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook에 적용되어 있고, 나머지
 workload Secret은 SOPS/KSOPS를 유지한다. 상세 절차는 [Secret 관리](secrets.md)에 있다.
 
 ## 이미지 승격 경계

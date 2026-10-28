@@ -23,11 +23,11 @@ Proxmox 위에 Kubernetes 클러스터를 구성하고, 인프라 생성부터 �
 | Kubernetes | 구성됨 | Kubespray 기반 설치, 노드 후처리, 기존 클러스터 순차 업그레이드 |
 | Argo CD bootstrap | 구성됨 | Helm 설치, private repository 인증, root Application |
 | GitOps 플랫폼 | 구성됨 | Namespace, StorageClass, Gateway API, cert-manager, Traefik, cloudflared, CNPG, Garage |
-| Secret 플랫폼 | 부분 적용 | OpenBao·ESO 설치, api-common dev와 Grafana admin Secret을 ExternalSecret으로 동기화 |
+| Secret 플랫폼 | 부분 적용 | OpenBao·ESO 설치, api-common dev, Grafana admin, Alertmanager Discord webhook을 ExternalSecret으로 동기화 |
 | Promotion | 구성 중 | Kargo controller 설치 선언, Stage/Warehouse/Promotion 정책은 후속 범위 |
 | 데이터베이스 | 구성됨 | dev/prod CloudNativePG Cluster, `local-path` 영속 볼륨 |
 | 애플리케이션 | 부분 구성 | test-nginx dev/prod, CommonPlant API dev |
-| Observability | 구성됨 | kube-prometheus-stack(Prometheus, Grafana), Loki, Alloy. Alertmanager 비활성 |
+| Observability | 구성됨 | kube-prometheus-stack(Prometheus, Alertmanager, Grafana), Loki, Alloy, Discord 알림 |
 
 완료 여부는 리소스가 한 번 생성됐는지가 아니라 재실행, 상태 확인, 장애 복구 기준까지
 검증됐는지를 기준으로 판단합니다.
@@ -50,7 +50,7 @@ flowchart TB
     subgraph cluster["Kubernetes GitOps"]
         ARGO["Argo CD<br/>root-app"]
         PLATFORM["Gateway · TLS · Storage · CNPG"]
-        OBS["Prometheus · Grafana · Loki"]
+        OBS["Prometheus · Grafana · Loki · Alertmanager"]
         SECRETS["OpenBao · ESO"]
         KARGO["Kargo"]
         APPS["dev / prod workloads"]
@@ -191,8 +191,8 @@ flowchart LR
 - policy는 각 애플리케이션 KV 경로의 읽기 권한만 부여합니다.
 - 초기 root token과 unseal key는 Git과 Kubernetes Secret에 저장하지 않습니다.
 - bootstrap 값과 전환 전 Secret은 SOPS/age/KSOPS로 유지합니다.
-- 현재 api-common dev 앱 Secret과 Grafana admin Secret이 ExternalSecret으로 동기화되며,
-  GHCR pull Secret과 DB 계정 등 나머지는 SOPS/KSOPS를 유지합니다.
+- 현재 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook이 ExternalSecret으로
+  동기화되며, GHCR pull Secret과 DB 계정 등 나머지는 SOPS/KSOPS를 유지합니다.
 
 OpenBao는 prod Worker의 단일 Raft replica와 10Gi `local-path` PVC를 사용합니다. 자원
 제약을 고려한 선택이지만 HA가 아니므로 외부 snapshot과 수동 unseal 절차가 필요합니다.
@@ -266,7 +266,7 @@ repository credential, Warehouse와 Stage는 인증 및 승인 정책과 함께 
 | OpenBao | chart `0.29.2`, image `2.6.2` | single Raft |
 | External Secrets Operator | chart `2.9.0` | namespaced Store만 처리 |
 | Kargo | chart `1.11.0` | API 비활성화 |
-| kube-prometheus-stack | chart `92.14.0` | Prometheus, Grafana, operator |
+| kube-prometheus-stack | chart `92.14.0` | Prometheus, Alertmanager, Grafana, operator |
 | Loki | app `3.6.16`, chart `7.5.0` | SingleBinary |
 | Alloy | app `1.21.2`, chart `1.14.3` | Pod 로그 수집 |
 | cloudflared | image `2026.7.3` | 2 replicas |
@@ -456,7 +456,7 @@ KSOPS overlay는 age key와 plugin이 준비된 Argo CD repo-server 또는 별�
 - 나머지 workload Secret의 ExternalSecret 전환과 prod OpenBao role 구성이 필요합니다.
 - Kargo의 실제 promotion graph와 승인 정책은 아직 없습니다.
 - CommonPlant prod overlay와 CI/CD 승격 흐름은 아직 완성되지 않았습니다.
-- Alertmanager 알림 경로와 Grafana SSO는 후속 범위입니다.
+- 알림 경로 자체의 장애를 감지하는 외부 dead man's switch와 Grafana SSO는 후속 범위입니다.
 - Git 목표 버전과 실제 클러스터 버전의 drift를 자동 보고하는 검증이 필요합니다.
 
 ## 관련 문서
