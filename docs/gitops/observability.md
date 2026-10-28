@@ -140,6 +140,11 @@ Grafana는 nodeSelector 없이 두 taint를 모두 허용한다. 다만 `local-p
 - Traefik, cert-manager, External Secrets, CNPG operator는 chart 옵션으로 ServiceMonitor/PodMonitor를
   켰고, PostgreSQL Cluster는 `databases/postgres/base`에 PodMonitor를 직접 선언했다. CNPG Cluster의
   `monitoring.enablePodMonitor`는 deprecated다.
+- OpenBao는 공개 route와 분리된 내부 전용 listener `:8210`에서만 인증 없이 metric을 내보낸다.
+  Garage는 `metrics_token` 없이 클러스터 내부 admin 포트 `:3903`에서, cloudflared는 Pod의 `:2000`에서
+  수집한다.
+- 애플리케이션 자체 metric은 아직 없다. 우선 Traefik metric으로 요청 수·에러율·지연(RED)을 보고,
+  Spring Boot 앱은 Actuator Prometheus endpoint를 연 뒤 ServiceMonitor를 추가한다.
 - Kubespray 기본 구성에서 수집할 수 없는 target은 비활성화했다.
   - etcd는 host systemd 서비스이고 metrics endpoint가 mTLS client 인증서를 요구한다.
   - kube-proxy metrics는 `127.0.0.1:10249`에만 bind된다.
