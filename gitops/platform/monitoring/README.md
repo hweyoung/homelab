@@ -2,11 +2,11 @@
 
 kube-prometheus-stack chart로 Prometheus Operator, Prometheus, Grafana, kube-state-metrics,
 node-exporter를 `monitoring` Namespace에 설치한다. 애플리케이션 로그는 Alloy가 수집해 Loki에
-저장한다. Alertmanager는 후속 범위다.
+저장한다. Alertmanager는 warning/critical 알림을 Discord로 보낸다.
 
 | Application | wave | 경로 | 리소스 |
 | --- | --- | --- | --- |
-| platform-monitoring-secrets | -8 | `external-secrets/` | SA, SecretStore, ExternalSecret |
+| platform-monitoring-secrets | -8 | `external-secrets/` | SA, SecretStore, ExternalSecret 2개 |
 | platform-kube-prometheus-stack | -7 | `values.yaml` | CRD, operator, Prometheus, Grafana, exporter |
 | platform-grafana-route | -6 | `exposure/` | `grafana.okbear.dev` HTTPRoute |
 | platform-loki | -6 | `loki/values.yaml` | Loki SingleBinary StatefulSet |
@@ -39,6 +39,33 @@ Namespace는 namespaces Application이 소유하므로 세 Application 모두
 - Grafana에는 `Loki` 데이터소스가 추가된다. Explore에서 `{namespace="api-common-dev"}`처럼
   조회한다.
 
+## Alertmanager와 Discord
+
+- route는 `namespace`, `alertname`으로 묶고 기본 receiver를 Discord로 둔다. critical은 1시간,
+  나머지는 12시간마다 다시 알린다.
+- 항상 firing인 `Watchdog`, inhibit 전용 `InfoInhibitor`, `severity=info` alert는 `null`
+  receiver로 보낸다. chart 기본 inhibit rule(critical이 같은 alert의 warning/info를 억제)은 유지한다.
+- Discord webhook URL은 ExternalSecret `alertmanager-discord`가 만든 Secret을
+  `alertmanagerSpec.secrets`로 mount하고 `webhook_url_file`로 읽는다. 값은 Git과 렌더된 설정
+  어디에도 남지 않는다.
+- Alertmanager는 prod Worker에 고정하고 silence 기록을 `local-path` 2Gi PVC에 둔다.
+
+## 수집 대상 추가
+
+다른 Application에서 metric 옵션을 켜 monitoring Prometheus가 수집한다.
+
+| 대상 | 리소스 | 선언 위치 |
+| --- | --- | --- |
+| Traefik | metrics Service + ServiceMonitor | `platform/traefik/values.yaml` |
+| cert-manager | ServiceMonitor | `platform/cert-manager/values.yaml` |
+| External Secrets | ServiceMonitor | `platform/external-secrets/values.yaml` |
+| CNPG operator | PodMonitor | `platform/cloudnative-pg/values.yaml` |
+| PostgreSQL Cluster | PodMonitor `postgres` | `databases/postgres/base/podmonitor.yaml` |
+
+이 리소스는 Prometheus Operator CRD가 있어야 적용된다. 새 클러스터 bootstrap에서는
+kube-prometheus-stack(wave -7)보다 앞 wave의 Application이 CRD 설치 전까지 sync 실패 후
+재시도할 수 있다. ESO chart는 CRD가 없으면 ServiceMonitor 렌더를 건너뛴다.
+
 ## Grafana admin Secret
 
 ExternalSecret `grafana-admin`이 OpenBao KV v2에서 같은 이름의 Secret을 만든다. Grafana는
@@ -49,11 +76,18 @@ ExternalSecret `grafana-admin`이 OpenBao KV v2에서 같은 이름의 Secret을
 | admin-user | platform/monitoring/grafana | admin-user |
 | admin-password | platform/monitoring/grafana | admin-password |
 
+ExternalSecret `alertmanager-discord`는 Alertmanager용 Secret을 만든다.
+
+| Kubernetes Secret 키 | OpenBao 엔진 내부 경로 | 원본 키 |
+| --- | --- | --- |
+| webhook-url | platform/monitoring/alertmanager | discord-webhook-url |
+
 OpenBao에는 sync 전에 값, Policy, Kubernetes Auth Role을 준비한다. Role은 SA
 `eso-monitoring`과 Namespace `monitoring`에 바인딩하고 audience는 `openbao`로 맞춘다.
 
 ```bash
 bao kv put secret/platform/monitoring/grafana admin-user=admin admin-password=-
+bao kv put secret/platform/monitoring/alertmanager discord-webhook-url=-
 
 bao policy write monitoring - <<'EOF'
 path "secret/data/platform/monitoring/*" {
@@ -85,6 +119,8 @@ Argo CD sync 후:
 ```bash
 kubectl -n monitoring wait --for=condition=Ready secretstore/openbao-monitoring --timeout=120s
 kubectl -n monitoring wait --for=condition=Ready externalsecret/grafana-admin --timeout=120s
+kubectl -n monitoring wait --for=condition=Ready externalsecret/alertmanager-discord --timeout=120s
+kubectl -n monitoring get alertmanager,pod -l app.kubernetes.io/name=alertmanager
 kubectl -n monitoring get pod,pvc
 kubectl -n monitoring get prometheus,servicemonitor
 kubectl -n monitoring get httproute grafana-route
