@@ -11,6 +11,11 @@ spec:
     - name: web
       port: 3902
       targetPort: web
+    # 클러스터 내부 metrics 수집용. admin API는 admin_token으로 계속 보호된다.
+    - name: admin
+      port: 3903
+      targetPort: admin
   selector:
     app.kubernetes.io/name: garage
     app.kubernetes.io/instance: platform-garage
+    app.kubernetes.io/component: server

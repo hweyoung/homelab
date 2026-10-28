@@ -5,6 +5,7 @@ namespace: cloudflare-system
 
 resources:
   - deployment.yaml
+  - podmonitor.yaml
 
 generators:
   - cloudflare-tunnel-token-generator.yaml

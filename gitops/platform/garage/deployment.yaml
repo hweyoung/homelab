@@ -8,15 +8,19 @@ spec:
   # never overlap during an update.
   strategy:
     type: Recreate
+  # component label로 garage-web-proxy Pod와 selector가 겹치지 않게 한다.
+  # selector는 immutable이므로 변경 시 Deployment를 삭제 후 재생성해야 한다.
   selector:
     matchLabels:
       app.kubernetes.io/name: garage
       app.kubernetes.io/instance: platform-garage
+      app.kubernetes.io/component: server
   template:
     metadata:
       labels:
         app.kubernetes.io/name: garage
         app.kubernetes.io/instance: platform-garage
+        app.kubernetes.io/component: server
         app.kubernetes.io/part-of: object-storage
     spec:
       securityContext:
@@ -47,7 +51,6 @@ spec:
                 umask 077
                 rpc_secret="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
                 admin_token="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-                metrics_token="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
                 printf '%s\n' \
                   'metadata_dir = "/var/lib/garage/config/meta"' \
                   'metadata_snapshots_dir = "/var/lib/garage/config/snapshots"' \
@@ -72,10 +75,12 @@ spec:
                   '[admin]' \
                   'api_bind_addr = "[::]:3903"' \
                   "admin_token = \"${admin_token}\"" \
-                  "metrics_token = \"${metrics_token}\"" \
                   > "${config}"
                 chmod 0600 "${config}"
               fi
+              # /metrics는 클러스터 내부 admin 포트에서 토큰 없이 수집한다.
+              # 기존 PVC 설정에 남은 metrics_token도 시작 시 제거한다.
+              sed -i '/^metrics_token = /d' "${config}"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

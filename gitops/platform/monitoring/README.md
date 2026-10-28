@@ -61,6 +61,14 @@ Namespace는 namespaces Application이 소유하므로 세 Application 모두
 | External Secrets | ServiceMonitor | `platform/external-secrets/values.yaml` |
 | CNPG operator | PodMonitor | `platform/cloudnative-pg/values.yaml` |
 | PostgreSQL Cluster | PodMonitor `postgres` | `databases/postgres/base/podmonitor.yaml` |
+| OpenBao | 내부 전용 listener `:8210` + ServiceMonitor | `platform/openbao/values.yaml` |
+| Garage | admin 포트 `:3903` + ServiceMonitor | `platform/garage/` |
+| cloudflared | PodMonitor (`:2000`) | `platform/cloudflared/podmonitor.yaml` |
+
+OpenBao는 공개 HTTPRoute가 UI Service의 8200만 가리키므로, 인증 없는 `/v1/sys/metrics`는 별도
+listener `:8210`에서만 허용한다. 차트가 8202를 replication 포트로 쓰기 때문에 8210을 사용한다.
+`updateStrategyType: OnDelete`라 설정 반영에는 Pod 삭제와 수동 unseal이 필요하다. ServiceMonitor는
+`openbao-active` Service만 고르므로 sealed 상태에서는 target이 사라진다.
 
 이 리소스는 Prometheus Operator CRD가 있어야 적용된다. 새 클러스터 bootstrap에서는
 kube-prometheus-stack(wave -7)보다 앞 wave의 Application이 CRD 설치 전까지 sync 실패 후
