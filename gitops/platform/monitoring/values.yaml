@@ -116,6 +116,14 @@ grafana:
     users:
       allow_sign_up: false
 
+  # monitoring/loki의 SingleBinary Service를 조회한다.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://platform-loki.monitoring:3100
+
   # prod/dev Worker taint를 모두 허용한다. 최초 배치 후에는 local-path PV가 Pod를 해당 노드에 고정한다.
   tolerations:
     - key: homelab.okbear.dev/environment

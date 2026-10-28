@@ -1,13 +1,16 @@
 # monitoring
 
 kube-prometheus-stack chart로 Prometheus Operator, Prometheus, Grafana, kube-state-metrics,
-node-exporter를 `monitoring` Namespace에 설치한다. Alertmanager와 Loki/Alloy는 후속 범위다.
+node-exporter를 `monitoring` Namespace에 설치한다. 애플리케이션 로그는 Alloy가 수집해 Loki에
+저장한다. Alertmanager는 후속 범위다.
 
 | Application | wave | 경로 | 리소스 |
 | --- | --- | --- | --- |
 | platform-monitoring-secrets | -8 | `external-secrets/` | SA, SecretStore, ExternalSecret |
 | platform-kube-prometheus-stack | -7 | `values.yaml` | CRD, operator, Prometheus, Grafana, exporter |
 | platform-grafana-route | -6 | `exposure/` | `grafana.okbear.dev` HTTPRoute |
+| platform-loki | -6 | `loki/values.yaml` | Loki SingleBinary StatefulSet |
+| platform-alloy | -5 | `alloy/values.yaml` | Pod 로그 수집 DaemonSet |
 
 Namespace는 namespaces Application이 소유하므로 세 Application 모두
 `platform-existing-namespace` 정책을 사용한다. chart 버전은 root-app `platformVersions`의
@@ -24,6 +27,17 @@ Namespace는 namespaces Application이 소유하므로 세 Application 모두
 - Kubespray 기본 구성에서 etcd(host 서비스, mTLS)와 kube-proxy(127.0.0.1 bind) metrics는
   수집할 수 없으므로 비활성화했다. controller-manager와 scheduler target은 sync 후 `up`
   상태를 확인하고, bind 주소 때문에 down이면 Kubespray 변수로 조정하거나 비활성화한다.
+
+## 로그 수집
+
+- Alloy DaemonSet은 모든 NoSchedule taint를 허용해 control plane, prod, dev 노드에 배치된다.
+  각 Pod는 자기 노드의 `/var/log/pods`만 읽고 `namespace`, `pod`, `container`, `app`, `node`
+  label을 붙여 `platform-loki.monitoring:3100`으로 전송한다.
+- Loki는 SingleBinary 1개 Pod가 prod Worker의 `local-path` 30Gi PVC에 저장하며 보존 기간은
+  14일이다. PVC는 Application 삭제나 replica 조정에도 유지한다. memcached cache, gateway,
+  canary는 사용하지 않는다.
+- Grafana에는 `Loki` 데이터소스가 추가된다. Explore에서 `{namespace="api-common-dev"}`처럼
+  조회한다.
 
 ## Grafana admin Secret
 
@@ -74,6 +88,8 @@ kubectl -n monitoring wait --for=condition=Ready externalsecret/grafana-admin --
 kubectl -n monitoring get pod,pvc
 kubectl -n monitoring get prometheus,servicemonitor
 kubectl -n monitoring get httproute grafana-route
+kubectl -n monitoring get statefulset,pvc -l app.kubernetes.io/name=loki
+kubectl -n monitoring rollout status daemonset/platform-alloy
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090
 ```
 

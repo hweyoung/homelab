@@ -1,0 +1,83 @@
+# Loki Helm values (chart version은 root-app platformVersions에서 관리)
+# 단일 Pod(SingleBinary)가 모든 Loki 기능을 처리하고 로그를 local-path PVC에 저장한다.
+# 로그 수집은 monitoring/alloy가, 조회는 kube-prometheus-stack의 Grafana가 담당한다.
+
+deploymentMode: SingleBinary
+
+loki:
+  # 단일 테넌트로 운영한다. Loki API는 클러스터 내부 Service로만 노출한다.
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+
+  schemaConfig:
+    configs:
+      - from: "2026-10-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  limits_config:
+    retention_period: 14d
+
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+
+singleBinary:
+  replicas: 1
+
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 30Gi
+    # 로그 PVC는 Application 삭제나 replica 조정으로 지우지 않는다.
+    enableStatefulSetAutoDeletePVC: false
+    whenDeleted: Retain
+    whenScaled: Retain
+
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+# SimpleScalable/Distributed 구성 요소는 사용하지 않는다.
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# 단일 Pod에서는 memcached cache, nginx gateway, canary/test가 필요하지 않다.
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+gateway:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+
+monitoring:
+  serviceMonitor:
+    enabled: true
