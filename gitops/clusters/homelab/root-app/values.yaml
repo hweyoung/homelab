@@ -51,6 +51,16 @@ platformVersions:
     versions:
       "92.14.0": { chartVersion: "92.14.0" }
 
+  loki:
+    activeVersion: "3.6.16"
+    versions:
+      "3.6.16": { chartVersion: "7.5.0" }
+
+  alloy:
+    activeVersion: "1.21.2"
+    versions:
+      "1.21.2": { chartVersion: "1.14.3" }
+
 
 # ==============
 # syncPolicy
@@ -339,6 +349,32 @@ applications:
     namespace: monitoring
     wave: -6
     path: gitops/platform/monitoring/exposure
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Loki log storage (SingleBinary, local-path) ---
+  - name: loki
+    group: platform
+    project: platform
+    type: helm
+    namespace: monitoring
+    wave: -6
+    chart: loki
+    chartRepo: https://grafana.github.io/helm-charts
+    versionRef: loki
+    valuesPath: gitops/platform/monitoring/loki/values.yaml
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Alloy pod log collector (DaemonSet) ---
+  - name: alloy
+    group: platform
+    project: platform
+    type: helm
+    namespace: monitoring
+    wave: -5
+    chart: alloy
+    chartRepo: https://grafana.github.io/helm-charts
+    versionRef: alloy
+    valuesPath: gitops/platform/monitoring/alloy/values.yaml
     syncPolicyRef: platform-existing-namespace
 
 
