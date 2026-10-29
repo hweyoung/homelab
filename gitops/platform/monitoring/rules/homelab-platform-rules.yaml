@@ -1,0 +1,140 @@
+# kube-prometheus-stack 기본 rule에 없는 홈랩 플랫폼 구성 요소 알림.
+# 노드/Kubernetes/Prometheus 자체 알림(NodeFilesystemSpaceFillingUp, KubePodCrashLooping, TargetDown 등)은 chart 기본 rule을 사용한다.
+# severity는 Alertmanager route(critical 1h, warning 12h 반복)를 따른다.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-platform
+spec:
+  groups:
+    - name: homelab.openbao
+      rules:
+        # ServiceMonitor는 platform-openbao-active Service만 수집하므로 sealed 상태에서는 target과
+        # vault_core_unsealed가 함께 사라진다. 지표가 없을 때도 sealed로 본다.
+        - alert: OpenBaoSealed
+          expr: (max(vault_core_unsealed) == 0) or absent(vault_core_unsealed)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: OpenBao가 sealed 상태이거나 지표를 수집하지 못하고 있습니다
+            description: "ESO가 Secret을 동기화하지 못합니다. kubectl -n openbao exec platform-openbao-0 -- bao status 로 seal 상태를 보고, unsealed라면 platform-openbao-active Service와 :8210 metrics listener를 확인하세요."
+            dashboard: https://grafana.okbear.dev/d/homelab-platform-services
+
+    - name: homelab.garage
+      rules:
+        - alert: GarageClusterUnhealthy
+          expr: min(cluster_healthy) == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Garage 클러스터가 unhealthy 상태입니다
+            description: "kubectl -n garage exec deploy/garage -- /garage status 로 노드 연결 상태를 확인하세요."
+            dashboard: https://grafana.okbear.dev/d/homelab-platform-services
+        - alert: GarageErroredBlocks
+          expr: max(block_resync_errored_blocks) > 0
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Garage resync 실패 블록 {{ $value }}개"
+            description: 30분 넘게 0으로 돌아오지 않으면 데이터 유실 가능성이 있습니다.
+        - alert: GarageDiskAlmostFull
+          expr: min by (volume) (garage_local_disk_avail / garage_local_disk_total) < 0.15
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Garage {{ $labels.volume }} 디스크 여유 15% 미만"
+            description: local-path라 k8s-worker-dev 루트 디스크 전체가 기준입니다.
+        - alert: GarageMetricsMissing
+          expr: (max(up{namespace="garage"}) == 0) or absent(up{namespace="garage"})
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Garage 지표를 수집하지 못하고 있습니다
+            description: garage Service의 admin 포트(:3903)와 ServiceMonitor garage, garage.toml에 metrics_token이 남아 있지 않은지 확인하세요.
+
+    - name: homelab.edge
+      rules:
+        - alert: CloudflaredTunnelDegraded
+          expr: sum(cloudflared_tunnel_ha_connections) < 8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Cloudflare Tunnel 연결 {{ $value }}개 (정상 8)"
+            description: cloudflared Pod 하나가 내려갔거나 Cloudflare edge 연결이 끊겼습니다.
+        - alert: CloudflaredTunnelDown
+          expr: (sum(cloudflared_tunnel_ha_connections) or vector(0)) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: Cloudflare Tunnel 연결이 모두 끊겼습니다
+            description: 외부에서 *.okbear.dev 서비스에 접근할 수 없습니다.
+        - alert: TraefikServiceHigh5xx
+          expr: |
+            (
+              sum by (service) (rate(traefik_service_requests_total{code=~"5.."}[5m]))
+              / sum by (service) (rate(traefik_service_requests_total[5m]))
+            ) > 0.05
+            and sum by (service) (rate(traefik_service_requests_total[5m])) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.service }} 5xx 비율 {{ $value | humanizePercentage }}"
+            dashboard: https://grafana.okbear.dev/d/homelab-application
+        - alert: CertificateExpiringSoon
+          expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < 14 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "인증서 {{ $labels.namespace }}/{{ $labels.name }} 만료 14일 전"
+            description: cert-manager가 30일 전부터 갱신하므로 이 알림이 뜨면 갱신이 실패하고 있는 것입니다.
+        - alert: CertificateExpiringCritical
+          expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < 7 * 86400
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "인증서 {{ $labels.namespace }}/{{ $labels.name }} 만료 7일 전"
+        - alert: CertificateNotReady
+          expr: max by (namespace, name) (certmanager_certificate_ready_status{condition="True"}) == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "인증서 {{ $labels.namespace }}/{{ $labels.name }} Not Ready"
+            description: "kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }} 로 Cloudflare DNS01 오류를 확인하세요."
+
+    - name: homelab.secrets-and-data
+      rules:
+        - alert: ExternalSecretSyncFailed
+          expr: externalsecret_status_condition{condition="Ready",status="False"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ExternalSecret {{ $labels.namespace }}/{{ $labels.name }} 동기화 실패"
+            description: OpenBao seal 상태, Kubernetes Auth Role/Policy, KV 경로를 확인하세요.
+        - alert: PostgresInstanceDown
+          expr: cnpg_collector_up == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL {{ $labels.namespace }}/{{ $labels.pod }} 응답 없음"
+        - alert: PostgresConnectionsHigh
+          expr: |
+            sum by (namespace, pod) (cnpg_backends_total)
+            / on(namespace, pod) max by (namespace, pod) (cnpg_pg_settings_setting{name="max_connections"}) > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL {{ $labels.namespace }} 커넥션 {{ $value | humanizePercentage }} 사용 중"

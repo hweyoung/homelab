@@ -64,3 +64,5 @@ certController:
 # monitoring/kube-prometheus-stack의 Prometheus가 label과 관계없이 수집한다.
 serviceMonitor:
   enabled: true
+  # ExternalSecret의 namespace label이 target namespace(external-secrets)로 덮이지 않게 한다.
+  honorLabels: true

@@ -173,6 +173,13 @@ grafana:
     users:
       allow_sign_up: false
 
+  # monitoring/dashboards ConfigMap의 grafana_folder annotation으로 Grafana 폴더를 나눈다.
+  sidecar:
+    dashboards:
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+
   # monitoring/loki의 SingleBinary Service를 조회한다.
   additionalDataSources:
     - name: Loki
