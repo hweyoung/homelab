@@ -11,6 +11,8 @@ node-exporter를 `monitoring` Namespace에 설치한다. 애플리케이션 로�
 | platform-grafana-route | -6 | `exposure/` | `grafana.okbear.dev` HTTPRoute |
 | platform-loki | -6 | `loki/values.yaml` | Loki SingleBinary StatefulSet |
 | platform-alloy | -5 | `alloy/values.yaml` | Pod 로그 수집 DaemonSet |
+| platform-monitoring-rules | -4 | `rules/` | 홈랩 플랫폼 PrometheusRule |
+| platform-grafana-dashboards | -4 | `dashboards/` | Grafana 대시보드 ConfigMap ([README](dashboards/README.md)) |
 
 Namespace는 namespaces Application이 소유하므로 세 Application 모두
 `platform-existing-namespace` 정책을 사용한다. chart 버전은 root-app `platformVersions`의
@@ -70,9 +72,19 @@ listener `:8210`에서만 허용한다. 차트가 8202를 replication 포트로 
 `updateStrategyType: OnDelete`라 설정 반영에는 Pod 삭제와 수동 unseal이 필요하다. ServiceMonitor는
 `openbao-active` Service만 고르므로 sealed 상태에서는 target이 사라진다.
 
+cert-manager와 ESO 지표는 대상 리소스의 `namespace` label을 가지므로 두 ServiceMonitor에
+`honorLabels: true`를 둬서 target namespace로 덮이지 않게 한다.
+
 이 리소스는 Prometheus Operator CRD가 있어야 적용된다. 새 클러스터 bootstrap에서는
 kube-prometheus-stack(wave -7)보다 앞 wave의 Application이 CRD 설치 전까지 sync 실패 후
 재시도할 수 있다. ESO chart는 CRD가 없으면 ServiceMonitor 렌더를 건너뛴다.
+
+## 홈랩 알림 rule
+
+`rules/homelab-platform-rules.yaml`은 chart 기본 rule에 없는 OpenBao, Garage, Cloudflare Tunnel,
+Traefik 5xx, 인증서, ExternalSecret, PostgreSQL 알림을 둔다. OpenBao ServiceMonitor는 active
+Service만 수집해 sealed 상태에서는 지표가 사라지므로 `OpenBaoSealed`는 `vault_core_unsealed`가
+없을 때도 firing한다.
 
 ## Grafana admin Secret
 

@@ -28,7 +28,7 @@
 - [Secret 관리](gitops/secrets.md) — SOPS/KSOPS, bootstrap Secret 회전
 - [OpenBao + ESO](gitops/openbao-eso.md)
 - [플랫폼 업그레이드](gitops/platform-upgrade.md) — `platformVersions` 단계별 업그레이드
-- [Observability](gitops/observability.md) — Prometheus, Grafana, Loki, Alloy
+- [Observability](gitops/observability.md) — Prometheus, Grafana, Loki, Alloy, 알림 rule, 대시보드
 
 ### 컴포넌트 README
 
