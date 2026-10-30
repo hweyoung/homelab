@@ -1,0 +1,13 @@
+# monitoring/kube-prometheus-stack의 Prometheus가 Garage admin 포트의 /metrics를 수집한다.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: garage
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage
+      app.kubernetes.io/instance: platform-garage
+  endpoints:
+    - port: admin
+      path: /metrics

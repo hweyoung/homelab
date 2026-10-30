@@ -1,5 +1,5 @@
 # kube-prometheus-stack Helm values (chart version은 root-app platformVersions에서 관리)
-# Prometheus Operator, Prometheus, Grafana, kube-state-metrics, node-exporter를 설치한다.
+# Prometheus Operator, Prometheus, Alertmanager, Grafana, kube-state-metrics, node-exporter를 설치한다.
 # Grafana admin 계정은 monitoring/external-secrets의 ExternalSecret이 OpenBao에서 동기화한다.
 
 # release 이름(platform-kube-prometheus-stack)이 chart의 26자 이름 제한에서 잘리지 않도록 고정한다.
@@ -9,9 +9,67 @@ fullnameOverride: kube-prometheus-stack
 crds:
   enabled: true
 
-# 알림 경로는 후속 범위다. Alert rule 평가는 Prometheus에서 계속 수행한다.
+# Alertmanager는 warning/critical 알림을 Discord로 보낸다. webhook URL은 Git에 두지 않고
+# monitoring/external-secrets의 alertmanager-discord Secret을 파일로 mount해 읽는다.
 alertmanager:
-  enabled: false
+  enabled: true
+
+  # global과 inhibit_rules는 chart 기본값을 그대로 쓰고 route와 receiver만 지정한다.
+  config:
+    route:
+      group_by: ['namespace', 'alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: discord
+      routes:
+        # 항상 firing인 Watchdog과 inhibit 전용 alert, info 등급은 Discord로 보내지 않는다.
+        - receiver: 'null'
+          matchers:
+            - alertname =~ "Watchdog|InfoInhibitor"
+        - receiver: 'null'
+          matchers:
+            - severity = "info"
+        - receiver: discord
+          matchers:
+            - severity = "critical"
+          repeat_interval: 1h
+    receivers:
+      - name: 'null'
+      - name: discord
+        discord_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/webhook-url
+            send_resolved: true
+
+  alertmanagerSpec:
+    secrets:
+      - alertmanager-discord
+
+    # silence와 notification 기록을 Pod 재시작 후에도 유지한다.
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+
+    nodeSelector:
+      homelab.okbear.dev/environment: prod
+    tolerations:
+      - key: homelab.okbear.dev/environment
+        operator: Equal
+        value: prod
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
 
 # Kubespray 기본 구성에서 etcd는 host 서비스(mTLS)이고 kube-proxy metrics는
 # 127.0.0.1에만 bind되므로 scrape 대상과 기본 rule을 비활성화한다.
@@ -25,7 +83,6 @@ defaultRules:
   rules:
     etcd: false
     kubeProxy: false
-    alertmanager: false
 
 prometheusOperator:
   nodeSelector:
@@ -115,6 +172,13 @@ grafana:
       enabled: false
     users:
       allow_sign_up: false
+
+  # monitoring/dashboards ConfigMap의 grafana_folder annotation으로 Grafana 폴더를 나눈다.
+  sidecar:
+    dashboards:
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
 
   # monitoring/loki의 SingleBinary Service를 조회한다.
   additionalDataSources:

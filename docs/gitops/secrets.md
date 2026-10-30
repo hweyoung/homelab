@@ -22,8 +22,9 @@ root repo PAT를 GitOps에 두면 private repo를 읽기 위한 Secret을 그 re
 만든다. public repo이면 PAT 주입은 생략한다.
 
 api-common dev 앱 Secret(`api-common-secret`)은 OpenBao + ESO ExternalSecret으로 전환했다.
-Grafana admin Secret(`monitoring/grafana-admin`)도 OpenBao + ESO로 관리한다
-([platform/monitoring/README.md](platform/monitoring/README.md)).
+Grafana admin Secret(`monitoring/grafana-admin`)과 Alertmanager Discord webhook
+(`monitoring/alertmanager-discord`)도 OpenBao + ESO로 관리한다
+([platform/monitoring/README.md](../../gitops/platform/monitoring/README.md)).
 그 외 활성 workload credential은 SOPS/KSOPS 파일을 직접 소비한다. ExternalSecret 전환 시 같은
 Secret 이름을 양쪽이 동시에 소유하지 않도록 명시적으로 ownership을 이전해야 한다.
 
@@ -88,7 +89,7 @@ private key만 먼저 바꾸면 기존 Secret 전체를 복호화하지 못한�
 
 ```bash
 find gitops -name '*.sops.yaml' -type f -print | xargs grep -L '^sops:'
-rg -l '^kind:[[:space:]]*Secret' gitops -g '*.yaml' -g '*.yml'
+rg -l '^kind:[[:space:]]*Secret[[:space:]]*$' gitops -g '*.yaml' -g '*.yml'
 ```
 
 라이브 확인:

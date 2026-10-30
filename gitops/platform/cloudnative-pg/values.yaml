@@ -21,3 +21,7 @@ tolerations:
     operator: Equal
     value: prod
     effect: NoSchedule
+
+# operator metric을 monitoring Prometheus가 수집한다. Cluster metric은 databases/postgres의 PodMonitor가 담당한다.
+monitoring:
+  podMonitorEnabled: true

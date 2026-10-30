@@ -377,6 +377,26 @@ applications:
     valuesPath: gitops/platform/monitoring/alloy/values.yaml
     syncPolicyRef: platform-existing-namespace
 
+  # --- Homelab alert rules (PrometheusRule) ---
+  - name: monitoring-rules
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: monitoring
+    wave: -4
+    path: gitops/platform/monitoring/rules
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Grafana dashboards (sidecar ConfigMap) ---
+  - name: grafana-dashboards
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: monitoring
+    wave: -4
+    path: gitops/platform/monitoring/dashboards
+    syncPolicyRef: platform-existing-namespace
+
 
 
   # # --- Infisical 전용 PostgreSQL (CNPG) ---

@@ -21,6 +21,16 @@ server:
 
   updateStrategyType: OnDelete
 
+  extraPorts:
+    - name: metrics
+      containerPort: 8210
+
+  service:
+    extraPorts:
+      - name: metrics
+        port: 8210
+        targetPort: metrics
+
   resources:
     requests:
       cpu: 100m
@@ -73,6 +83,22 @@ server:
           cluster_address = "[::]:8201"
         }
 
+        # 클러스터 내부 전용 metrics listener. 공개 HTTPRoute는 UI Service의 8200만 가리키므로
+        # 인증 없는 /v1/sys/metrics는 이 포트에서만 허용한다.
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8210"
+
+          telemetry {
+            unauthenticated_metrics_access = true
+          }
+        }
+
+        telemetry {
+          prometheus_retention_time = "30s"
+          disable_hostname = true
+        }
+
         storage "raft" {
           path = "/openbao/data"
         }
@@ -104,6 +130,13 @@ ui:
   publishNotReadyAddresses: true
   # Single replica, so selecting all server pods is acceptable.
   activeOpenbaoPodOnly: false
+
+# monitoring/kube-prometheus-stack의 Prometheus가 active Service의 metrics 포트를 수집한다.
+serverTelemetry:
+  serviceMonitor:
+    enabled: true
+    port: metrics
+    scheme: http
 
 snapshotAgent:
   # TODO:

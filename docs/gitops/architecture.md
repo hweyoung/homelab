@@ -25,7 +25,7 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | Wave | Application | Project | 책임 |
 | ---: | --- | --- | --- |
 | -100 | `argocd-control-plane` | `default` | AppProject 생성 |
-| -50 | `platform-namespaces` | `platform` | Namespace와 metadata |
+| -50 | `namespaces` | `platform` | Namespace와 metadata |
 | -45 | `platform-local-path-provisioner` | `platform` | local-path PV |
 | -40 | `platform-gateway-api-crds` | `platform` | Gateway API CRD |
 | -35 | `platform-cert-manager` | `platform` | certificate controller/CRD |
@@ -35,20 +35,26 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | -15 | `platform-cloudflared` | `platform` | external tunnel |
 | -14 | `platform-cloudnative-pg` | `platform` | PostgreSQL operator |
 | -13 | `platform-openbao` | `platform` | secret store server |
+| -12 | `platform-openbao-route` | `platform` | OpenBao 외부 route |
 | -12 | `platform-external-secrets` | `platform` | secret sync controller |
 | -11 | `platform-kargo` | `platform` | promotion controller/CRD |
 | -10 | `platform-garage` | `platform` | S3-compatible storage |
 | -10 | `argocd-server` | `argocd-system` | Argo CD 노출 리소스 |
 | -9 | `platform-garage-route` | `platform` | public image route |
+| -8 | `platform-monitoring-secrets` | `platform` | Grafana admin, Discord webhook ExternalSecret |
+| -7 | `platform-kube-prometheus-stack` | `platform` | Prometheus/Alertmanager/Grafana/operator |
+| -6 | `platform-grafana-route`, `platform-loki` | `platform` | Grafana route, 로그 저장소 |
+| -5 | `platform-alloy` | `platform` | Pod 로그 수집 DaemonSet |
 | 10 | `databases-postgres-{dev,prod}` | `databases` | CNPG Cluster |
 | 30 | `apps-nginx-{dev,prod}`, `apps-api-common-dev` | `apps-*` | workload |
 
-root-app은 21개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
+root-app은 27개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
 controller Ready를 보장하지 않는다. PostgreSQL 적용 전 CNPG CRD/controller readiness처럼
 런타임 의존성을 별도로 확인해야 한다.
 
 외부 Helm chart는 chart와 Git values를 결합한 multi-source Application이다. 현재 중앙
-버전 매핑은 cert-manager `1.21.1`, Traefik app `3.6.15`/chart `39.0.9`, Kargo `1.11.0`이다.
+버전 매핑은 cert-manager `1.21.1`, Traefik app `3.6.15`/chart `39.0.9`, Kargo `1.11.0`,
+kube-prometheus-stack `92.14.0`, Loki app `3.6.16`/chart `7.5.0`, Alloy app `1.21.2`/chart `1.14.3`이다.
 CloudNativePG `0.29.0`, OpenBao `0.29.2`, External Secrets Operator `2.9.0`은 Application에
 직접 고정되어 있다.
 
@@ -97,8 +103,8 @@ endpoint만 route로 공개한다.
 
 Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
 bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
-OpenBao와 ESO는 설치되지만 현재 workload Secret을 ExternalSecret으로 이전한 상태는 아니다.
-상세 절차는 [`gitops/SECRETS.md`](../gitops/SECRETS.md)에 있다.
+OpenBao와 ESO 경로는 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook에 적용되어 있고, 나머지
+workload Secret은 SOPS/KSOPS를 유지한다. 상세 절차는 [Secret 관리](secrets.md)에 있다.
 
 ## 이미지 승격 경계
 
@@ -133,8 +139,9 @@ digest/Freight를 승격하는 경계를 목표로 한다. 현재는 Kargo contr
 | 라이브 | Application `Synced/Healthy`, Pod/webhook Ready, CRD discovery | controller 적용 |
 | 서비스 | Certificate/HTTPRoute, DB readiness, 실제 HTTP/S3 요청 | end-to-end 동작 |
 
-KSOPS는 plugin과 age key가 없는 로컬 환경에서 완전히 렌더할 수 없다. 또한 현재
+KSOPS는 plugin과 age key가 없는 로컬 환경에서 완전히 렌더할 수 없다. CI는 generator를
+제외하고 build하며, 검사 항목은 [GitOps 검증](validation.md)에 정리했다. 또한 현재
 `ghcr-secret-generator.sops.yaml`이라는 잘못 이름 붙은 비암호화 generator 때문에 CI의
 SOPS filename 검사는 실패한다. 이 문서 갱신은 현재 파일 구조의 정적 대조 결과이며 cluster
 상태와 실제 트래픽은 검증하지 않았다. 운영 절차는
-[`gitops/README.md`](../gitops/README.md)를 참고한다.
+[GitOps 운영](README.md)을 참고한다.

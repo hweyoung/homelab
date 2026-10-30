@@ -2,15 +2,17 @@
 
 kube-prometheus-stack chart로 Prometheus Operator, Prometheus, Grafana, kube-state-metrics,
 node-exporter를 `monitoring` Namespace에 설치한다. 애플리케이션 로그는 Alloy가 수집해 Loki에
-저장한다. Alertmanager는 후속 범위다.
+저장한다. Alertmanager는 warning/critical 알림을 Discord로 보낸다.
 
 | Application | wave | 경로 | 리소스 |
 | --- | --- | --- | --- |
-| platform-monitoring-secrets | -8 | `external-secrets/` | SA, SecretStore, ExternalSecret |
+| platform-monitoring-secrets | -8 | `external-secrets/` | SA, SecretStore, ExternalSecret 2개 |
 | platform-kube-prometheus-stack | -7 | `values.yaml` | CRD, operator, Prometheus, Grafana, exporter |
 | platform-grafana-route | -6 | `exposure/` | `grafana.okbear.dev` HTTPRoute |
 | platform-loki | -6 | `loki/values.yaml` | Loki SingleBinary StatefulSet |
 | platform-alloy | -5 | `alloy/values.yaml` | Pod 로그 수집 DaemonSet |
+| platform-monitoring-rules | -4 | `rules/` | 홈랩 플랫폼 PrometheusRule |
+| platform-grafana-dashboards | -4 | `dashboards/` | Grafana 대시보드 ConfigMap ([README](dashboards/README.md)) |
 
 Namespace는 namespaces Application이 소유하므로 세 Application 모두
 `platform-existing-namespace` 정책을 사용한다. chart 버전은 root-app `platformVersions`의
@@ -39,6 +41,51 @@ Namespace는 namespaces Application이 소유하므로 세 Application 모두
 - Grafana에는 `Loki` 데이터소스가 추가된다. Explore에서 `{namespace="api-common-dev"}`처럼
   조회한다.
 
+## Alertmanager와 Discord
+
+- route는 `namespace`, `alertname`으로 묶고 기본 receiver를 Discord로 둔다. critical은 1시간,
+  나머지는 12시간마다 다시 알린다.
+- 항상 firing인 `Watchdog`, inhibit 전용 `InfoInhibitor`, `severity=info` alert는 `null`
+  receiver로 보낸다. chart 기본 inhibit rule(critical이 같은 alert의 warning/info를 억제)은 유지한다.
+- Discord webhook URL은 ExternalSecret `alertmanager-discord`가 만든 Secret을
+  `alertmanagerSpec.secrets`로 mount하고 `webhook_url_file`로 읽는다. 값은 Git과 렌더된 설정
+  어디에도 남지 않는다.
+- Alertmanager는 prod Worker에 고정하고 silence 기록을 `local-path` 2Gi PVC에 둔다.
+
+## 수집 대상 추가
+
+다른 Application에서 metric 옵션을 켜 monitoring Prometheus가 수집한다.
+
+| 대상 | 리소스 | 선언 위치 |
+| --- | --- | --- |
+| Traefik | metrics Service + ServiceMonitor | `platform/traefik/values.yaml` |
+| cert-manager | ServiceMonitor | `platform/cert-manager/values.yaml` |
+| External Secrets | ServiceMonitor | `platform/external-secrets/values.yaml` |
+| CNPG operator | PodMonitor | `platform/cloudnative-pg/values.yaml` |
+| PostgreSQL Cluster | PodMonitor `postgres` | `databases/postgres/base/podmonitor.yaml` |
+| OpenBao | 내부 전용 listener `:8210` + ServiceMonitor | `platform/openbao/values.yaml` |
+| Garage | admin 포트 `:3903` + ServiceMonitor | `platform/garage/` |
+| cloudflared | PodMonitor (`:2000`) | `platform/cloudflared/podmonitor.yaml` |
+
+OpenBao는 공개 HTTPRoute가 UI Service의 8200만 가리키므로, 인증 없는 `/v1/sys/metrics`는 별도
+listener `:8210`에서만 허용한다. 차트가 8202를 replication 포트로 쓰기 때문에 8210을 사용한다.
+`updateStrategyType: OnDelete`라 설정 반영에는 Pod 삭제와 수동 unseal이 필요하다. ServiceMonitor는
+`openbao-active` Service만 고르므로 sealed 상태에서는 target이 사라진다.
+
+cert-manager와 ESO 지표는 대상 리소스의 `namespace` label을 가지므로 두 ServiceMonitor에
+`honorLabels: true`를 둬서 target namespace로 덮이지 않게 한다.
+
+이 리소스는 Prometheus Operator CRD가 있어야 적용된다. 새 클러스터 bootstrap에서는
+kube-prometheus-stack(wave -7)보다 앞 wave의 Application이 CRD 설치 전까지 sync 실패 후
+재시도할 수 있다. ESO chart는 CRD가 없으면 ServiceMonitor 렌더를 건너뛴다.
+
+## 홈랩 알림 rule
+
+`rules/homelab-platform-rules.yaml`은 chart 기본 rule에 없는 OpenBao, Garage, Cloudflare Tunnel,
+Traefik 5xx, 인증서, ExternalSecret, PostgreSQL 알림을 둔다. OpenBao ServiceMonitor는 active
+Service만 수집해 sealed 상태에서는 지표가 사라지므로 `OpenBaoSealed`는 `vault_core_unsealed`가
+없을 때도 firing한다.
+
 ## Grafana admin Secret
 
 ExternalSecret `grafana-admin`이 OpenBao KV v2에서 같은 이름의 Secret을 만든다. Grafana는
@@ -49,11 +96,18 @@ ExternalSecret `grafana-admin`이 OpenBao KV v2에서 같은 이름의 Secret을
 | admin-user | platform/monitoring/grafana | admin-user |
 | admin-password | platform/monitoring/grafana | admin-password |
 
+ExternalSecret `alertmanager-discord`는 Alertmanager용 Secret을 만든다.
+
+| Kubernetes Secret 키 | OpenBao 엔진 내부 경로 | 원본 키 |
+| --- | --- | --- |
+| webhook-url | platform/monitoring/alertmanager | discord-webhook-url |
+
 OpenBao에는 sync 전에 값, Policy, Kubernetes Auth Role을 준비한다. Role은 SA
 `eso-monitoring`과 Namespace `monitoring`에 바인딩하고 audience는 `openbao`로 맞춘다.
 
 ```bash
 bao kv put secret/platform/monitoring/grafana admin-user=admin admin-password=-
+bao kv put secret/platform/monitoring/alertmanager discord-webhook-url=-
 
 bao policy write monitoring - <<'EOF'
 path "secret/data/platform/monitoring/*" {
@@ -85,6 +139,8 @@ Argo CD sync 후:
 ```bash
 kubectl -n monitoring wait --for=condition=Ready secretstore/openbao-monitoring --timeout=120s
 kubectl -n monitoring wait --for=condition=Ready externalsecret/grafana-admin --timeout=120s
+kubectl -n monitoring wait --for=condition=Ready externalsecret/alertmanager-discord --timeout=120s
+kubectl -n monitoring get alertmanager,pod -l app.kubernetes.io/name=alertmanager
 kubectl -n monitoring get pod,pvc
 kubectl -n monitoring get prometheus,servicemonitor
 kubectl -n monitoring get httproute grafana-route

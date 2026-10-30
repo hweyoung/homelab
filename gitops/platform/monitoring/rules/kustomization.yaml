@@ -1,0 +1,12 @@
+# kube-prometheus-stack 기본 rule에 없는 홈랩 플랫폼 알림(PrometheusRule)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - homelab-platform-rules.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: homelab-observability

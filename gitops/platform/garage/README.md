@@ -13,6 +13,12 @@ Kubernetes 1.34에서 동작하는 단일 노드 Garage S3 호환 스토리지�
   API는 노출하지 않습니다.
 - RPC/Admin token은 최초 시작 시 metadata PVC의 `garage.toml`에 mode `0600`으로 생성됩니다.
   Git/Kubernetes Secret에 평문을 남기지 않으며 PVC가 유지되는 재시작에는 같은 값을 사용합니다.
+- `metrics_token`은 두지 않습니다. `/metrics`는 클러스터 내부 Service `garage:3903`에서 토큰 없이
+  수집하고 admin API는 `admin_token`이 계속 보호합니다. init container가 시작할 때마다 기존
+  설정의 `metrics_token` 줄을 제거합니다.
+- `garage` Deployment/Service selector는 `app.kubernetes.io/component: server`로 web-proxy Pod와
+  분리합니다. Deployment selector는 immutable이므로 이 변경을 처음 적용할 때는
+  `kubectl -n garage delete deployment garage` 후 Argo CD sync로 다시 만듭니다. PVC는 유지됩니다.
 - 두 PVC에는 `Prune=false`가 있어 Application 삭제나 rename이 곧 데이터 삭제로 이어지지 않습니다.
 
 ## 배포 및 확인

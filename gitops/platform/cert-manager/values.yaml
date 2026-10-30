@@ -11,9 +11,13 @@ global:
 crds:
   enabled: true
 
-# ServiceMonitor 등 prometheus 연동.
+# ServiceMonitor 등 prometheus 연동. 인증서 만료일 metric을 monitoring Prometheus가 수집한다.
 prometheus:
   enabled: true
+  servicemonitor:
+    enabled: true
+    # Certificate의 namespace label이 target namespace(cert-manager)로 덮이지 않게 한다.
+    honorLabels: true
 
 # 공용 플랫폼 Pod 이므로 prod/dev Worker taint 에서도 실행될 수 있도록 toleration 을 준다.
 # (controller / webhook / cainjector / startupapicheck 각각 지정)

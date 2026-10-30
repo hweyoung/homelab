@@ -1,0 +1,46 @@
+# Homelab Grafana dashboard ConfigMap
+# kube-prometheus-stack Grafana sidecar가 grafana_dashboard=1 label이 붙은 ConfigMap을 읽어 대시보드로 등록하고,
+# grafana_folder annotation 값으로 Grafana 폴더를 나눈다(monitoring/values.yaml의 sidecar.dashboards 설정 필요).
+# JSON은 Grafana UI에서 수정한 뒤 Export(JSON) → json/ 아래 파일을 덮어쓰는 방식으로 관리한다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+generatorOptions:
+  # ConfigMap 이름을 고정해 대시보드 수정 시 이전 ConfigMap이 prune되며 생기는 깜빡임을 없앤다.
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: homelab-observability
+
+configMapGenerator:
+  - name: homelab-dashboards-overview
+    files:
+      - json/00-overview/homelab-overview.json
+    options:
+      annotations:
+        grafana_folder: "00 Overview"
+
+  - name: homelab-dashboards-infrastructure
+    files:
+      - json/01-infrastructure/infra-nodes.json
+    options:
+      annotations:
+        grafana_folder: "01 Infrastructure"
+
+  - name: homelab-dashboards-cluster
+    files:
+      - json/02-cluster/k8s-cluster.json
+      - json/02-cluster/platform-services.json
+      - json/02-cluster/ingress-edge.json
+    options:
+      annotations:
+        grafana_folder: "02 Cluster"
+
+  - name: homelab-dashboards-application
+    files:
+      - json/03-application/application.json
+    options:
+      annotations:
+        grafana_folder: "03 Application"

@@ -1,0 +1,1987 @@
+{
+  "uid": "homelab-overview",
+  "title": "Homelab Overview",
+  "description": "홈랩 전체 상태 요약. 각 패널을 클릭하면 상세 대시보드로 이동한다.",
+  "tags": [
+    "homelab",
+    "overview"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "weekStart": "",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "1h"
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "current": {
+          "selected": true,
+          "text": "prometheus",
+          "value": "prometheus"
+        },
+        "regex": "",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "homelab"
+      ],
+      "asDropdown": true,
+      "title": "Homelab 대시보드",
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "① 인프라 — 노드",
+      "collapsed": false,
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "노드 CPU 사용률",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (nodename) ((1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]))) * 100 * on(instance) group_left(nodename) node_uname_info{nodename=~\".+\"})",
+          "legendFormat": "{{nodename}}",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "인프라 대시보드",
+              "url": "/d/homelab-infra-nodes/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 300
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2
+    },
+    {
+      "type": "bargauge",
+      "title": "노드 메모리 사용률",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (nodename) ((1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 * on(instance) group_left(nodename) node_uname_info{nodename=~\".+\"})",
+          "legendFormat": "{{nodename}}",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "인프라 대시보드",
+              "url": "/d/homelab-infra-nodes/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 300
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3
+    },
+    {
+      "type": "bargauge",
+      "title": "루트 디스크 사용률",
+      "description": "local-path PVC(Prometheus, Loki, OpenBao, Garage, PostgreSQL)도 이 루트 디스크(/opt/local-path-provisioner)에 저장된다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (nodename) ((1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}) * 100 * on(instance) group_left(nodename) node_uname_info{nodename=~\".+\"})",
+          "legendFormat": "{{nodename}}",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "인프라 대시보드",
+              "url": "/d/homelab-infra-nodes/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 300
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "id": 4
+    },
+    {
+      "type": "row",
+      "title": "② 클러스터 — Kubernetes",
+      "collapsed": false,
+      "id": 5,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "NotReady 노드",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(kube_node_status_condition{condition=\"Ready\",status=\"true\"} == 0) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "클러스터 대시보드",
+              "url": "/d/homelab-k8s-cluster/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 8
+      },
+      "id": 6
+    },
+    {
+      "type": "stat",
+      "title": "비정상 Pod",
+      "description": "Pending/Failed/Unknown 상태 Pod 수",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(kube_pod_status_phase{phase=~\"Pending|Failed|Unknown\"}) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "클러스터 대시보드",
+              "url": "/d/homelab-k8s-cluster/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 8
+      },
+      "id": 7
+    },
+    {
+      "type": "stat",
+      "title": "재시작 (1h)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "round(sum(increase(kube_pod_container_status_restarts_total{}[1h]))) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "클러스터 대시보드",
+              "url": "/d/homelab-k8s-cluster/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 8
+      },
+      "id": 8
+    },
+    {
+      "type": "stat",
+      "title": "Replica 불일치",
+      "description": "원하는 replica 수와 Ready 수가 다른 Deployment/StatefulSet/DaemonSet 수",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(count(kube_deployment_spec_replicas{} != kube_deployment_status_replicas_available{}) or vector(0)) + (count(kube_statefulset_replicas{} != kube_statefulset_status_replicas_ready{}) or vector(0)) + (count(kube_daemonset_status_desired_number_scheduled{} != kube_daemonset_status_number_ready{}) or vector(0))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "클러스터 대시보드",
+              "url": "/d/homelab-k8s-cluster/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 8
+      },
+      "id": 9
+    },
+    {
+      "type": "stat",
+      "title": "수집 실패 Target",
+      "description": "up == 0 인 scrape target 수",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(up == 0) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "클러스터 대시보드",
+              "url": "/d/homelab-k8s-cluster/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 8
+      },
+      "id": 10
+    },
+    {
+      "type": "stat",
+      "title": "발생 중 알림",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(ALERTS{alertstate=\"firing\",alertname!~\"Watchdog|InfoInhibitor\",severity=~\"warning|critical\"}) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "클러스터 대시보드",
+              "url": "/d/homelab-k8s-cluster/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 8
+      },
+      "id": 11
+    },
+    {
+      "type": "table",
+      "title": "발생 중인 알림",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "ALERTS{alertstate=\"firing\",alertname!~\"Watchdog|InfoInhibitor\",severity=~\"warning|critical\"}",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false
+          },
+          "noValue": "발생 중인 알림 없음"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "alertstate": true,
+              "prometheus": true,
+              "container": true,
+              "endpoint": true,
+              "service": true,
+              "uid": true
+            },
+            "renameByName": {},
+            "indexByName": {}
+          }
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 12
+    },
+    {
+      "type": "row",
+      "title": "③ 플랫폼 서비스",
+      "collapsed": false,
+      "id": 13,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "OpenBao",
+      "description": "Sealed면 ESO가 Secret을 동기화하지 못한다. 재시작 후 수동 unseal이 필요하다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(max(vault_core_unsealed) and on() (max(up{namespace=\"openbao\"}) == 1)) or on() (max(up{namespace=\"openbao\"}) * 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Unsealed",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "Sealed / 응답 없음",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "links": [
+            {
+              "title": "플랫폼 서비스 대시보드",
+              "url": "/d/homelab-platform-services/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 19
+      },
+      "id": 14
+    },
+    {
+      "type": "stat",
+      "title": "Garage",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "min(cluster_healthy)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Healthy",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "Unhealthy",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "links": [
+            {
+              "title": "플랫폼 서비스 대시보드",
+              "url": "/d/homelab-platform-services/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 19
+      },
+      "id": 15
+    },
+    {
+      "type": "stat",
+      "title": "Garage 오류 블록",
+      "description": "0이 아니면 일부 데이터 유실 가능성. 계속 0이 아니면 즉시 확인.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(block_resync_errored_blocks)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "플랫폼 서비스 대시보드",
+              "url": "/d/homelab-platform-services/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 19
+      },
+      "id": 16
+    },
+    {
+      "type": "stat",
+      "title": "PostgreSQL",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "min(cnpg_collector_up)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "links": [
+            {
+              "title": "플랫폼 서비스 대시보드",
+              "url": "/d/homelab-platform-services/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 19
+      },
+      "id": 17
+    },
+    {
+      "type": "stat",
+      "title": "ESO 동기화 실패",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(externalsecret_status_condition{condition=\"Ready\",status=\"False\"} == 1) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "플랫폼 서비스 대시보드",
+              "url": "/d/homelab-platform-services/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 19
+      },
+      "id": 18
+    },
+    {
+      "type": "stat",
+      "title": "인증서 최단 만료",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "min(certmanager_certificate_expiration_timestamp_seconds - time())",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 604800
+              },
+              {
+                "color": "green",
+                "value": 1209600
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Ingress·Edge 대시보드",
+              "url": "/d/homelab-ingress-edge/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 19
+      },
+      "id": 19
+    },
+    {
+      "type": "stat",
+      "title": "Tunnel 연결",
+      "description": "cloudflared replica 2개 × 연결 4개 = 정상 8",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(cloudflared_tunnel_ha_connections)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 4
+              },
+              {
+                "color": "green",
+                "value": 8
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Ingress·Edge 대시보드",
+              "url": "/d/homelab-ingress-edge/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 19
+      },
+      "id": 20
+    },
+    {
+      "type": "stat",
+      "title": "Ingress 5xx",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(sum(rate(traefik_entrypoint_requests_total{code=~\"5..\"}[5m])) or vector(0)) / sum(rate(traefik_entrypoint_requests_total[5m]))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Ingress·Edge 대시보드",
+              "url": "/d/homelab-ingress-edge/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ],
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "수집 안 됨"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 19
+      },
+      "id": 21
+    },
+    {
+      "type": "row",
+      "title": "④ 애플리케이션",
+      "collapsed": false,
+      "id": 22,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "서비스별 트래픽 (Traefik, 최근 5분)",
+      "description": "service 이름에 namespace가 포함된다. 상세는 애플리케이션 대시보드에서 namespace를 선택한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (service) (rate(traefik_service_requests_total{service!~\".*@internal\"}[5m]))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(sum by (service) (rate(traefik_service_requests_total{service!~\".*@internal\",code=~\"5..\"}[5m])) or (sum by (service) (rate(traefik_service_requests_total{service!~\".*@internal\"}[5m])) * 0)) / sum by (service) (rate(traefik_service_requests_total{service!~\".*@internal\"}[5m]))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, service) (rate(traefik_service_request_duration_seconds_bucket{service!~\".*@internal\"}[5m])))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false
+          },
+          "noValue": "트래픽 없음",
+          "links": [
+            {
+              "title": "애플리케이션 대시보드",
+              "url": "/d/homelab-application/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "요청/초"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx 비율"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.01
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.05
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 지연"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1.5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "요청/초",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "service": "서비스",
+              "Value #A": "요청/초",
+              "Value #B": "5xx 비율",
+              "Value #C": "p95 지연"
+            },
+            "indexByName": {}
+          }
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 24
+      },
+      "id": 23
+    },
+    {
+      "type": "table",
+      "title": "앱 Namespace Pod 상태",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (namespace) (kube_pod_status_ready{condition=\"true\",namespace=~\"api-.*|jira.*\"})",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (namespace) (kube_pod_status_ready{condition=\"false\",namespace=~\"api-.*|jira.*\"})",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "round(sum by (namespace) (increase(kube_pod_container_status_restarts_total{namespace=~\"api-.*|jira.*\"}[24h])))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "editorMode": "code",
+          "format": "table",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false
+          },
+          "noValue": "문제 없음",
+          "links": [
+            {
+              "title": "애플리케이션 대시보드",
+              "url": "/d/homelab-application/?${__url_time_range}&${datasource:queryparam}",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not Ready"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "재시작(24h)"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "Value #A": "Ready",
+              "Value #B": "Not Ready",
+              "Value #C": "재시작(24h)"
+            },
+            "indexByName": {}
+          }
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 24
+      },
+      "id": 24
+    }
+  ]
+}

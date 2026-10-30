@@ -34,6 +34,14 @@ ports:
     port: 8443
     exposedPort: 443
 
+# 요청 수, 지연, 상태 코드 metric을 monitoring Prometheus가 수집한다.
+metrics:
+  prometheus:
+    service:
+      enabled: true
+    serviceMonitor:
+      enabled: true
+
 # prod/dev Worker taint 를 모두 tolerate 하고, 두 Worker 에 분산 배치한다.
 tolerations:
   - key: homelab.okbear.dev/environment
