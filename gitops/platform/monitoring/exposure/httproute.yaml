@@ -16,6 +16,13 @@ spec:
       namespace: traefik
       sectionName: https
 
+    # tailnet 경로 검증용. 이전이 끝나면 public-gateway를 제거한다.
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      namespace: traefik
+      sectionName: https
+
   hostnames:
     - grafana.okbear.dev
 
