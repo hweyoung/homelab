@@ -155,7 +155,8 @@ jobs:
           #     같은 줄에 값이 있는 경우만 — `secret:` 아래에 name 등이 오는 참조 블록은 제외
           hits=$(grep -rnE '(password|token|secret|clientSecret)[[:space:]]*:[[:space:]]*[^[:space:]#]' gitops/ \
             --include='*.yaml' --include='*.yml' 2>/dev/null \
-            | grep -vE '\.sops\.ya?ml:|\.example\.ya?ml:' || true)
+            | grep -vE '\.sops\.ya?ml:|\.example\.ya?ml:' \
+            | grep -vE ':[[:space:]]*\$[A-Z_][A-Z0-9_]*[[:space:]]*$' || true)
           if [ -n "$hits" ]; then
             echo "❌ 평문 민감정보 의심 (암호화하거나 *.example.yaml placeholder 사용):"
             echo "$hits"
