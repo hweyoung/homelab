@@ -199,6 +199,9 @@ grafana:
   sidecar:
     dashboards:
       folderAnnotation: grafana_folder
+      # chart 기본 대시보드도 폴더에 넣어 폴더 권한으로 Viewer 접근을 막는다.
+      annotations:
+        grafana_folder: "99 Kubernetes"
       provider:
         foldersFromFilesStructure: true
 

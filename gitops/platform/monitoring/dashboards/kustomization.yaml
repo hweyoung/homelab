@@ -44,3 +44,11 @@ configMapGenerator:
     options:
       annotations:
         grafana_folder: "03 Application"
+
+  # common-backend 팀 전용. Viewer 권한은 이 폴더에만 남긴다(docs/gitops/access-control.md).
+  - name: homelab-dashboards-common-backend
+    files:
+      - json/10-common-backend/api-common-dev.json
+    options:
+      annotations:
+        grafana_folder: "10 Common Backend"
