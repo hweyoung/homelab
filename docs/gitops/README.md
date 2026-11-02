@@ -118,5 +118,5 @@ DB와 스토리지 상태까지 확인해야 라이브 검증이 끝난다.
 repo-server의 KSOPS/key mount 순으로 확인한다. root-app에는 resource finalizer가 있으므로
 삭제하면 하위 Application과 리소스가 연쇄 삭제될 수 있다. 재동기화 수단으로 삭제하지 않는다.
 
-Secret은 [Secret 관리](secrets.md), 전체 구조는
+관리 도구 권한은 [접근 권한](access-control.md), Secret은 [Secret 관리](secrets.md), 전체 구조는
 [GitOps 아키텍처](architecture.md)를 참고한다.
