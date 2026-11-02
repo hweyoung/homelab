@@ -109,7 +109,9 @@ jobs:
             [ "$(jq -r '.spec.sources[0].helm.skipCrds // false' <<<"$app")" = true ] && args+=(--skip-crds)
 
             echo "::group::helm template $name ($ref $version)"
+            # 클러스터 없이 렌더하므로 ServiceMonitor를 켠 chart가 요구하는 API를 알려 준다.
             if ! helm template "$name" "$ref" "${args[@]}" \
+                --api-versions monitoring.coreos.com/v1 \
                 --namespace "$(jq -r '.spec.destination.namespace' <<<"$app")" >/dev/null; then
               echo "❌ $name: 원격 차트 렌더 실패"
               fail=1
