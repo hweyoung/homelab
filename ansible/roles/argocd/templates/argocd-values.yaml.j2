@@ -1,5 +1,13 @@
 global:
   domain: "{{ argocd_domain }}"
+  # 워커 taint 적용 후에도 hook과 재시작한 Pod가 배치되도록 prod 워커에 고정합니다.
+  nodeSelector:
+    {{ prod_taint_key }}: "{{ prod_taint_value }}"
+  tolerations:
+    - key: "{{ prod_taint_key }}"
+      operator: Equal
+      value: "{{ prod_taint_value }}"
+      effect: "{{ prod_taint_effect }}"
 
 configs:
   params:
