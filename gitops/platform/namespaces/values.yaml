@@ -22,6 +22,10 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
+  - name: dex
+    environment: prod
+    gatewayAccess: public
+
   - name: kargo
     environment: prod
     gatewayAccess: private
