@@ -3,3 +3,6 @@ kind: Kustomization
 
 resources:
   - httproute.yaml
+
+generators:
+  - argocd-oidc-generator.yaml

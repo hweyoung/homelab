@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: dex-argocd-oidc
+    namespace: argocd
+    labels:
+        app.kubernetes.io/part-of: argocd
+type: Opaque
+stringData:
+    clientSecret: ENC[AES256_GCM,data:sMWrH42Lp50BnTsV49X64rYHw4n5FPDM/Ea7e9EJqUMFaOI+BFJKpJnT+qNzhlPDpW8QmLfSmcRPYgcdJspLLQ==,iv:i3UPtg1a9XnVtMjFdnfCK6HutIln9FrSe1NFoZKPBiE=,tag:n1g4Opz2YmgRpjg3lxT7GA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBDdWZ5Nnk0WEg0NDRpNW03
+            eEJVbndkNDltWjhVZTl4VmdlQkhkYk9MRXlNCkptK2NWaWkvYk9hRVBlZ2J3cytH
+            ZzVSN0ZKcXBLdUJHNVgzeTJWNXlDVk0KLS0tIHJuYndHOWZxWWVyLzhIZ0dFVDZa
+            bTB3dU1EalNUZmduVzJWZGthcHVzOWsKVVFOkWEnAoUZSQgbUHy84qQouw1u4+9i
+            ij/xNcChMaVouKzS7wLacmf3yOaD2V1wno/xv6VOX5geM79o14wVAg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1vgecp2wajurrqlc3rmkcuvelfkrs9vvquat0yv9qhs4wh3ahddsq6a9tfq
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQNFFScENrYW1lRkE2L3NE
+            OURwbjAxR0lBM1lQRkZvZjc1RDBRRVFzUFRRCjJYQ25Bb29Yc2xYa2VuTUR0TnRs
+            VEhmeGRFTDZQZURWOTd5cm1ndGplbU0KLS0tIHBqMG16a2NOWVFadHFhais2TjV2
+            ais1SzBoZDhYbkpJWUxNa3NxMGN0UHcKxCJlqTMKdOpIPXWkiT6xOWCMRLI4VF87
+            sS9hgE/Zabxt8aqnS5GTd5C52/ga5SYd28qnyMuDPNCRH/a+e2ZpYQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1suf4u08wu9yvhrmszaxcu342nlywwhn4u5q5qdhd220ap8remassd3jz6v
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-02T13:14:28Z"
+    mac: ENC[AES256_GCM,data:0RxSQws/f/0rE+vNIIXBu0r4bwTst/8VS/b4ZwCkH4D2Ux/ZbxTpNiAdZLTKxlMZwxrVlkdtGY2h1FdEjAAgHcqhq5OYSieHK2cgYiJYIpPj6r8EI3VenKB/+o95NWYbJqulB7Qq7kwuc4HseXhBlpKdKag53BMjvEvvgceD20o=,iv:lwKtv6d24tXOHkjDyklEo8307eKAac2GbWMY0okXjvQ=,tag:tDkCGdJVdG+/ajvfExyFbA==,type:str]
+    version: 3.13.2

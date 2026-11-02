@@ -9,6 +9,23 @@ configs:
   cm:
     # ksops 를 사용하기 위한 kustomize alpha plugin / exec 허용.
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    # clientSecret은 argocd-server Application이 만드는 dex-argocd-oidc Secret을 참조합니다.
+    oidc.config: |
+      name: GitHub
+      issuer: {{ argocd_oidc_issuer }}
+      clientID: argocd
+      clientSecret: $dex-argocd-oidc:clientSecret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+  rbac:
+    # 그룹에 매핑되지 않은 사용자는 권한이 없습니다. 로컬 admin은 비상 접근용으로 유지합니다.
+    policy.default: ""
+    scopes: "[groups]"
+    policy.csv: |
+      g, {{ argocd_admin_group }}, role:admin
 
 server:
   ingress:
