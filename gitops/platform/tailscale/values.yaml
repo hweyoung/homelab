@@ -1,0 +1,22 @@
+# Tailscale Operator Helm values (chart version은 root-app platformVersions에서 관리)
+# OAuth 자격 증명은 secrets/의 operator-oauth Secret(SOPS)에서 읽는다.
+
+operatorConfig:
+  nodeSelector:
+    homelab.okbear.dev/environment: prod
+  tolerations:
+    - key: homelab.okbear.dev/environment
+      operator: Equal
+      value: prod
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Operator가 만드는 프록시 Pod도 worker taint를 넘어야 하므로 ProxyClass로 배치를 지정한다.
+proxyConfig:
+  defaultProxyClass: prod-worker
