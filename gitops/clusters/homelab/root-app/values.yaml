@@ -341,18 +341,19 @@ applications:
     path: gitops/platform/garage/exposure
     syncPolicyRef: platform-existing-namespace
 
-  # --- Kargo promotion controller (CRDs + controllers) ---
-  - name: kargo
-    group: platform
-    project: platform
-    type: helm
-    namespace: kargo
-    wave: -11
-    chart: kargo
-    chartRepo: ghcr.io/akuity/kargo-charts
-    versionRef: kargo
-    valuesPath: gitops/platform/kargo/values.yaml
-    syncPolicyRef: platform-existing-namespace
+  # Kargo 도입 전까지 일시 중지. 다시 켤 때 주석을 해제한다.
+  # # --- Kargo promotion controller (CRDs + controllers) ---
+  # - name: kargo
+  #   group: platform
+  #   project: platform
+  #   type: helm
+  #   namespace: kargo
+  #   wave: -11
+  #   chart: kargo
+  #   chartRepo: ghcr.io/akuity/kargo-charts
+  #   versionRef: kargo
+  #   valuesPath: gitops/platform/kargo/values.yaml
+  #   syncPolicyRef: platform-existing-namespace
 
   # ------------------
   # --- Monitoring ---
