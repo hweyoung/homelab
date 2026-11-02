@@ -17,6 +17,7 @@ hosts:
   openbao: openbao.okbear.dev
   garageImages: images.okbear.dev
   grafana: grafana.okbear.dev
+  dex: dex.okbear.dev
 
 # application version과 실제 배포 artifact의 대응표. activeVersion만 한 단계씩 변경한다.
 platformVersions:
@@ -60,6 +61,11 @@ platformVersions:
     activeVersion: "1.21.2"
     versions:
       "1.21.2": { chartVersion: "1.14.3" }
+
+  dex:
+    activeVersion: "2.46.0"
+    versions:
+      "2.46.0": { chartVersion: "0.26.0" }
 
 
 # ==============
@@ -230,6 +236,39 @@ applications:
     path: gitops/platform/cloudflared
     syncPolicyRef: platform
     
+  # --- Dex client/GitHub 자격 증명 Secret (SOPS) ---
+  - name: dex-secrets
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: dex
+    wave: -14
+    path: gitops/platform/dex/secrets
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Dex OIDC issuer (GitHub Team -> groups claim) ---
+  - name: dex
+    group: platform
+    project: platform
+    type: helm
+    namespace: dex
+    wave: -13
+    chart: dex
+    chartRepo: https://charts.dexidp.io
+    versionRef: dex
+    valuesPath: gitops/platform/dex/values.yaml
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Dex public exposure (Gateway API) ---
+  - name: dex-route
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: dex
+    wave: -12
+    path: gitops/platform/dex/exposure
+    syncPolicyRef: platform-existing-namespace
+
   # --- CloudNativePG operator (CRDs + controller) ---
   - name: cloudnative-pg
     group: platform

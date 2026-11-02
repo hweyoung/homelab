@@ -1,0 +1,74 @@
+# Dex Helm values (chart version은 root-app platformVersions에서 관리)
+# GitHub Team을 groups claim으로 내보내는 관리 도구 공용 OIDC issuer다.
+# 환경변수는 dex/secrets의 dex-env Secret(SOPS)에서 읽는다. OpenBao 장애와 무관하게 동작하도록 ESO를 쓰지 않는다.
+
+envFrom:
+  - secretRef:
+      name: dex-env
+
+config:
+  issuer: https://dex.okbear.dev
+
+  # 인증 정보를 DB 없이 Kubernetes CRD에 저장한다.
+  storage:
+    type: kubernetes
+    config:
+      inCluster: true
+
+  oauth2:
+    skipApprovalScreen: true
+
+  enablePasswordDB: false
+
+  connectors:
+    - type: github
+      id: github
+      name: GitHub
+      config:
+        clientID: $GITHUB_CLIENT_ID
+        clientSecret: $GITHUB_CLIENT_SECRET
+        redirectURI: https://dex.okbear.dev/callback
+        # 나열한 Team의 멤버만 로그인할 수 있다. groups claim은 "<org>:<team slug>" 형식이다.
+        orgs:
+          - name: homelab-platform-org
+            teams:
+              - platform-admin
+              - common-backend
+        teamNameField: slug
+
+  # 플랫폼을 추가할 때 client를 여기에 등록하고 secretEnv를 dex-env에 추가한다.
+  staticClients:
+    - id: argocd
+      name: Argo CD
+      secretEnv: ARGOCD_CLIENT_SECRET
+      redirectURIs:
+        - https://argocd.okbear.dev/auth/callback
+
+    - id: grafana
+      name: Grafana
+      secretEnv: GRAFANA_CLIENT_SECRET
+      redirectURIs:
+        - https://grafana.okbear.dev/login/generic_oauth
+
+    - id: openbao
+      name: OpenBao
+      secretEnv: OPENBAO_CLIENT_SECRET
+      redirectURIs:
+        - https://openbao.okbear.dev/ui/vault/auth/oidc/oidc/callback
+        - http://localhost:8250/oidc/callback
+
+nodeSelector:
+  homelab.okbear.dev/environment: prod
+tolerations:
+  - key: homelab.okbear.dev/environment
+    operator: Equal
+    value: prod
+    effect: NoSchedule
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

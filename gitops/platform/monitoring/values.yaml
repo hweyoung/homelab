@@ -1,6 +1,6 @@
 # kube-prometheus-stack Helm values (chart version은 root-app platformVersions에서 관리)
 # Prometheus Operator, Prometheus, Alertmanager, Grafana, kube-state-metrics, node-exporter를 설치한다.
-# Grafana admin 계정은 monitoring/external-secrets의 ExternalSecret이 OpenBao에서 동기화한다.
+# Grafana admin 계정과 OIDC client secret은 monitoring/external-secrets의 ExternalSecret이 OpenBao에서 동기화한다.
 
 # release 이름(platform-kube-prometheus-stack)이 chart의 26자 이름 제한에서 잘리지 않도록 고정한다.
 fullnameOverride: kube-prometheus-stack
@@ -172,11 +172,36 @@ grafana:
       enabled: false
     users:
       allow_sign_up: false
+    # 그룹에 매핑되지 않은 사용자는 로그인을 거부한다. 로컬 admin은 비상 접근용으로 유지한다.
+    auth.generic_oauth:
+      enabled: true
+      name: GitHub
+      client_id: grafana
+      scopes: openid profile email groups
+      auth_url: https://dex.okbear.dev/auth
+      token_url: https://dex.okbear.dev/token
+      api_url: https://dex.okbear.dev/userinfo
+      use_pkce: true
+      allow_sign_up: true
+      login_attribute_path: preferred_username
+      role_attribute_strict: true
+      role_attribute_path: contains(groups[*], 'homelab-platform-org:platform-admin') && 'Admin' || contains(groups[*], 'homelab-platform-org:common-backend') && 'Viewer'
+
+  # Secret이 아직 없어도 Grafana가 뜨도록 optional로 두어 로컬 admin 접근을 보장한다.
+  envValueFrom:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        name: grafana-oidc
+        key: client-secret
+        optional: true
 
   # monitoring/dashboards ConfigMap의 grafana_folder annotation으로 Grafana 폴더를 나눈다.
   sidecar:
     dashboards:
       folderAnnotation: grafana_folder
+      # chart 기본 대시보드도 폴더에 넣어 폴더 권한으로 Viewer 접근을 막는다.
+      annotations:
+        grafana_folder: "99 Kubernetes"
       provider:
         foldersFromFilesStructure: true
 

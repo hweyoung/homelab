@@ -52,8 +52,11 @@ argocd_postcheck_delay: 10
 # AppProject만 소유하는 bootstrap Application은 Synced를 강제하되 workload health gate에서는 제외한다.
 argocd_health_exempt_applications:
   - argocd-control-plane
-argocd_domain: "argocd.homelab.local"
+argocd_domain: "argocd.okbear.dev"
 argocd_ingress_class: "traefik"
+argocd_oidc_issuer: "https://dex.okbear.dev"
+# Dex groups claim의 "<org>:<team slug>" 형식이다. 이 그룹만 Argo CD 권한을 갖는다.
+argocd_admin_group: "homelab-platform-org:platform-admin"
 argocd_gateway_access_label_key: "homelab.okbear.dev/gateway-access"
 argocd_gateway_access_label_value: "public"
 

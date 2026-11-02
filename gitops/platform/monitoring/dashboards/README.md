@@ -14,6 +14,7 @@ Application `platform-grafana-dashboards`(wave -4)가 배포하고, kube-prometh
 | 02 Cluster | 클러스터 · 플랫폼 서비스 (`homelab-platform-services`) | OpenBao, Garage, CNPG, ESO | Secret/스토리지/DB 문제 |
 | 02 Cluster | 클러스터 · Ingress · Edge (`homelab-ingress-edge`) | Traefik, cloudflared, cert-manager | 외부 접속 문제 |
 | 03 Application | 애플리케이션 (`homelab-application`) | Traefik, cAdvisor, 앱 지표, Loki | 서비스 하나를 깊게 볼 때 |
+| 10 Common Backend | api-common-dev (`common-backend-api-common-dev`) | 03 애플리케이션과 같음, namespace 고정 | common-backend 팀 전용 |
 | 99 Kubernetes (chart 기본) | kube-prometheus-stack 기본 대시보드 | - | 세부 참고용 |
 
 모든 대시보드에 공통으로 적용한 것:
