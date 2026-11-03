@@ -1,0 +1,17 @@
+# 프록시 Pod를 prod worker에 배치한다. CRD는 Operator chart가 설치한다.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: prod-worker
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        homelab.okbear.dev/environment: prod
+      tolerations:
+        - key: homelab.okbear.dev/environment
+          operator: Equal
+          value: prod
+          effect: NoSchedule

@@ -26,6 +26,10 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
+  - name: tailscale
+    environment: prod
+    gatewayAccess: private
+
   - name: kargo
     environment: prod
     gatewayAccess: private
