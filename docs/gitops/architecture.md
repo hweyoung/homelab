@@ -47,8 +47,9 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | -5 | `platform-alloy` | `platform` | Pod 로그 수집 DaemonSet |
 | 10 | `databases-postgres-{dev,prod}` | `databases` | CNPG Cluster |
 | 30 | `apps-nginx-{dev,prod}`, `apps-api-common-dev` | `apps-*` | workload |
+| 30 | `apps-api-common-kargo` | `kargo-pipelines` | api-common Kargo Project, Warehouse, Stage, credential |
 
-root-app은 27개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
+root-app은 33개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
 controller Ready를 보장하지 않는다. PostgreSQL 적용 전 CNPG CRD/controller readiness처럼
 런타임 의존성을 별도로 확인해야 한다.
 
@@ -67,10 +68,12 @@ flowchart LR
     CP --> P2["databases"]
     CP --> P3["apps-dev"]
     CP --> P4["apps-prod"]
+    CP --> P5["kargo-pipelines"]
     P1 -->|"cluster-scoped 허용"| PLATFORM["CRD / operator"]
     P2 -->|"postgres-*, infisical"| DB["database"]
     P3 -->|"api-*-dev"| DEV["dev workload"]
     P4 -->|"api-*-prod"| PROD["prod workload"]
+    P5 -->|"kargo-api-*"| PIPE["Kargo pipeline"]
     P0 -->|"argocd namespace"| SERVER["Argo CD server"]
 ```
 
@@ -79,6 +82,8 @@ flowchart LR
 - `platform`은 CRD, ClusterRole, Namespace 등 cluster-scoped 리소스를 허용한다.
 - `databases`는 destination을 postgres-dev/prod와 infisical로 한정한다.
 - `apps-dev`와 `apps-prod`는 namespace 패턴과 허용 kind가 분리되며 prod가 더 좁다.
+- `kargo-pipelines`는 앱별 Kargo 파이프라인용이다. cluster-scoped인 Kargo `Project`만 허용하고
+  namespace 리소스는 Kargo 리소스와 credential용 SA, SecretStore, ExternalSecret으로 제한한다.
 - `argocd-system`은 argocd namespace 자원만 담당해 일반 platform 권한과 분리한다.
 
 Namespace의 단일 owner는 `platform/namespaces` Helm chart다. root-app destination과
@@ -103,7 +108,8 @@ endpoint만 route로 공개한다.
 
 Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
 bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
-OpenBao와 ESO 경로는 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook에 적용되어 있고, 나머지
+OpenBao와 ESO 경로는 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook,
+Kargo 앱별 GHCR·Git credential에 적용되어 있고, 나머지
 workload Secret은 SOPS/KSOPS를 유지한다. 상세 절차는 [Secret 관리](secrets.md)에 있다.
 
 ## 이미지 승격 경계
@@ -116,9 +122,14 @@ flowchart LR
 ```
 
 애플리케이션 CI에 개인 GitOps repo write 권한을 직접 주지 않고 Kargo가 immutable
-digest/Freight를 승격하는 경계를 목표로 한다. 현재는 Kargo controller 설치까지만 선언되어
-있고 Stage/Warehouse/PromotionTask 파이프라인은 없다. 따라서 동일 digest의 dev→prod
-승격은 아직 라이브 완료 상태가 아니다.
+digest/Freight를 승격하는 경계를 목표로 한다. 현재는 controller(`platform-kargo`)와 api-common
+dev 파이프라인(`apps-api-common-kargo`)이 선언되어 있다. dev Stage는 새 `sha-<commit>` 이미지를
+자동 승격해 dev overlay digest를 `main`에 커밋하고 `apps-api-common-dev`를 sync한다. prod
+Stage는 아직 없으므로 동일 digest의 dev→prod 승격은 라이브 완료 상태가 아니다.
+
+파이프라인은 앱별로 `gitops/apps/<앱>/kargo/`에 두고 `kargo-pipelines` AppProject로 배포한다.
+GHCR·Git credential도 Project namespace마다 따로 두어 token 소유자와 폐기 범위를 앱 단위로
+분리한다. 상세는 [Kargo README](../../gitops/platform/kargo/README.md)에 있다.
 
 ## 운영 한계
 
