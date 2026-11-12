@@ -544,6 +544,19 @@ applications:
     wave: 30
     path: gitops/apps/api-common/overlays/dev
     syncPolicyRef: apps-dev
+    # Kargo dev Stage가 이 Application을 sync하도록 허용한다.
+    annotations:
+      kargo.akuity.io/authorized-stage: kargo-api-common:dev
+
+  # --- CommonPlant Kargo 파이프라인 (Project, Warehouse, Stage, credential) ---
+  - name: api-common-kargo
+    group: apps
+    project: kargo-pipelines
+    type: kustomize
+    namespace: kargo-api-common
+    wave: 30
+    path: gitops/apps/api-common/kargo
+    syncPolicyRef: platform-existing-namespace
 
   # --- Helm 타입 예시 ---
   # - name: podinfo
