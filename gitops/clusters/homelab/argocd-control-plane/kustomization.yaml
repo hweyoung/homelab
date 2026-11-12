@@ -8,3 +8,4 @@ resources:
   - projects/databases.yaml
   - projects/apps-prod.yaml
   - projects/apps-dev.yaml
+  - projects/kargo-pipelines.yaml
