@@ -33,6 +33,16 @@ crds:
 api:
   enabled: false
 
+# argocd namespace의 kargo-controller Role/RoleBinding은 argocd-control-plane
+# (kargo-controller-rbac.yaml)이 소유한다. platform AppProject는 argocd를
+# 배포 대상으로 허용하지 않으므로 chart 쪽 생성은 끈다. Role과 RoleBinding의
+# 렌더링 조건이 달라 두 값 모두 필요하다.
+argocd:
+  dataPlane:
+    install: false
+    kargoController:
+      install: false
+
 controller:
   argocd:
     integrationEnabled: true
