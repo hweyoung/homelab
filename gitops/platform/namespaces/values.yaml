@@ -44,6 +44,13 @@ namespaces:
     environment: prod
     gatewayAccess: private
 
+  # Kargo Project namespace. Project 라벨이 있어야 Kargo가 기존 namespace를 채택한다.
+  - name: kargo-api-common
+    environment: prod
+    gatewayAccess: private
+    labels:
+      kargo.akuity.io/project: "true"
+
   # ==================
   # Homelab Workload Namespace
   # ==================
