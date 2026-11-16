@@ -14,3 +14,6 @@ spec:
         allowTagsRegexes:
           - ^sha-[0-9a-f]{40}$
         discoveryLimit: 5
+        # Kargo webhook이 비어 있으면 true로 채운다. subscriptions는 JSON 그대로 저장되어
+        # Argo CD가 이 기본값을 차이로 보므로 명시한다. NewestBuild에서는 동작에 영향이 없다.
+        strictSemvers: true
