@@ -4,7 +4,8 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 각 구성 요소가 어떻게 동작하는지, 이 환경에서 왜 이렇게 구성했는지, 구성 중 바꾼 결정을 함께
 기록한다. 운영 절차와 명령은 [Kargo README](../../gitops/platform/kargo/README.md)를 기준으로 한다.
 
-현재 상태는 **정적 검증 완료**다. 실클러스터에서 Promotion 성공은 아직 확인하지 않았다.
+현재 상태는 **배포 진행 중**이다. `apps-api-common-kargo`가 배포되어 credential 동기화까지 확인했고,
+Warehouse OutOfSync를 수정하는 중이다. dev Promotion 성공은 아직 확인하지 않았다.
 
 ## 구성 의도
 
@@ -175,9 +176,21 @@ Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `m
 ExternalSecret template에 `password: "{{ .password }}"`를 쓰면 CI의 평문 Secret 정규식에
 걸린다. template은 `repoURL`만 정의하고 `mergePolicy: Merge`로 원본 키를 그대로 합쳤다.
 
+### Warehouse OutOfSync
+
+배포 후 `apps-api-common-kargo`에서 Warehouse만 OutOfSync로 남았다. Kargo 1.11의 Warehouse
+defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelectionStrategy: SemVer`,
+`strictSemvers: true`, `discoveryLimit: 20`). `spec.subscriptions`는 `apiextensionsv1.JSON`으로
+저장되어 Argo CD가 subscription 항목을 통째로 비교하므로, 매니페스트에 없던 `strictSemvers: true`가
+차이로 잡혔다. 나머지 필드는 `omitempty`라 추가되지 않는다.
+
+`warehouse.yaml`에 `strictSemvers: true`를 명시했다. `NewestBuild`에서는 동작에 영향이 없다.
+실클러스터 diff로 다른 필드가 없는지는 merge 후 확인한다. 새 앱의 Warehouse도 webhook 기본값이
+있는 필드는 처음부터 명시한다.
+
 ## 검증
 
-정적 검증만 완료했다.
+### 정적 검증
 
 | 항목 | 결과 |
 | --- | --- |
@@ -187,14 +200,23 @@ ExternalSecret template에 `password: "{{ .password }}"`를 쓰면 CI의 평문 
 | CRD schema | Kargo 1.11.0, ESO 2.9.0 CRD 기준 필드 확인 |
 | CI 검사 | 평문 Secret, placeholder, `git diff --check` 통과 |
 
+### 실클러스터
+
+| 항목 | 결과 |
+| --- | --- |
+| OpenBao 값, policy, role | 입력 완료 |
+| SecretStore, ExternalSecret 2개 | Synced, Healthy |
+| Project, ProjectConfig, Stage, SA | Synced |
+| Warehouse | OutOfSync → `strictSemvers` 명시로 수정 중 |
+| Freight 생성, dev Promotion | 미확인 |
+
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
 `Succeeded` → `main` 승격 커밋 → `apps-api-common-dev` sync 순으로 본다.
 
 ## 한계와 후속 작업
 
-- OpenBao에 GHCR PAT, GitHub App 값, policy, role을 넣어야 파이프라인이 동작한다.
-- 실클러스터 Promotion을 아직 확인하지 않았다.
+- Warehouse Synced와 Freight 생성, dev Promotion 성공을 아직 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
 - prod workload, `api-common-prod` Application, prod Stage와 승인 방식이 없다.
 - GHCR token은 개인 계정 classic PAT다. 조직 봇 계정으로 옮겨야 한다.
