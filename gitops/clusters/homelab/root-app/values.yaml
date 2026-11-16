@@ -18,6 +18,7 @@ hosts:
   garageImages: images.okbear.dev
   grafana: grafana.okbear.dev
   dex: dex.okbear.dev
+  kargo: kargo.okbear.dev
 
 # application version과 실제 배포 artifact의 대응표. activeVersion만 한 단계씩 변경한다.
 platformVersions:
@@ -352,6 +353,16 @@ applications:
     chartRepo: ghcr.io/akuity/kargo-charts
     versionRef: kargo
     valuesPath: gitops/platform/kargo/values.yaml
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Kargo UI/API public exposure (Gateway API) ---
+  - name: kargo-route
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: kargo
+    wave: -10
+    path: gitops/platform/kargo/exposure
     syncPolicyRef: platform-existing-namespace
 
   # ------------------
