@@ -302,6 +302,13 @@ argocd app diff apps-api-common-kargo
 kubectl get warehouse api-common -n kargo-api-common -o jsonpath='{.spec.subscriptions}'
 ```
 
+### Stage가 Unhealthy일 때
+
+`kubectl get stage dev -n kargo-api-common -o jsonpath='{.status.health}'`로 이유를 봅니다.
+"does not match the desired revision"이면 앱은 정상이고 리비전만 다른 경우입니다. 앱 Application은
+`main`을 따라가므로 `argocd-update`에 `desiredRevision`을 지정하지 않습니다(hweyoung/homelab#329).
+그 외 메시지는 `apps-api-common-dev`의 health와 Pod 상태를 확인합니다.
+
 ### 앱 추가
 
 새 앱 `<앱>`의 파이프라인은 다음을 추가합니다.
