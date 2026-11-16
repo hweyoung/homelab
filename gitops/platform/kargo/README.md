@@ -172,12 +172,16 @@ kubectl get pods -n kargo -l app.kubernetes.io/component=api
 curl -sI https://kargo.okbear.dev | head -1
 ```
 
-1. `platform-kargo-route`가 `Synced/Healthy`이고 HTTPRoute가 Accepted다.
+1. `platform-kargo-route`가 `Synced/Healthy`이고 HTTPRoute가 Accepted다. 첫 배포 직후 Degraded이면
+   다시 sync한 뒤 `kubectl get httproute kargo-route -n kargo -o jsonpath='{.status.parents}'`를 봅니다.
 2. 브라우저에서 GitHub(Dex) 로그인 후 `kargo-api-common` Project가 보인다.
 3. `platform-admin`은 Promote가 가능하고 `common-backend`는 조회만 된다.
 
 CLI는 `kargo login https://kargo.okbear.dev --sso`로 로그인합니다. Dex에 등록한 CLI callback은
 `http://localhost/auth/callback`이며 실제 CLI 로그인은 아직 확인하지 않았습니다.
+
+UI 로그인 버튼에서 `OIDC: Failed to fetch`가 나오면 Dex `web.allowedOrigins`에
+`https://kargo.okbear.dev`가 있는지 확인합니다. 브라우저가 Dex를 직접 호출하므로 CORS가 필요합니다.
 
 ## api-common 파이프라인
 
@@ -307,7 +311,10 @@ kubectl get warehouse api-common -n kargo-api-common -o jsonpath='{.spec.subscri
 `kubectl get stage dev -n kargo-api-common -o jsonpath='{.status.health}'`로 이유를 봅니다.
 "does not match the desired revision"이면 앱은 정상이고 리비전만 다른 경우입니다. 앱 Application은
 `main`을 따라가므로 `argocd-update`에 `desiredRevision`을 지정하지 않습니다(hweyoung/homelab#329).
-그 외 메시지는 `apps-api-common-dev`의 health와 Pod 상태를 확인합니다.
+health 설정은 Promotion이 실행될 때 등록됩니다. Stage 템플릿을 고친 뒤에는 UI에서 현재 Freight를
+다시 Promote해야 새 설정이 적용됩니다. 바뀐 내용이 없으면 `git-commit`은 Skipped로 끝나므로 같은
+Freight를 다시 승격해도 커밋이 생기지 않습니다. 그 외 메시지는 `apps-api-common-dev`의 health와 Pod
+상태를 확인합니다.
 
 ### 앱 추가
 
