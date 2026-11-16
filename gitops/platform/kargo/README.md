@@ -40,8 +40,9 @@ database endpoint와 domain은 승격 대상이 아니라 각 overlay의 상태�
 - Argo CD Application health 연동
 - Freight와 Promotion 이력을 정리하는 garbage collector
 
-API/UI와 external webhook은 비활성화했습니다. 따라서 admin password와 token signing key가
-필요하지 않고 외부 진입점도 생기지 않습니다. 앱별 `Project`, `Warehouse`, `Stage`와
+API/UI는 `https://kargo.okbear.dev`에 노출하고 Dex OIDC로만 로그인합니다. 로컬 admin 계정을
+끄므로 admin password와 token signing key가 필요 없습니다. external webhook은 비활성화
+상태입니다. 앱별 `Project`, `Warehouse`, `Stage`와
 repository credential은 `gitops/apps/<앱>/kargo/`에 둡니다.
 
 ## 버전과 배치 기준
@@ -63,12 +64,14 @@ Git에 반영된 애플리케이션의 Argo CD 배포 상태에는 영향을 주
 platform/namespaces (-50)
   -> cert-manager (-35)
   -> platform-kargo (-11)
+  -> platform-kargo-route (-10): kargo.okbear.dev
   -> apps-<앱>-kargo (30): Project, Warehouse, Stage, credential
 ```
 
 | 경로 | Application | AppProject | 내용 |
 | --- | --- | --- | --- |
-| `platform/kargo/values.yaml` | `platform-kargo` | `platform` | CRD, controller, webhook |
+| `platform/kargo/values.yaml` | `platform-kargo` | `platform` | CRD, controller, webhook, API/UI |
+| `platform/kargo/exposure` | `platform-kargo-route` | `platform` | `kargo.okbear.dev` HTTPRoute |
 | `apps/<앱>/kargo` | `apps-<앱>-kargo` | `kargo-pipelines` | 앱별 Project, Warehouse, Stage, credential |
 
 Kargo `Project`는 cluster-scoped라 `apps-dev`/`apps-prod` AppProject에 둘 수 없습니다.
@@ -117,8 +120,8 @@ git diff --check
 ```
 
 현재 정적 렌더 결과는 9개 Kargo CRD와 `kargo-controller`,
-`kargo-management-controller`, `kargo-webhooks-server` Deployment를 포함합니다. API와
-external webhook Deployment 및 Namespace는 생성하지 않습니다. 정적 렌더 성공은 실제
+`kargo-management-controller`, `kargo-webhooks-server`, `kargo-api` Deployment를 포함합니다.
+external webhook Deployment와 Namespace, `argocd` namespace 리소스는 생성하지 않습니다. 정적 렌더 성공은 실제
 Pod 기동, admission webhook TLS 또는 Argo CD 연동 성공을 의미하지 않습니다.
 
 ## 배포 후 확인
@@ -137,13 +140,42 @@ kubectl get validatingwebhookconfiguration,mutatingwebhookconfiguration \
 완료 기준은 다음과 같습니다.
 
 1. `platform-kargo` Application이 `Synced/Healthy`이고 `argocd` namespace 리소스를 만들지 않는다.
-2. Kargo controller, management controller, webhook Pod가 모두 Ready다.
+2. Kargo controller, management controller, webhook, API Pod가 모두 Ready다.
 3. webhook Certificate가 Ready이고 API server 호출 오류가 없다.
 4. Kargo CRD 9개가 조회된다.
 5. controller 로그에 Argo CD discovery 또는 RBAC 오류가 없다.
 
 아직 이 저장소에서는 실클러스터 설치 결과를 검증하지 않았습니다. 위 조건을 확인하기
 전까지 상태는 `구성 완료`가 아니라 `정적 검증 완료`로 기록합니다.
+
+## UI와 API
+
+`https://kargo.okbear.dev`에서 UI를 쓰고, 같은 주소가 CLI의 API endpoint입니다.
+
+| 항목 | 값 |
+| --- | --- |
+| 노출 | `platform-kargo-route` HTTPRoute → `public-gateway` → Service `kargo-api:80` |
+| TLS | Gateway에서 종료. `api.tls.enabled: false`, `terminatedUpstream: true` |
+| 로그인 | Dex OIDC (`https://dex.okbear.dev`), client `kargo`, PKCE public client |
+| 로컬 admin | 끔. Dex 장애 시 kubectl 사용 |
+| 권한 | `platform-admin` → admin, `common-backend` → viewer |
+| Secret 관리 | 끔(`secretManagementEnabled: false`). credential은 GitOps와 OpenBao로만 관리 |
+
+`kargo` namespace는 HTTPRoute가 `public-gateway`에 붙도록 `gatewayAccess: public`입니다.
+Dex client 설정과 권한 근거는 [Dex OIDC 문서](../../../docs/gitops/dex-oidc.md#kargo)에 있습니다.
+
+```bash
+kubectl get httproute -n kargo kargo-route
+kubectl get pods -n kargo -l app.kubernetes.io/component=api
+curl -sI https://kargo.okbear.dev | head -1
+```
+
+1. `platform-kargo-route`가 `Synced/Healthy`이고 HTTPRoute가 Accepted다.
+2. 브라우저에서 GitHub(Dex) 로그인 후 `kargo-api-common` Project가 보인다.
+3. `platform-admin`은 Promote가 가능하고 `common-backend`는 조회만 된다.
+
+CLI는 `kargo login https://kargo.okbear.dev --sso`로 로그인합니다. Dex에 등록한 CLI callback은
+`http://localhost/auth/callback`이며 실제 CLI 로그인은 아직 확인하지 않았습니다.
 
 ## api-common 파이프라인
 

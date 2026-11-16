@@ -43,8 +43,10 @@ flowchart LR
 | `Stage` `dev` | `stage-dev.yaml` | Warehouse에서 직접 Freight를 받아 dev overlay에 반영 |
 | SA, SecretStore, ExternalSecret 2개 | `external-secrets.yaml` | OpenBao에서 GHCR·Git credential을 가져온다 |
 
-API/UI와 external webhook은 끄고 시작했다. admin password와 token signing key가 필요 없고
-외부 진입점도 생기지 않는다. 승인과 조회는 kubectl로 한다.
+처음에는 API/UI를 끄고 controller만 설치했다. 이후 `https://kargo.okbear.dev`로 UI를 열고 Dex
+OIDC로만 로그인하게 했다. Kargo는 PKCE를 쓰므로 Dex client는 secret이 없는 public client이고,
+로컬 admin 계정과 UI의 Secret 관리 기능은 끈다. `platform-admin`은 admin, `common-backend`는
+viewer다. external webhook은 계속 끈다.
 
 ### dev Stage 단계
 
@@ -68,6 +70,7 @@ dev overlay의 이미지는 Kargo가 관리하므로 수동으로 바꾸지 않�
 | -50 | `namespaces` | `platform` | `kargo*` namespace와 Project 라벨 |
 | -35 | `platform-cert-manager` | `platform` | webhook 인증서 발급 |
 | -11 | `platform-kargo` | `platform` | Kargo chart |
+| -10 | `platform-kargo-route` | `platform` | `kargo.okbear.dev` HTTPRoute |
 | 30 | `apps-api-common-dev` | `apps-dev` | 승격 대상 workload |
 | 30 | `apps-api-common-kargo` | `kargo-pipelines` | Project, Warehouse, Stage, credential |
 
@@ -93,7 +96,7 @@ namespace 구분은 Kargo chart의 설계를 따른다. Namespace metadata는 `p
 
 | Namespace | 용도 | 현재 |
 | --- | --- | --- |
-| `kargo` | controller Pod | 사용 |
+| `kargo` | controller, API Pod. `gatewayAccess: public` | 사용 |
 | `kargo-api-common` | Project namespace. Warehouse, Stage, Freight, Promotion, credential | 사용 |
 | `kargo-shared-resources` | 모든 Project가 읽는 공용 Secret | 미사용 |
 | `kargo-system-resources` | ClusterConfig(클러스터 단위 webhook receiver)가 참조하는 Secret | 미사용 |

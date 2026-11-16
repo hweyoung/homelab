@@ -68,6 +68,7 @@ Secret을 SOPS에 둔 이유는 OpenBao 장애와 무관하게 Dex가 떠야 하
 | Argo CD | `role:admin` | 로그인 가능, 권한 없음 | Dex에서 거부 |
 | Grafana | Org Admin, 모든 폴더 | Viewer, `10 Common Backend` | Dex에서 거부 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 읽기·쓰기 (dev, prod) | Dex에서 거부 |
+| Kargo | admin | viewer (모든 Project 조회) | Dex에서 거부 |
 | Garage UI (예정) | 관리자 | 지정 bucket | 기본 거부 |
 | bastion SSH | Tailscale SSH | 불가 | 불가 |
 
@@ -169,6 +170,19 @@ OpenBao 내부 설정은 GitOps로 관리하지 않는다. 아래 명령을 마�
 
 상위 경로 목록 권한이 없으므로 팀원은 메뉴로 찾아 들어갈 수 없다. Role을 `common-backend`로 로그인한 뒤 주소창에
 `https://openbao.okbear.dev/ui/vault/secrets/secret/kv/list/apps/common/`를 직접 입력한다.
+
+### Kargo
+
+설정은 `gitops/platform/kargo/values.yaml`의 `api.oidc`에 있다.
+
+- Kargo는 PKCE를 쓰므로 Dex client `kargo`는 `public: true`이고 client secret이 없다. `dex-env`에 값을
+  추가하지 않는다.
+- redirect URI는 UI용 `https://kargo.okbear.dev/login`과 CLI용 `http://localhost/auth/callback`이다. Dex는
+  public client라도 `redirectURIs`가 있으면 localhost를 자동 허용하지 않으므로 둘 다 등록한다.
+- `api.oidc.admins.claims.groups`에 `platform-admin`, `viewers`에 `common-backend`를 둔다. viewer는 모든
+  Project를 읽을 수 있지만 승격이나 수정은 할 수 없다.
+- 로컬 admin 계정(`api.adminAccount`)은 끈다. 비밀번호 hash와 token signing key를 따로 관리해야 하고,
+  Dex 장애 시에는 kubectl로 Kargo 리소스를 다룰 수 있기 때문이다.
 
 ### Garage UI (예정)
 
@@ -373,7 +387,7 @@ kubectl -n openbao exec platform-openbao-0 -- sh -c 'rm -f "$HOME/.vault-token"'
 ### 새 플랫폼 추가
 
 1. `dex/values.yaml`의 `staticClients`에 client와 redirect URI를 추가한다.
-2. `dex-env.sops.yaml`에 `secretEnv`로 지정한 값을 추가한다.
+2. `dex-env.sops.yaml`에 `secretEnv`로 지정한 값을 추가한다. PKCE public client(Kargo)는 secret이 없으므로 생략한다.
 3. 플랫폼에 OIDC를 설정하고 `<org>:<team slug>` 그룹을 권한에 매핑한다. 기본 거부로 설정한다.
 4. OIDC를 지원하지 않으면 `oauth2-proxy`를 앞단에 둔다.
 5. 권한표와 이 문서를 고친다.
@@ -398,6 +412,7 @@ Dex나 GitHub에 장애가 나도 아래 경로는 쓸 수 있어야 한다. 정
 | Argo CD | 로컬 `admin` |
 | Grafana | 로컬 admin (`grafana-admin` Secret) |
 | OpenBao | 복구 수단으로 보관한 관리자 토큰 |
+| Kargo | 로컬 admin 없음. kubectl로 Stage, Freight, Promotion 조회와 승격 |
 | Kubernetes | 마스터 노드 kubeconfig |
 
 Grafana admin 비밀번호는 DB를 처음 만들 때만 반영되므로 UI에서 바꾸면 Secret 값과 달라질 수 있다.
