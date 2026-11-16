@@ -24,7 +24,7 @@ Proxmox 위에 Kubernetes 클러스터를 구성하고, 인프라 생성부터 �
 | Argo CD bootstrap | 구성됨 | Helm 설치, private repository 인증, root Application |
 | GitOps 플랫폼 | 구성됨 | Namespace, StorageClass, Gateway API, cert-manager, Traefik, cloudflared, CNPG, Garage |
 | Secret 플랫폼 | 부분 적용 | OpenBao·ESO 설치, api-common dev, Grafana admin, Alertmanager Discord webhook을 ExternalSecret으로 동기화 |
-| Promotion | 구성 중 | Kargo controller 설치 선언, Stage/Warehouse/Promotion 정책은 후속 범위 |
+| Promotion | 구성 중 | Kargo controller와 api-common dev 자동 승격 파이프라인 선언, prod Stage와 승인 정책은 후속 범위 |
 | 데이터베이스 | 구성됨 | dev/prod CloudNativePG Cluster, `local-path` 영속 볼륨 |
 | 애플리케이션 | 부분 구성 | test-nginx dev/prod, CommonPlant API dev |
 | Observability | 구성됨 | kube-prometheus-stack(Prometheus, Alertmanager, Grafana), Loki, Alloy, Discord 알림 |
@@ -142,6 +142,7 @@ flowchart LR
 | `databases` | `postgres-dev`, `postgres-prod` | 지정 DB Namespace로 제한 |
 | `apps-dev` | `api-*-dev` | dev Namespace와 허용된 리소스 종류로 제한 |
 | `apps-prod` | `api-*-prod` | prod Namespace와 허용된 리소스 종류로 제한 |
+| `kargo-pipelines` | `kargo-api-*` | Kargo Project와 파이프라인 리소스, 앱별 credential만 허용 |
 | `argocd-system` | Argo CD HTTPRoute 등 | `argocd` Namespace로 제한 |
 
 Namespace 메타데이터는 [`gitops/platform/namespaces`](gitops/platform/namespaces)가
@@ -235,9 +236,9 @@ flowchart LR
 
 빌드는 한 번만 수행하고 환경별로 다시 빌드하지 않습니다. 승격 단위는 mutable tag가 아니라
 Freight가 가리키는 image digest이며, ConfigMap·Secret·DB endpoint·domain은 각 overlay에
-남깁니다. 현재 변경은 Kargo controller 설치까지만 포함합니다. API/UI, 외부 webhook,
-repository credential, Warehouse와 Stage는 인증 및 승인 정책과 함께 후속 변경으로
-구성합니다.
+남깁니다. 현재는 api-common dev Stage까지 구성했습니다. 앱별 파이프라인은
+`gitops/apps/<앱>/kargo/`에 두고, GHCR·Git credential은 앱마다 OpenBao + ESO로 받습니다.
+API/UI, 외부 webhook, prod Stage와 승인 정책은 후속 변경으로 구성합니다.
 
 ## 선언된 버전
 
@@ -381,7 +382,7 @@ API와 소유권이 준비되는 순서를 표현하며, controller별 health ch
 별도로 확인합니다.
 
 - `argocd-control-plane/`의 AppProject는 platform, databases, apps-dev, apps-prod,
-  argocd-system을 분리합니다. dev/prod Application이 임의의 Namespace나 cluster-scoped
+  kargo-pipelines, argocd-system을 분리합니다. dev/prod Application이 임의의 Namespace나 cluster-scoped
   리소스를 만들지 못하도록 destination과 kind를 제한합니다.
 - `platform/namespaces/`가 Namespace metadata의 단일 owner입니다. root-app이나 개별
   workload가 같은 Namespace label을 중복 선언하지 않아 Gateway 접근 및 배치 정책의
@@ -454,7 +455,7 @@ KSOPS overlay는 age key와 plugin이 준비된 Argo CD repo-server 또는 별�
 - `local-path` PVC는 노드에 결합되며 자동 원격 복제를 제공하지 않습니다.
 - OpenBao audit, 외부 Raft snapshot, 복구 테스트가 필요합니다.
 - 나머지 workload Secret의 ExternalSecret 전환과 prod OpenBao role 구성이 필요합니다.
-- Kargo의 실제 promotion graph와 승인 정책은 아직 없습니다.
+- Kargo는 api-common dev 자동 승격만 있고 prod Stage와 승인 정책은 아직 없습니다.
 - CommonPlant prod overlay와 CI/CD 승격 흐름은 아직 완성되지 않았습니다.
 - 알림 경로 자체의 장애를 감지하는 외부 dead man's switch와 Grafana SSO는 후속 범위입니다.
 - Git 목표 버전과 실제 클러스터 버전의 drift를 자동 보고하는 검증이 필요합니다.

@@ -110,6 +110,14 @@ bao write auth/kubernetes/role/common-dev \
 
 prod는 `dev`를 `prod`로 바꿔 같은 순서로 만든다. role은 prod SA가 생긴 뒤 만들어도 된다.
 
+같은 방식을 쓰는 다른 소비자의 경로와 role은 다음과 같다. 절차는 각 README를 따른다.
+
+| 소비자 | 네임스페이스 / SA | OpenBao 경로 | policy·role |
+| --- | --- | --- | --- |
+| Kargo api-common credential | `kargo-api-common` / `eso-kargo-api-common` | `platform/kargo/api-common/{ghcr,git}` | `kargo-api-common` ([README](../../gitops/platform/kargo/README.md)) |
+
+Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role을 따로 만든다.
+
 ## 검증
 
 아래 순서대로 확인하면 어느 단계에서 막혔는지 바로 구분된다.

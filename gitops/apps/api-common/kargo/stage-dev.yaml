@@ -1,0 +1,48 @@
+# Warehouse의 새 Freight를 dev overlay에 digest로 고정하고 main에 직접 push한다.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: kargo-api-common
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: api-common
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      vars:
+        - name: gitopsRepo
+          value: https://github.com/hweyoung/homelab.git
+        - name: imageRepo
+          value: ghcr.io/umc-commonplant/api-common
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: ${{ vars.gitopsRepo }}
+            checkout:
+              - branch: main
+                path: ./src
+        - uses: kustomize-set-image
+          config:
+            path: ./src/gitops/apps/api-common/overlays/dev
+            images:
+              - image: ${{ vars.imageRepo }}
+                digest: ${{ imageFrom(vars.imageRepo).Digest }}
+        - uses: git-commit
+          config:
+            path: ./src
+            message: "[Chore] api-common dev 이미지 승격 (${{ imageFrom(vars.imageRepo).Tag }})"
+        - uses: git-push
+          as: push
+          config:
+            path: ./src
+        - uses: argocd-update
+          config:
+            apps:
+              - name: apps-api-common-dev
+                sources:
+                  - repoURL: ${{ vars.gitopsRepo }}
+                    desiredRevision: ${{ outputs.push.commit }}

@@ -1,0 +1,47 @@
+# kargo-pipelines AppProject
+# - 앱별 Kargo 파이프라인(gitops/apps/<app>/kargo). Kargo Project는 cluster-scoped라
+#   apps-dev/apps-prod에 둘 수 없고, platform은 모든 리소스를 허용해 범위가 너무 넓다.
+# - Kargo 리소스, 앱별 credential용 ESO 리소스와 kargo-api-* Project namespace만 허용한다.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kargo-pipelines
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: 앱별 Kargo 승격 파이프라인 (Project, Warehouse, Stage, credential)
+
+  sourceRepos:
+    - https://github.com/hweyoung/homelab.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: 'kargo-api-*'
+
+  clusterResourceWhitelist:
+    - group: kargo.akuity.io
+      kind: Project
+
+  namespaceResourceWhitelist:
+    - group: kargo.akuity.io
+      kind: ProjectConfig
+
+    - group: kargo.akuity.io
+      kind: Warehouse
+
+    - group: kargo.akuity.io
+      kind: Stage
+
+    - group: kargo.akuity.io
+      kind: PromotionTask
+
+    # 앱별 repository credential (OpenBao + ESO)
+    - group: ""
+      kind: ServiceAccount
+
+    - group: external-secrets.io
+      kind: SecretStore
+
+    - group: external-secrets.io
+      kind: ExternalSecret

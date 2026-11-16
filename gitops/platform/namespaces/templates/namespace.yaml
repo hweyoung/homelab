@@ -8,6 +8,9 @@ metadata:
     app.kubernetes.io/managed-by: argocd
     homelab.okbear.dev/environment: {{ required "namespaces[].environment is required" $namespace.environment | quote }}
     homelab.okbear.dev/gateway-access: {{ default "private" $namespace.gatewayAccess | quote }}
+    {{- with $namespace.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations:
     argocd.argoproj.io/sync-options: "Prune=confirm,Delete=confirm"
 {{- end }}
