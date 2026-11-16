@@ -8,6 +8,7 @@ GitHub Team을 Dex가 `groups` claim(`homelab-platform-org:<team slug>`)으로 �
 | Argo CD | `role:admin` | 권한 없음 | `ansible/roles/argocd/templates/argocd-values.yaml.j2` |
 | Grafana | Org Admin, 모든 대시보드 | Viewer, `10 Common Backend` 폴더 | `gitops/platform/monitoring/values.yaml`, 폴더 권한 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 읽기·쓰기 (dev, prod) | 아래 OpenBao 절차 |
+| Kargo | admin | viewer, 모든 Project 조회 | `gitops/platform/kargo/values.yaml` `api.oidc` |
 | Garage UI (도입 예정) | `admin_roles` | 지정한 bucket | 도입 시 `access_control`에 설정 |
 | bastion SSH | Tailscale SSH | 불가 | Tailscale 정책 (Dex와 무관) |
 

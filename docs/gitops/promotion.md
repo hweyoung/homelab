@@ -4,7 +4,9 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 각 구성 요소가 어떻게 동작하는지, 이 환경에서 왜 이렇게 구성했는지, 구성 중 바꾼 결정을 함께
 기록한다. 운영 절차와 명령은 [Kargo README](../../gitops/platform/kargo/README.md)를 기준으로 한다.
 
-현재 상태는 **정적 검증 완료**다. 실클러스터에서 Promotion 성공은 아직 확인하지 않았다.
+현재 상태는 **dev 자동 승격 동작 확인**이다. GHCR 이미지로 Freight가 만들어지고 dev Promotion이
+성공해 새 digest가 `api-common-dev`에 배포됐다. 승격 뒤 main이 진행되면 Stage가 Unhealthy로 남는 문제를
+수정 중이다(hweyoung/homelab#329).
 
 ## 구성 의도
 
@@ -43,8 +45,10 @@ flowchart LR
 | `Stage` `dev` | `stage-dev.yaml` | Warehouse에서 직접 Freight를 받아 dev overlay에 반영 |
 | SA, SecretStore, ExternalSecret 2개 | `external-secrets.yaml` | OpenBao에서 GHCR·Git credential을 가져온다 |
 
-API/UI와 external webhook은 끄고 시작했다. admin password와 token signing key가 필요 없고
-외부 진입점도 생기지 않는다. 승인과 조회는 kubectl로 한다.
+처음에는 API/UI를 끄고 controller만 설치했다. 이후 `https://kargo.okbear.dev`로 UI를 열고 Dex
+OIDC로만 로그인하게 했다. Kargo는 PKCE를 쓰므로 Dex client는 secret이 없는 public client이고,
+로컬 admin 계정과 UI의 Secret 관리 기능은 끈다. `platform-admin`은 admin, `common-backend`는
+viewer다. external webhook은 계속 끈다.
 
 ### dev Stage 단계
 
@@ -54,7 +58,7 @@ API/UI와 external webhook은 끄고 시작했다. admin password와 token signi
 | 2 | `kustomize-set-image` | `gitops/apps/api-common/overlays/dev`의 이미지를 Freight digest로 고정한다 |
 | 3 | `git-commit` | `[Chore] api-common dev 이미지 승격 (<tag>)` 메시지로 커밋한다 |
 | 4 | `git-push` | `main`에 push한다. 기본 정책은 충돌 시 rebase(`AlwaysRebase`)다 |
-| 5 | `argocd-update` | `apps-api-common-dev`를 push한 커밋으로 sync한다 |
+| 5 | `argocd-update` | `apps-api-common-dev`를 sync한다. health는 Application의 Synced/Healthy만 본다 |
 
 `argocd-update`가 동작하려면 대상 Application에 `kargo.akuity.io/authorized-stage:
 kargo-api-common:dev` annotation이 있어야 한다. root-app의 `api-common-dev` 항목에 선언했다.
@@ -68,6 +72,7 @@ dev overlay의 이미지는 Kargo가 관리하므로 수동으로 바꾸지 않�
 | -50 | `namespaces` | `platform` | `kargo*` namespace와 Project 라벨 |
 | -35 | `platform-cert-manager` | `platform` | webhook 인증서 발급 |
 | -11 | `platform-kargo` | `platform` | Kargo chart |
+| -10 | `platform-kargo-route` | `platform` | `kargo.okbear.dev` HTTPRoute |
 | 30 | `apps-api-common-dev` | `apps-dev` | 승격 대상 workload |
 | 30 | `apps-api-common-kargo` | `kargo-pipelines` | Project, Warehouse, Stage, credential |
 
@@ -93,7 +98,7 @@ namespace 구분은 Kargo chart의 설계를 따른다. Namespace metadata는 `p
 
 | Namespace | 용도 | 현재 |
 | --- | --- | --- |
-| `kargo` | controller Pod | 사용 |
+| `kargo` | controller, API Pod. `gatewayAccess: public` | 사용 |
 | `kargo-api-common` | Project namespace. Warehouse, Stage, Freight, Promotion, credential | 사용 |
 | `kargo-shared-resources` | 모든 Project가 읽는 공용 Secret | 미사용 |
 | `kargo-system-resources` | ClusterConfig(클러스터 단위 webhook receiver)가 참조하는 Secret | 미사용 |
@@ -161,6 +166,21 @@ fine-grained PAT는 만료마다 교체해야 하고 개인 계정에 묶인다.
 앱 단위로 key를 폐기할 수 있다. 승격 커밋 작성자는 App이 아니라 Kargo `gitClient` 설정(기본
 `Kargo <no-reply@kargo.io>`)을 따른다.
 
+### Stage health: desiredRevision 제거
+
+첫 Promotion은 성공했지만 dev Stage가 Unhealthy로 남았다. `argocd-update`에 `desiredRevision`(승격
+커밋)을 지정하면 Kargo는 Application이 그 커밋에 **정확히** sync되어야 Healthy로 본다.
+`apps-api-common-dev`는 `main`을 따라가므로 승격 뒤 다른 PR이 merge되면 sync 리비전이 바뀐다.
+실제로 승격 커밋 `cd1b93d` 뒤에 #327 merge 커밋 `e6b6b3b`로 sync되어, 앱은 Synced·Healthy인데
+Stage만 Unhealthy였다.
+
+`desiredRevision`을 뺐다. Kargo 1.1부터 이 값이 없으면 특정 리비전을 요구하지 않고 Application의
+Synced·Healthy만 확인한다. 승격 커밋은 main에 push된 뒤 sync되므로 이후 커밋에도 포함된다.
+
+환경별 브랜치(`env/dev`)에 Kargo만 커밋하는 방식이면 리비전이 항상 맞지만, 사람이 고치는 overlay
+변경 경로를 따로 설계해야 해서 택하지 않았다. 대신 승격 직후 Argo CD가 새 커밋을 반영하기 전에
+잠깐 Healthy로 보일 수 있으므로, prod 승격 판단에는 verification(smoke test)을 함께 둔다.
+
 ### PR 기반 승격 보류
 
 Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `main` 변경을 막을 수 있다.
@@ -172,9 +192,21 @@ Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `m
 ExternalSecret template에 `password: "{{ .password }}"`를 쓰면 CI의 평문 Secret 정규식에
 걸린다. template은 `repoURL`만 정의하고 `mergePolicy: Merge`로 원본 키를 그대로 합쳤다.
 
+### Warehouse OutOfSync
+
+배포 후 `apps-api-common-kargo`에서 Warehouse만 OutOfSync로 남았다. Kargo 1.11의 Warehouse
+defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelectionStrategy: SemVer`,
+`strictSemvers: true`, `discoveryLimit: 20`). `spec.subscriptions`는 `apiextensionsv1.JSON`으로
+저장되어 Argo CD가 subscription 항목을 통째로 비교하므로, 매니페스트에 없던 `strictSemvers: true`가
+차이로 잡혔다. 나머지 필드는 `omitempty`라 추가되지 않는다.
+
+`warehouse.yaml`에 `strictSemvers: true`를 명시했다. `NewestBuild`에서는 동작에 영향이 없다.
+수정은 hweyoung/homelab#327로 merge했고, 실클러스터 diff로 다른 필드가 없는지 확인한다. 새 앱의 Warehouse도 webhook 기본값이
+있는 필드는 처음부터 명시한다.
+
 ## 검증
 
-정적 검증만 완료했다.
+### 정적 검증
 
 | 항목 | 결과 |
 | --- | --- |
@@ -184,14 +216,26 @@ ExternalSecret template에 `password: "{{ .password }}"`를 쓰면 CI의 평문 
 | CRD schema | Kargo 1.11.0, ESO 2.9.0 CRD 기준 필드 확인 |
 | CI 검사 | 평문 Secret, placeholder, `git diff --check` 통과 |
 
+### 실클러스터
+
+| 항목 | 결과 |
+| --- | --- |
+| OpenBao 값, policy, role | 입력 완료 |
+| SecretStore, ExternalSecret 2개 | Synced, Healthy |
+| Project, ProjectConfig, Stage, SA | Synced |
+| Warehouse | OutOfSync → `strictSemvers` 명시(#327 merge), Synced 미확인 |
+| Freight 생성 | `b1db445` 생성 |
+| dev Promotion | `Succeeded`. 승격 커밋 `cd1b93d`가 main에 push되고 Application sync 성공 |
+| `apps-api-common-dev` | Synced, Healthy, Pod Running |
+| dev Stage health | Unhealthy(리비전 불일치) → `desiredRevision` 제거(#329) |
+
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
 `Succeeded` → `main` 승격 커밋 → `apps-api-common-dev` sync 순으로 본다.
 
 ## 한계와 후속 작업
 
-- OpenBao에 GHCR PAT, GitHub App 값, policy, role을 넣어야 파이프라인이 동작한다.
-- 실클러스터 Promotion을 아직 확인하지 않았다.
+- Argo CD에서 Warehouse Synced와 #329 merge 후 dev Stage Healthy를 확인해야 한다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
 - prod workload, `api-common-prod` Application, prod Stage와 승인 방식이 없다.
 - GHCR token은 개인 계정 classic PAT다. 조직 봇 계정으로 옮겨야 한다.

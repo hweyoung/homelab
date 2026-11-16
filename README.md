@@ -238,7 +238,8 @@ flowchart LR
 Freight가 가리키는 image digest이며, ConfigMap·Secret·DB endpoint·domain은 각 overlay에
 남깁니다. 현재는 api-common dev Stage까지 구성했습니다. 앱별 파이프라인은
 `gitops/apps/<앱>/kargo/`에 두고, GHCR·Git credential은 앱마다 OpenBao + ESO로 받습니다.
-API/UI, 외부 webhook, prod Stage와 승인 정책은 후속 변경으로 구성합니다.
+UI는 `kargo.okbear.dev`에서 Dex 로그인으로 씁니다. 외부 webhook, prod Stage와 승인 정책은
+후속 변경으로 구성합니다.
 
 ## 선언된 버전
 
@@ -266,7 +267,7 @@ API/UI, 외부 webhook, prod Stage와 승인 정책은 후속 변경으로 구�
 | CloudNativePG | chart `0.29.0` | PostgreSQL Operator |
 | OpenBao | chart `0.29.2`, image `2.6.2` | single Raft |
 | External Secrets Operator | chart `2.9.0` | namespaced Store만 처리 |
-| Kargo | chart `1.11.0` | API 비활성화 |
+| Kargo | chart `1.11.0` | UI는 Dex OIDC 로그인, 로컬 admin 비활성화 |
 | kube-prometheus-stack | chart `92.14.0` | Prometheus, Alertmanager, Grafana, operator |
 | Loki | app `3.6.16`, chart `7.5.0` | SingleBinary |
 | Alloy | app `1.21.2`, chart `1.14.3` | Pod 로그 수집 |

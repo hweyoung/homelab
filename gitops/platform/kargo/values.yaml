@@ -1,6 +1,6 @@
-# Kargo is installed as an internal, declaratively managed promotion controller.
-# API/UI authentication and external webhook exposure are intentionally deferred
-# to a separate change so the initial installation needs no bootstrap credential.
+# Kargo is installed as a declaratively managed promotion controller.
+# The API/UI is exposed at kargo.okbear.dev and authenticates only through Dex.
+# External webhook exposure remains disabled.
 
 global:
   # Namespace objects remain owned by gitops/platform/namespaces.
@@ -30,8 +30,46 @@ crds:
   install: true
   keep: true
 
+# UI와 API. TLS는 Traefik Gateway가 종료하고 Pod는 HTTP로 받는다.
 api:
-  enabled: false
+  enabled: true
+  host: kargo.okbear.dev
+  # 파이프라인과 credential은 GitOps로 관리하므로 UI의 Secret 관리 기능을 끈다.
+  secretManagementEnabled: false
+  # 로그인은 Dex만 쓴다. Dex 장애 시에는 kubectl로 Kargo 리소스를 다룬다.
+  adminAccount:
+    enabled: false
+  tls:
+    enabled: false
+    terminatedUpstream: true
+  # Dex public client(PKCE)라 client secret이 없다.
+  # groups claim은 "<org>:<team slug>" 형식이다.
+  oidc:
+    enabled: true
+    issuerURL: https://dex.okbear.dev
+    clientID: kargo
+    additionalScopes:
+      - groups
+    admins:
+      claims:
+        groups:
+          - homelab-platform-org:platform-admin
+    viewers:
+      claims:
+        groups:
+          - homelab-platform-org:common-backend
+    dex:
+      enabled: false
+  # controller와 같이 Argo Rollouts 연동을 끈다. API 권한도 그만큼 줄어든다.
+  rollouts:
+    integrationEnabled: false
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 # argocd namespace의 kargo-controller Role/RoleBinding은 argocd-control-plane
 # (kargo-controller-rbac.yaml)이 소유한다. platform AppProject는 argocd를

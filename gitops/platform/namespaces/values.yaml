@@ -26,9 +26,10 @@ namespaces:
     environment: prod
     gatewayAccess: public
 
+  # kargo-route(kargo.okbear.dev)가 public-gateway에 붙으려면 public이어야 한다.
   - name: kargo
     environment: prod
-    gatewayAccess: private
+    gatewayAccess: public
 
   # Kargo keeps namespaced resources referenced by cluster-scoped configuration
   # and optional credentials shared by future promotion projects separately.

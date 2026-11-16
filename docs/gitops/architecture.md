@@ -39,6 +39,7 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | -12 | `platform-external-secrets` | `platform` | secret sync controller |
 | -11 | `platform-kargo` | `platform` | promotion controller/CRD |
 | -10 | `platform-garage` | `platform` | S3-compatible storage |
+| -10 | `platform-kargo-route` | `platform` | Kargo UI route |
 | -10 | `argocd-server` | `argocd-system` | Argo CD 노출 리소스 |
 | -9 | `platform-garage-route` | `platform` | public image route |
 | -8 | `platform-monitoring-secrets` | `platform` | Grafana admin, Discord webhook ExternalSecret |
@@ -49,7 +50,7 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | 30 | `apps-nginx-{dev,prod}`, `apps-api-common-dev` | `apps-*` | workload |
 | 30 | `apps-api-common-kargo` | `kargo-pipelines` | api-common Kargo Project, Warehouse, Stage, credential |
 
-root-app은 33개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
+root-app은 34개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
 controller Ready를 보장하지 않는다. PostgreSQL 적용 전 CNPG CRD/controller readiness처럼
 런타임 의존성을 별도로 확인해야 한다.
 
