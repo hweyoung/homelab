@@ -9,7 +9,8 @@ GitHub Team을 Dex가 `groups` claim(`homelab-platform-org:<team slug>`)으로 �
 | Grafana | Org Admin, 모든 대시보드 | Viewer, `10 Common Backend` 폴더 | `gitops/platform/monitoring/values.yaml`, 폴더 권한 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 읽기·쓰기 (dev, prod) | 아래 OpenBao 절차 |
 | Kargo | admin | viewer, 모든 Project 조회 | `gitops/platform/kargo/values.yaml` `api.oidc` |
-| Garage UI (도입 예정) | `admin_roles` | 지정한 bucket | 도입 시 `access_control`에 설정 |
+| Garage 관리 UI (도입 예정) | `admin_roles` | 권한 없음 | 아래 Garage 절 |
+| Garage 데이터 | 모든 bucket | 사람용 S3 key: `common-dev` 읽기·쓰기, `common-prod` 읽기 | `gitops/platform/garage/README.md` |
 | bastion SSH | Tailscale SSH | 불가 | Tailscale 정책 (Dex와 무관) |
 
 Argo CD와 Grafana의 로컬 admin 계정, OpenBao 복구 수단은 Dex와 GitHub 장애에 대비한 비상 접근용으로 유지한다.
@@ -102,6 +103,27 @@ EOF
 ```
 
 UI 로그인에서 Method를 `OIDC`로 고르고 Role에 위 역할 이름을 넣는다. 비우면 `common-backend`로 로그인한다.
+
+## Garage
+
+Garage 권한 경계는 key-bucket 권한뿐이다. 관리 UI는 admin token 하나로 동작하므로 UI 안의 bucket별 접근
+제어는 경계가 되지 않는다. 그래서 관리와 데이터 접근을 나눈다.
+
+- 관리 UI는 `platform-admin`만 쓴다. Dex `admin_roles`에 `homelab-platform-org:platform-admin`만 넣고, 팀
+  그룹을 `access_control`에 추가하지 않는다.
+- 팀은 사람용 S3 key로 자기 bucket에만 접근한다. key는 `secret/apps/<app>/<env>/storage-console`에 두고,
+  팀은 기존 OpenBao 정책으로 받아 간다.
+- 새 애플리케이션은 `<app>-<env>` bucket, 앱 key, 사람용 key, OpenBao 경로, GitHub Team을 한 묶음으로 만든다.
+
+bucket과 key 목록, 발급 명령은 [Garage README](../../gitops/platform/garage/README.md#권한-분리)를 따른다.
+팀원이 빠지면 GitHub Team에서 제거하고 사람용 key를 교체한다.
+
+```bash
+kubectl -n garage exec deploy/garage -- /garage key create team-common-backend-dev-v2
+kubectl -n garage exec deploy/garage -- /garage bucket allow --read --write --key <NEW_KEY_ID> common-dev
+# OpenBao 값을 새 key로 바꾼 뒤 기존 key 삭제
+kubectl -n garage exec deploy/garage -- /garage key delete --yes <OLD_KEY_ID>
+```
 
 ## Grafana
 

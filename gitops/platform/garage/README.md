@@ -37,19 +37,63 @@ Garage v2.3의 `server --single-node`가 최초 실행에서 단일 노드 layou
 
 ```bash
 # bucket 생성
-kubectl -n garage exec deploy/garage -- /garage bucket create commonplant
+kubectl -n garage exec deploy/garage -- /garage bucket create common-dev
 
 # access key 생성 (출력에는 secret key가 포함되므로 터미널/로그 취급에 주의)
-kubectl -n garage exec deploy/garage -- /garage key create commonplant
+kubectl -n garage exec deploy/garage -- /garage key create app-common-dev
 
 # 위 명령이 출력한 key ID를 사용해 bucket 권한 부여
 kubectl -n garage exec deploy/garage -- \
-  /garage bucket allow --read --write --owner --key <KEY_ID> commonplant
+  /garage bucket allow --read --write --key <KEY_ID> common-dev
 ```
 
 애플리케이션의 endpoint/region은 각각 `http://garage.garage.svc:3900`, `garage`입니다.
 발급한 S3 access/secret key는 Git에 기록하지 말고 SOPS 또는 External Secrets로 소비
 namespace에 전달합니다.
+
+## 권한 분리
+
+Garage 권한은 key와 bucket 사이의 `read`/`write`/`owner`뿐입니다. bucket policy나 prefix 단위
+권한이 없으므로 **bucket이 권한 경계**입니다. 애플리케이션과 환경마다 bucket을 나누고 key를 공유하지
+않습니다.
+
+- bucket 이름은 `<app>-<env>`입니다. 공개 website bucket과 비공개 파일 bucket은 분리합니다
+  (`common-prod`, `common-prod-private`).
+- 애플리케이션 key와 사람이 쓰는 key를 나눕니다. 팀원이 빠지면 사람용 key만 교체하고 앱은 재배포하지
+  않습니다.
+- key에 `owner`를 주지 않습니다. `owner`는 S3 API로 website, CORS 같은 bucket 설정을 바꿀 수 있습니다.
+  bucket 설정은 관리자가 CLI나 관리 UI에서 합니다.
+- prod의 사람용 key는 읽기 전용이 기본입니다. 쓰기가 필요할 때만 잠시 `--write`를 부여하고 회수합니다.
+
+| bucket | key | 권한 | OpenBao 경로 (`secret/`) |
+| --- | --- | --- | --- |
+| `common-dev` | `app-common-dev` | read, write | `apps/common/dev/image` |
+| `common-prod` | `app-common-prod` | read, write | `apps/common/prod/image` |
+| `common-dev` | `team-common-backend-dev` | read, write | `apps/common/dev/storage-console` |
+| `common-prod` | `team-common-backend-prod` | read | `apps/common/prod/storage-console` |
+
+사람용 key를 앱 경로 아래에 두면 OpenBao의 기존 팀 정책(`common-backend`)으로 해당 팀만 받아 갈 수
+있습니다. bucket이나 key를 추가·회수하면 이 표도 함께 고칩니다. 현재 권한은 다음 명령으로 확인합니다.
+
+```bash
+kubectl -n garage exec deploy/garage -- /garage bucket info common-prod
+kubectl -n garage exec deploy/garage -- /garage key info app-common-prod
+```
+
+모든 bucket은 같은 Garage 프로세스와 `dev` worker의 PVC에 있습니다. bucket 분리는 권한 경계이고 장애나
+디스크 격리 경계는 아닙니다.
+
+### UI 접근
+
+| 용도 | 대상 | 인증 | 경계 |
+| --- | --- | --- | --- |
+| 관리 UI (bucket·key·권한 관리) | `platform-admin` | Dex OIDC | UI가 admin token을 쓰므로 Garage 관리자 권한과 같음 |
+| 데이터 조회·업로드 | 각 팀 | 사람용 S3 key | Garage가 key-bucket 권한으로 직접 제한 |
+
+관리 UI의 bucket별 접근 제어는 UI 내부 기능이고 보안 경계가 아닙니다. 팀에게 관리 UI를 열지 않습니다.
+Garage v2 admin token scope도 API 단위라 bucket별로 제한할 수 없습니다. 팀원은 OpenBao에서 받은
+사람용 key로 S3 클라이언트(Cyberduck, rclone 등)나 S3 key로 로그인하는 웹 브라우저를 사용합니다.
+S3 API와 admin API는 계속 공개 경로에 노출하지 않습니다.
 
 ## 외부 이미지 URL과 Bucket Routing
 

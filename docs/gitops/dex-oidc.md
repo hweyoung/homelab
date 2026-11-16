@@ -192,10 +192,10 @@ OpenBao 내부 설정은 GitOps로 관리하지 않는다. 아래 명령을 마�
 Garage는 키-버킷 단위 권한만 있고 버킷 정책을 지원하지 않는다. `garage-ui`의 `bucket_prefixes`도 **버킷 이름 접두사**이며
 버킷 내부 폴더 단위 제한으로 보지 않는다. 도입할 때 주의한다.
 
-- `common-dev`처럼 전용 버킷을 정확한 이름으로 지정한다. `common-`은 다른 버킷까지 포함할 수 있다.
-- `garage-ui` 문서상 이 기능은 보안 경계가 아니다. UI 내부의 단일 토큰과 S3 키를 가진 사람은 우회할 수 있으므로
-  애플리케이션 S3 키는 버킷별로 분리한다.
-- Dex의 `staticClients`에 client를 추가하고 `admin_roles`에 `homelab-platform-org:platform-admin`을 넣는다.
+- `garage-ui` 문서상 이 기능은 보안 경계가 아니다. UI 내부의 단일 토큰과 S3 키를 가진 사람은 우회할 수 있다.
+- 그래서 관리 UI는 `platform-admin` 전용으로 둔다. Dex의 `staticClients`에 client를 추가하고 `admin_roles`에
+  `homelab-platform-org:platform-admin`만 넣는다. 팀 그룹은 `access_control`에 넣지 않는다.
+- 팀의 데이터 접근은 버킷별 사람용 S3 키로 Garage가 직접 제한한다. [access-control.md](access-control.md#garage)를 따른다.
 
 ### bastion SSH
 
