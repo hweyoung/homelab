@@ -25,6 +25,13 @@ gatewayClass:
 # Cloudflare Tunnel 뒤에 있으므로 외부 LoadBalancer 가 아닌 ClusterIP 로 노출한다.
 service:
   type: ClusterIP
+  # 관리 도구용 진입점은 Tailscale Operator가 tailnet에만 노출한다.
+  additionalServices:
+    tailnet:
+      type: LoadBalancer
+      loadBalancerClass: tailscale
+      annotations:
+        tailscale.com/hostname: homelab-gateway
 
 ports:
   web:
@@ -33,6 +40,14 @@ ports:
   websecure:
     port: 8443
     exposedPort: 443
+  # Cloudflare Tunnel이 쓰는 기본 Service에는 노출하지 않는다.
+  tailnet:
+    port: 8444
+    exposedPort: 443
+    protocol: TCP
+    expose:
+      default: false
+      tailnet: true
 
 # 요청 수, 지연, 상태 코드 metric을 monitoring Prometheus가 수집한다.
 metrics:
