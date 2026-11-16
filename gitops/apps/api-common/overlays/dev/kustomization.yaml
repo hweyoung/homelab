@@ -1,21 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 namespace: api-common-dev
-
 resources:
-  - ../../base
-  - httproute.yaml
-  - external-secrets
-
+- ../../base
+- httproute.yaml
+- external-secrets
 configMapGenerator:
-  - name: api-common-config
-    envs:
-      - config.env
-
+- name: api-common-config
+  envs:
+  - config.env
 images:
-  - name: ghcr.io/umc-commonplant/api-common
-    newTag: sha-03ece0e466f2f47f72263085f3bfa737b3e1a53c
-
+- name: ghcr.io/umc-commonplant/api-common
+  digest: sha256:35fa608488de6183247ebf04222ca4c93b25e35c99cb7df518b7ebecd7dc5a74
 patches:
-  - path: patch-deployment.yaml
+- path: patch-deployment.yaml
