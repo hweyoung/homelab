@@ -5,7 +5,7 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 기록한다. 운영 절차와 명령은 [Kargo README](../../gitops/platform/kargo/README.md)를 기준으로 한다.
 
 현재 상태는 **배포 진행 중**이다. `apps-api-common-kargo`가 배포되어 credential 동기화까지 확인했고,
-Warehouse OutOfSync를 수정하는 중이다. dev Promotion 성공은 아직 확인하지 않았다.
+Warehouse OutOfSync 수정(#327)은 merge했다. Warehouse Synced와 dev Promotion 성공은 아직 확인하지 않았다.
 
 ## 구성 의도
 
@@ -185,7 +185,7 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 차이로 잡혔다. 나머지 필드는 `omitempty`라 추가되지 않는다.
 
 `warehouse.yaml`에 `strictSemvers: true`를 명시했다. `NewestBuild`에서는 동작에 영향이 없다.
-실클러스터 diff로 다른 필드가 없는지는 merge 후 확인한다. 새 앱의 Warehouse도 webhook 기본값이
+수정은 hweyoung/homelab#327로 merge했고, 실클러스터 diff로 다른 필드가 없는지 확인한다. 새 앱의 Warehouse도 webhook 기본값이
 있는 필드는 처음부터 명시한다.
 
 ## 검증
@@ -207,7 +207,7 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 | OpenBao 값, policy, role | 입력 완료 |
 | SecretStore, ExternalSecret 2개 | Synced, Healthy |
 | Project, ProjectConfig, Stage, SA | Synced |
-| Warehouse | OutOfSync → `strictSemvers` 명시로 수정 중 |
+| Warehouse | OutOfSync → `strictSemvers` 명시(#327 merge), Synced 미확인 |
 | Freight 생성, dev Promotion | 미확인 |
 
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
