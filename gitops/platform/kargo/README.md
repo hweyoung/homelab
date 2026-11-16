@@ -166,8 +166,8 @@ GitOps 저장소나 레지스트리가 달라도 같은 구조를 씁니다.
 
 Kargo는 Project namespace에서 `kargo.akuity.io/cred-type` 라벨이 붙은 Secret을 `repoURL`로
 찾습니다. 값은 OpenBao에 두고 `external-secrets.yaml`의 ExternalSecret이 라벨과 `repoURL`을
-붙여 Secret을 만듭니다. token을 교체할 때는 OpenBao 값만 바꾸면 되고 Git 커밋은 필요
-없습니다.
+붙여 Secret을 만듭니다. token이나 key를 교체할 때는 OpenBao 값만 바꾸면 되고 Git 커밋은
+필요 없습니다.
 
 Kubernetes 쪽(SA, SecretStore, ExternalSecret)은 매니페스트로 관리합니다. OpenBao의 KV 값,
 policy, Kubernetes Auth role은 Kubernetes 리소스가 아니므로 다른 앱과 같이
@@ -182,22 +182,45 @@ policy, Kubernetes Auth role은 Kubernetes 리소스가 아니므로 다른 앱�
 | --- | --- | --- |
 | `ghcr` | `username` | token을 만든 GitHub 사용자명 |
 | `ghcr` | `password` | classic PAT, `read:packages`만. GHCR은 fine-grained token을 지원하지 않는다. token 소유자가 `umc-commonplant/api-common` package를 읽을 수 있어야 한다 |
-| `git` | `username` | GitHub 사용자명 (비어 있지만 않으면 된다) |
-| `git` | `password` | fine-grained PAT. owner `hweyoung`, repository `homelab`만, Contents: Read and write. prod Stage를 추가할 때 Pull requests: Read and write를 더한다 |
+| `git` | `githubAppClientID` | GitHub App의 Client ID (`Iv` 로 시작) |
+| `git` | `githubAppInstallationID` | homelab에 설치한 App의 Installation ID (숫자) |
+| `git` | `githubAppPrivateKey` | App에서 생성한 PEM private key 전체 |
 
-fine-grained PAT는 경로 단위로 제한할 수 없으므로 앱별 Git token도 homelab 저장소 전체에
-쓰기 권한을 가집니다. 앱별로 나누는 목적은 권한 축소가 아니라 폐기 범위와 추적의 분리입니다.
+GHCR은 GitHub App token을 받지 않고 Kargo의 image credential도 App 인증을 지원하지 않으므로
+GHCR만 classic PAT를 씁니다. 지금은 개인 계정 token으로 시작하고, 조직 봇 계정이 생기면
+package Read 권한만 준 봇 계정 token으로 바꿉니다.
 
-token이 shell history에 남지 않도록 stdin으로 넣습니다.
+#### GitHub App 준비
+
+Git push는 PAT 대신 GitHub App을 씁니다. Kargo가 private key로 1시간짜리 installation
+token을 그때그때 발급받으므로 token 만료를 관리할 필요가 없고 사람 계정과도 분리됩니다.
+GitHub 권한 모델상 저장소 단위가 최소이므로 쓰기 범위는 PAT와 같이 homelab 저장소 전체입니다.
+
+1. Settings → Developer settings → GitHub Apps → New GitHub App
+   (저장소가 조직 소유이면 조직 설정의 Developer settings)
+2. Webhook의 Active를 끈다. Repository permissions는 Contents: Read and write만 준다
+   (Metadata: Read-only는 자동). 설치 범위는 Only on this account로 둔다.
+3. 생성 후 Client ID를 기록하고, Generate a private key로 PEM을 내려받는다.
+4. Install App → Only select repositories → `homelab`만 선택한다. 설치 후 URL 끝 숫자가
+   Installation ID다.
+
+같은 GitOps 저장소에 push하는 다른 Kargo Project도 이 App을 재사용할 수 있습니다. 이때
+private key는 Project마다 따로 생성해 OpenBao에 넣으면 앱 단위로 key를 폐기할 수 있습니다.
+
+#### OpenBao 값 넣기
+
+token과 key가 shell history에 남지 않도록 stdin과 파일 참조(`@`)로 넣습니다.
 
 ```bash
 read -rs GHCR_TOKEN && printf '%s' "$GHCR_TOKEN" \
   | bao kv put -mount=secret platform/kargo/api-common/ghcr username='<GitHub 사용자명>' password=- \
   && unset GHCR_TOKEN
 
-read -rs GIT_TOKEN && printf '%s' "$GIT_TOKEN" \
-  | bao kv put -mount=secret platform/kargo/api-common/git username='<GitHub 사용자명>' password=- \
-  && unset GIT_TOKEN
+bao kv put -mount=secret platform/kargo/api-common/git \
+  githubAppClientID='<Client ID>' \
+  githubAppInstallationID='<Installation ID>' \
+  githubAppPrivateKey=@/path/to/app.private-key.pem
+rm -P /path/to/app.private-key.pem
 ```
 
 읽기 전용 policy를 만듭니다. KV v2이므로 경로에 `data/`가 들어갑니다.
