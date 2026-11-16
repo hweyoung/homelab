@@ -4,6 +4,9 @@ Kargo는 GHCR에 발행된 애플리케이션 이미지를 환경별 GitOps over
 빌드와 Kubernetes 배포 사이의 책임을 분리하고, dev에서 검증한 artifact를 다시 빌드하지
 않은 채 prod에 반영하기 위해 도입했습니다.
 
+구성 의도와 구성 중 바꾼 결정은 [Kargo 이미지 승격 문서](../../../docs/gitops/promotion.md)에
+정리했습니다. 이 README는 설정 값과 운영 명령을 다룹니다.
+
 ## 도입 배경
 
 애플리케이션 소스와 CI는 팀이 사용하는 GitHub Organization 저장소에 있고, Kubernetes의

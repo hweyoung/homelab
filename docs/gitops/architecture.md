@@ -129,7 +129,8 @@ Stage는 아직 없으므로 동일 digest의 dev→prod 승격은 라이브 완
 
 파이프라인은 앱별로 `gitops/apps/<앱>/kargo/`에 두고 `kargo-pipelines` AppProject로 배포한다.
 GHCR·Git credential도 Project namespace마다 따로 두어 token 소유자와 폐기 범위를 앱 단위로
-분리한다. 상세는 [Kargo README](../../gitops/platform/kargo/README.md)에 있다.
+분리한다. 구성 의도와 결정 과정은 [Kargo 이미지 승격](promotion.md), 운영 명령은
+[Kargo README](../../gitops/platform/kargo/README.md)에 있다.
 
 ## 운영 한계
 

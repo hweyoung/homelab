@@ -29,6 +29,7 @@
 - [OpenBao + ESO](gitops/openbao-eso.md)
 - [플랫폼 업그레이드](gitops/platform-upgrade.md) — `platformVersions` 단계별 업그레이드
 - [Observability](gitops/observability.md) — Prometheus, Grafana, Loki, Alloy, 알림 rule, 대시보드
+- [Kargo 이미지 승격](gitops/promotion.md) — Warehouse, Stage, AppProject, credential, 구성 결정
 
 ### 컴포넌트 README
 
