@@ -183,6 +183,9 @@ OpenBao 내부 설정은 GitOps로 관리하지 않는다. 아래 명령을 마�
   Project를 읽을 수 있지만 승격이나 수정은 할 수 없다.
 - 로컬 admin 계정(`api.adminAccount`)은 끈다. 비밀번호 hash와 token signing key를 따로 관리해야 하고,
   Dex 장애 시에는 kubectl로 Kargo 리소스를 다룰 수 있기 때문이다.
+- Kargo UI는 SPA라 브라우저가 Dex의 discovery, token, keys endpoint를 직접 호출한다. 그래서 Dex
+  `web.allowedOrigins`에 `https://kargo.okbear.dev`를 넣는다. 서버에서 Dex를 호출하는 Argo CD, Grafana,
+  OpenBao에는 필요 없다.
 
 ### Garage UI (예정)
 
@@ -428,6 +431,7 @@ Grafana admin 비밀번호는 DB를 처음 만들 때만 반영되므로 UI에�
 | Argo CD 로그인 후 앱이 안 보임 | RBAC 미반영이나 기존 세션 | `argocd-rbac-cm` 확인 후 재로그인 |
 | Grafana 로그인 거부 | 그룹 매핑 없음(strict) | Team 소속과 `role_attribute_path` 확인 |
 | Grafana GitHub 로그인만 실패 | Secret이 Pod 기동 후 생성되어 값이 비어 있음 | 아래 "Grafana client secret 반영 확인" 참고 |
+| Kargo UI `OIDC: Failed to fetch` | 브라우저의 Dex discovery 요청이 CORS로 막힘 | Dex `web.allowedOrigins`에 `https://kargo.okbear.dev` 추가 |
 | Dex에서 로그인 거부 | Team 미소속, 초대 미수락 | Team 소속 확인. owner도 Team에 있어야 함 |
 | 그룹이 비어 있음 | 개인 계정 소유 OAuth App이 접근 제한에 걸림 | org 소유 앱으로 등록 |
 | Team 변경이 반영되지 않음 | 기존 세션 유지 | 로그아웃 후 재로그인 |
