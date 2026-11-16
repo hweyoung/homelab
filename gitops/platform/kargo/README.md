@@ -162,6 +162,8 @@ kubectl get validatingwebhookconfiguration,mutatingwebhookconfiguration \
 | Secret 관리 | 끔(`secretManagementEnabled: false`). credential은 GitOps와 OpenBao로만 관리 |
 
 `kargo` namespace는 HTTPRoute가 `public-gateway`에 붙도록 `gatewayAccess: public`입니다.
+Cloudflare Tunnel의 public hostname은 Git으로 관리하지 않으므로 배포 전에 `kargo.okbear.dev`를
+다른 관리 도구 경로와 같은 Service로 추가합니다.
 Dex client 설정과 권한 근거는 [Dex OIDC 문서](../../../docs/gitops/dex-oidc.md#kargo)에 있습니다.
 
 ```bash
