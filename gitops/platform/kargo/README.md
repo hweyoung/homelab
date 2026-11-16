@@ -256,13 +256,25 @@ bao policy read kargo-api-common
 bao read auth/kubernetes/role/kargo-api-common
 ```
 
+### Warehouse가 OutOfSync일 때
+
+Kargo webhook은 image subscription의 빈 `imageSelectionStrategy`, `strictSemvers`,
+`discoveryLimit`을 기본값으로 채웁니다. `subscriptions`는 JSON 그대로 저장되어 Argo CD가 이
+기본값을 차이로 봅니다. 그래서 `warehouse.yaml`에 세 값을 모두 명시합니다. 그래도 OutOfSync이면
+남은 필드를 확인합니다.
+
+```bash
+argocd app diff apps-api-common-kargo
+kubectl get warehouse api-common -n kargo-api-common -o jsonpath='{.spec.subscriptions}'
+```
+
 ### 앱 추가
 
 새 앱 `<앱>`의 파이프라인은 다음을 추가합니다.
 
 1. `platform/namespaces/values.yaml`에 `kargo-<앱>` namespace와
    `kargo.akuity.io/project: "true"` 라벨
-2. `gitops/apps/<앱>/kargo/`에 Project, ProjectConfig, Warehouse, Stage와
+2. `gitops/apps/<앱>/kargo/`에 Project, ProjectConfig, Warehouse(webhook 기본값 필드 명시), Stage와
    `external-secrets.yaml`(SA `eso-kargo-<앱>`, SecretStore, ExternalSecret)
 3. OpenBao `platform/kargo/<앱>/{ghcr,git}` 값, policy와 role `kargo-<앱>`
 4. root-app에 `<앱>-kargo` 항목(`project: kargo-pipelines`)
