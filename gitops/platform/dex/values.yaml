@@ -15,6 +15,12 @@ config:
     config:
       inCluster: true
 
+  # Kargo UI는 브라우저에서 discovery와 token 요청을 직접 보낸다(PKCE SPA).
+  # 다른 도구는 서버에서 Dex를 호출하므로 CORS가 필요 없다.
+  web:
+    allowedOrigins:
+      - https://kargo.okbear.dev
+
   oauth2:
     skipApprovalScreen: true
 

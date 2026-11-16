@@ -156,7 +156,7 @@ kubectl get validatingwebhookconfiguration,mutatingwebhookconfiguration \
 | --- | --- |
 | 노출 | `platform-kargo-route` HTTPRoute → `public-gateway` → Service `kargo-api:80` |
 | TLS | Gateway에서 종료. `api.tls.enabled: false`, `terminatedUpstream: true` |
-| 로그인 | Dex OIDC (`https://dex.okbear.dev`), client `kargo`, PKCE public client |
+| 로그인 | Dex OIDC (`https://dex.okbear.dev`), client `kargo`, PKCE public client. 브라우저가 Dex를 직접 호출하므로 Dex `web.allowedOrigins`에 이 주소가 있어야 한다 |
 | 로컬 admin | 끔. Dex 장애 시 kubectl 사용 |
 | 권한 | `platform-admin` → admin, `common-backend` → viewer |
 | Secret 관리 | 끔(`secretManagementEnabled: false`). credential은 GitOps와 OpenBao로만 관리 |
