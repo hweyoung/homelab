@@ -36,13 +36,12 @@ spec:
             path: ./src
             message: "[Chore] api-common dev 이미지 승격 (${{ imageFrom(vars.imageRepo).Tag }})"
         - uses: git-push
-          as: push
           config:
             path: ./src
+        # desiredRevision을 지정하지 않는다. 앱 Application은 main을 따라가므로 승격 뒤
+        # 다른 커밋이 merge되면 리비전이 달라져 Stage가 계속 Unhealthy가 된다.
+        # health는 Application의 Synced/Healthy만 본다.
         - uses: argocd-update
           config:
             apps:
               - name: apps-api-common-dev
-                sources:
-                  - repoURL: ${{ vars.gitopsRepo }}
-                    desiredRevision: ${{ outputs.push.commit }}
