@@ -37,15 +37,13 @@ Secret 이름을 양쪽이 동시에 소유하지 않도록 명시적으로 owne
 | cert-manager | `platform/cert-manager-config/cloudflare-api-token.sops.yaml` | DNS-01 issuer |
 | Cloudflare Tunnel | `platform/cloudflared/cloudflare-tunnel-token.sops.yaml` | cloudflared |
 | PostgreSQL | `databases/postgres/overlays/{dev,prod}/*.sops.yaml` | CNPG bootstrap/role |
-| api-common | `databases/postgres/overlays/dev/api-common/db-auth-secret.sops.yaml` | DB role/app |
-| api-common | `apps/api-common/base/ghcr-secret.sops.yaml` | imagePullSecret |
+| api-common | `databases/postgres/overlays/{dev,prod}/api-common/db-auth-secret.sops.yaml` | DB role. 앱은 같은 값을 OpenBao `apps/common/<env>/database`에서 읽는다 |
+| api-common | `apps/api-common/overlays/dev/ghcr-secret.sops.yaml` | dev imagePullSecret. prod는 ESO(`apps/common/prod/ghcr`) |
 | Infisical 준비 | `platform/infisical/bootstrap/*.sops.yaml` 등 | 현재 root-app에서 비활성 |
 
 KSOPS generator(`*-secret-generator.yaml`)에는 credential을 넣지 않고 `files:`에서 암호화
-payload만 참조한다. 현재 `apps/api-common/base/ghcr-secret-generator.sops.yaml`은 암호문이
-아닌 generator인데 잘못된 suffix를 사용한다. 실제 Kustomization은 suffix 없는 generator를
-참조하지만 CI의 “모든 `*.sops.yaml` 암호화” 검사에는 걸린다. 이름을 정리하기 전에는 전체
-Secret 검사를 실패로 판정하며, 이 파일을 payload로 오인해 암호화하거나 값을 넣지 않는다.
+payload만 참조한다. generator 파일에 `.sops.yaml` suffix를 붙이면 CI의 “모든 `*.sops.yaml`
+암호화” 검사에 걸린다.
 
 ## 암호화와 편집
 

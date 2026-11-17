@@ -8,8 +8,8 @@ api-common dev의 앱 Secret `api-common-secret`은 OpenBao + External Secrets O
 | --- | --- |
 | 대상 | `api-common-dev` 네임스페이스의 `api-common-secret` |
 | 이전 방식 | KSOPS `secret-generator.yaml` + `secret.sops.env` (삭제 완료) |
-| 계속 SOPS 사용 | GHCR pull Secret(`base/ghcr-secret*`), CNPG DB 계정 Secret |
-| prod | overlay 작성 중, root-app 미등록, OpenBao role 미생성 |
+| 계속 SOPS 사용 | dev GHCR pull Secret(`overlays/dev/ghcr-secret*`), CNPG DB 계정 Secret |
+| prod | `api-common-secret`과 GHCR pull Secret `ghcr-pull-secret`을 ESO로 동기화. workload는 Kargo 첫 승격 전까지 replicas 0 |
 
 ## 인증·동기화 흐름
 
@@ -109,6 +109,9 @@ bao write auth/kubernetes/role/common-dev \
 ```
 
 prod는 `dev`를 `prod`로 바꿔 같은 순서로 만든다. role은 prod SA가 생긴 뒤 만들어도 된다.
+prod는 GHCR pull Secret도 ESO로 만들므로 `apps/common/prod/ghcr`에 `username`과
+`password`(classic PAT, `read:packages`)를 추가로 넣는다. policy `common-prod`가
+`secret/data/apps/common/prod/*`를 읽으면 경로를 따로 추가할 필요가 없다.
 
 같은 방식을 쓰는 다른 소비자의 경로와 role은 다음과 같다. 절차는 각 README를 따른다.
 
@@ -159,10 +162,10 @@ Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role
 
 - [ ] 수동 ClusterRoleBinding `openbao-tokenreview` 삭제 (chart 바인딩과 중복)
 - [ ] OpenBao HTTPRoute에서 `http` 리스너 제거 또는 https 리다이렉트 (현재 평문 접근 가능)
-- [ ] dev/prod Garage 경로와 property 이름 통일
+- [x] dev/prod Garage 경로와 property 이름 통일 (prod도 `apps/common/prod/image`)
 - [ ] SecretStore `server` 주소를 dev도 FQDN(`platform-openbao.openbao.svc.cluster.local`)으로 맞춤
 - [ ] 해시 붙은 이전 KSOPS Secret 정리 확인
 - [ ] prod: OpenBao 시크릿·policy·role(`common-prod`, `api-common-prod`, `eso-common-prod`) 생성
-- [ ] prod: `api-common-prod` Application을 root-app에 등록하고 `apps-prod` AppProject 변경과 함께 반영
+- [x] prod: `api-common-prod` Application을 root-app에 등록하고 `apps-prod` AppProject 변경과 함께 반영
 - [ ] OpenBao 운영: auto-unseal 없음(재시작 시 수동 unseal), audit device·snapshot agent 미설정
-- [ ] (선택) GHCR pull Secret도 ESO `dockerconfigjson` 템플릿으로 전환 검토
+- [x] prod GHCR pull Secret을 ESO `dockerconfigjson` 템플릿으로 구성 (dev는 SOPS 유지)

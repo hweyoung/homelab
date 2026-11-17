@@ -1,13 +1,14 @@
 # api-common
 
-앱 전용 OpenBao 인증 리소스는 dev overlay의 `external-secrets/`에서 관리한다.
+앱 전용 OpenBao 인증 리소스는 각 overlay의 `external-secrets/`에서 관리한다.
 ESO 컨트롤러와 CRD 설치는 기존 `platform-external-secrets` Application이 담당한다.
 
 | Overlay | Application | ServiceAccount | SecretStore / OpenBao Role |
 | --- | --- | --- | --- |
 | dev | apps-api-common-dev | eso-common-dev | openbao-common-dev / common-dev |
+| prod | apps-api-common-prod | eso-common-prod | openbao-common-prod / common-prod |
 
-dev는 기존 workload와 인증 리소스를 함께 배포한다.
+dev와 prod 모두 workload와 인증 리소스를 함께 배포한다.
 Namespace는 기존 namespaces Application이 관리한다.
 수동 생성한 동일 이름의 SA는 삭제하지 않고 이 선언으로 관리한다.
 
@@ -68,3 +69,36 @@ SecretStore Ready는 인증 연결, ExternalSecret Ready는 KV 읽기와 Secret 
 앱의 DB 연결과 인증 기능은 dev 배포 후 별도로 확인한다. 이전 별도 platform-external-secrets-config Application을 이미 배포했다면
 기존 Application의 cascade 삭제로 SA와 SecretStore가 제거되지 않도록 소유권 이전을
 조정한 뒤 새 앱 Application으로 sync해야 한다.
+
+## prod
+
+| 항목 | dev | prod |
+| --- | --- | --- |
+| 도메인 | `commonplant-dev.okbear.dev` | `commonplant.okbear.dev` |
+| DB | `postgres-dev` / `api_common` (reclaim `delete`) | `postgres-prod` / `api_common` (reclaim `retain`) |
+| Garage bucket | `common-dev` | `common-prod` |
+| GHCR pull Secret | KSOPS `overlays/dev/ghcr-secret.sops.yaml` | ESO `ghcr-pull-secret` ← `apps/common/prod/ghcr` |
+| 이미지 | Kargo dev Stage 자동 승격 | Kargo prod Stage (dev 통과 Freight만) |
+
+`apps-prod` AppProject는 Secret을 허용하지 않으므로 prod의 Secret은 모두 ExternalSecret이 만든다.
+prod overlay에는 `images`가 없고 replicas가 0이다. Kargo prod Stage가 첫 digest를 커밋한 뒤
+replicas를 올린다.
+
+prod의 ExternalSecret은 키 7개를 읽는다. 하나라도 없으면 해당 Secret이 생성되지 않는다.
+
+| OpenBao 경로 (mount `secret`) | 키 |
+| --- | --- |
+| `apps/common/prod/database` | `username`, `password` (DB role Secret과 같은 값) |
+| `apps/common/prod/auth` | `jwt-secret` |
+| `apps/common/prod/image` | `garage-access-key`, `garage-secret-key` (`common-prod` bucket 전용 key) |
+| `apps/common/prod/ghcr` | `username`, `password` (classic PAT, `read:packages`) |
+
+앱의 `application-prod.yml`은 `ddl-auto: validate`라 스키마를 만들지 않는다. 마이그레이션 도구가
+없으므로 prod DB 스키마를 준비하지 않으면 첫 기동에서 실패한다.
+
+```bash
+kustomize build gitops/apps/api-common/overlays/prod
+kubectl -n api-common-prod wait --for=condition=Ready secretstore/openbao-common-prod --timeout=120s
+kubectl -n api-common-prod wait --for=condition=Ready externalsecret --all --timeout=120s
+kubectl -n postgres-prod get databaserole,database
+```

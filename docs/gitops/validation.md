@@ -52,10 +52,9 @@ root-app을 `helm template`으로 렌더하고, multi-source Application의 `sou
 
 ## 알려진 실패
 
-`gitops/apps/api-common/base/ghcr-secret-generator.sops.yaml`은 암호문이 아니라 KSOPS
-generator 정의인데 이름이 `*.sops.yaml`이라 SOPS 검사에 걸린다. 같은 내용의
-`ghcr-secret-generator.yaml`이 실제로 `kustomization.yaml`에서 참조되므로 중복 파일이다.
-삭제하기 전까지 SOPS 단계는 실패한다.
+현재 없다. 이전에는 `gitops/apps/api-common/base/ghcr-secret-generator.sops.yaml`(암호문이
+아닌 KSOPS generator 중복 파일)이 SOPS 검사에 걸렸으나, GHCR pull Secret을 dev overlay로
+옮기면서 삭제했다.
 
 ## 로컬 재현
 
