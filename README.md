@@ -169,7 +169,7 @@ flowchart LR
 - cert-manager는 Cloudflare DNS-01로 wildcard 인증서를 발급합니다.
 - 관리용 접근은 Tailscale을 기본 경로로 사용합니다.
 
-외부에 공개하는 HTTPRoute는 Argo CD, OpenBao, Garage 이미지, Grafana입니다. OpenBao route는
+외부에 공개하는 HTTPRoute는 Argo CD, OpenBao, Garage 이미지, Garage 관리 UI, Grafana입니다. OpenBao route는
 초기화와 unseal, 인증 정책 구성을 마친 뒤 root-app에 등록했습니다. 초기화 전에 외부에서
 초기화 API에 접근하지 못하게 하기 위한 순서입니다.
 

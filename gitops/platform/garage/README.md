@@ -2,6 +2,13 @@
 
 Kubernetes 1.34에서 동작하는 단일 노드 Garage S3 호환 스토리지입니다. 공식 이미지
 `dxflrs/garage:v2.3.0`을 고정해 사용하며, operator나 cluster-wide RBAC은 추가하지 않습니다.
+관리 UI는 `ui/`의 garage-ui를 별도 Application(`platform-garage-ui`)으로 배포합니다.
+
+| 디렉터리 | Application | 내용 |
+| --- | --- | --- |
+| `.` | `platform-garage` | Garage 서버, PVC, 이미지 web proxy |
+| `exposure/` | `platform-garage-route` | `images.okbear.dev` HTTPRoute |
+| `ui/` | `platform-garage-ui` | garage-ui, ExternalSecret, `garage.okbear.dev` HTTPRoute |
 
 ## 설계 경계
 
@@ -10,7 +17,8 @@ Kubernetes 1.34에서 동작하는 단일 노드 Garage S3 호환 스토리지�
 - `replication_factor = 1`: 분산 복제나 고가용성이 없는 단일 노드 구성입니다.
 - S3 API `garage.garage.svc:3900`은 클러스터 내부 전용입니다. 외부에는 정적 이미지 조회용
   S3 website 포트만 `https://images.okbear.dev`의 path 기반 proxy를 통해 공개하고 RPC/Admin
-  API는 노출하지 않습니다.
+  API는 노출하지 않습니다. 관리 UI(`https://garage.okbear.dev`)는 Dex 로그인 뒤 서버에서 admin API를
+  호출하며, admin API 포트를 직접 공개하지 않습니다.
 - RPC/Admin token은 최초 시작 시 metadata PVC의 `garage.toml`에 mode `0600`으로 생성됩니다.
   Git/Kubernetes Secret에 평문을 남기지 않으며 PVC가 유지되는 재시작에는 같은 값을 사용합니다.
 - `metrics_token`은 두지 않습니다. `/metrics`는 클러스터 내부 Service `garage:3903`에서 토큰 없이
