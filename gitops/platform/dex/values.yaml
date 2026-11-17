@@ -63,6 +63,12 @@ config:
         - https://openbao.okbear.dev/ui/vault/auth/oidc/oidc/callback
         - http://localhost:8250/oidc/callback
 
+    - id: garage-ui
+      name: Garage UI
+      secretEnv: GARAGE_UI_CLIENT_SECRET
+      redirectURIs:
+        - https://garage.okbear.dev/auth/oidc/callback
+
     # Kargo는 PKCE를 쓰는 public client라 client secret이 없다.
     # redirectURIs가 있으면 Dex는 localhost를 자동 허용하지 않으므로 CLI callback도 등록한다.
     - id: kargo
