@@ -21,7 +21,10 @@ root repo PAT를 GitOps에 두면 private repo를 읽기 위한 Secret을 그 re
 의존성이 생긴다. 따라서 `sops-age`와 선택적 `argocd-repo-homelab`은 Ansible role이 먼저
 만든다. public repo이면 PAT 주입은 생략한다.
 
-api-common dev 앱 Secret(`api-common-secret`)은 OpenBao + ESO ExternalSecret으로 전환했다.
+api-common dev/prod 앱 Secret(`api-common-secret`)은 OpenBao + ESO ExternalSecret으로 관리한다.
+CNPG `DatabaseRole`이 쓰는 api-common DB 계정 Secret(`postgres-<env>/api-common-db-secret-<env>`)도
+앱과 같은 OpenBao 경로에서 만든다
+([apps/api-common/README.md](../../gitops/apps/api-common/README.md#db-계정)).
 Grafana admin Secret(`monitoring/grafana-admin`)과 Alertmanager Discord webhook
 (`monitoring/alertmanager-discord`)도 OpenBao + ESO로 관리한다
 ([platform/monitoring/README.md](../../gitops/platform/monitoring/README.md)).
@@ -37,7 +40,6 @@ Secret 이름을 양쪽이 동시에 소유하지 않도록 명시적으로 owne
 | cert-manager | `platform/cert-manager-config/cloudflare-api-token.sops.yaml` | DNS-01 issuer |
 | Cloudflare Tunnel | `platform/cloudflared/cloudflare-tunnel-token.sops.yaml` | cloudflared |
 | PostgreSQL | `databases/postgres/overlays/{dev,prod}/*.sops.yaml` | CNPG bootstrap/role |
-| api-common | `databases/postgres/overlays/dev/api-common/db-auth-secret.sops.yaml` | dev DB role. prod는 ESO가 앱과 같은 OpenBao `apps/common/prod/database`에서 만든다 |
 | api-common | `apps/api-common/overlays/dev/ghcr-secret.sops.yaml` | dev imagePullSecret. prod는 ESO(`apps/common/prod/ghcr`) |
 | Infisical 준비 | `platform/infisical/bootstrap/*.sops.yaml` 등 | 현재 root-app에서 비활성 |
 
