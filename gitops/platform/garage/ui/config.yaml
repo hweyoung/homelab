@@ -1,0 +1,55 @@
+# garage-ui v0.14.0 설정. 비밀값은 Deployment env(ExternalSecret)로 넣는다.
+# admin token: GARAGE_UI_GARAGE_ADMIN_TOKEN
+# OIDC client secret: GARAGE_UI_AUTH_OIDC_CLIENT_SECRET
+server:
+  host: "::"
+  port: 8080
+  environment: production
+  domain: garage.okbear.dev
+  protocol: http
+  root_url: https://garage.okbear.dev
+
+garage:
+  endpoint: http://garage:3900
+  region: garage
+  admin_endpoint: http://garage:3903
+
+auth:
+  # 비밀번호·admin token 로그인은 항상 전체 관리자이므로 끈다. OIDC만 쓴다.
+  admin:
+    enabled: false
+  token:
+    enabled: false
+  oidc:
+    enabled: true
+    provider_name: GitHub
+    client_id: garage-ui
+    issuer_url: https://dex.okbear.dev
+    scopes:
+      - openid
+      - email
+      - profile
+      - groups
+    email_attribute: email
+    username_attribute: preferred_username
+    name_attribute: name
+    role_attribute_path: groups
+    admin_roles:
+      - homelab-platform-org:platform-admin
+    session_max_age: 28800
+    cookie_name: garage_ui_session
+    cookie_secure: true
+    cookie_http_only: true
+    cookie_same_site: lax
+
+# 섹션이 있으면 기본 거부다. 팀을 정의하지 않으므로 admin_roles 사용자만 접근한다.
+# 팀 데이터 접근은 UI가 아니라 버킷별 사람용 S3 key로 한다 (README 「권한 분리」).
+access_control: {}
+
+# 프런트엔드와 API가 같은 origin이다.
+cors:
+  enabled: false
+
+logging:
+  level: info
+  format: json

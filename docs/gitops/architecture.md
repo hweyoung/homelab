@@ -42,6 +42,7 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | -10 | `platform-kargo-route` | `platform` | Kargo UI route |
 | -10 | `argocd-server` | `argocd-system` | Argo CD 노출 리소스 |
 | -9 | `platform-garage-route` | `platform` | public image route |
+| -8 | `platform-garage-ui` | `platform` | Garage 관리 UI, ExternalSecret, route |
 | -8 | `platform-monitoring-secrets` | `platform` | Grafana admin, Discord webhook ExternalSecret |
 | -7 | `platform-kube-prometheus-stack` | `platform` | Prometheus/Alertmanager/Grafana/operator |
 | -6 | `platform-grafana-route`, `platform-loki` | `platform` | Grafana route, 로그 저장소 |
@@ -50,7 +51,7 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | 30 | `apps-nginx-{dev,prod}`, `apps-api-common-dev` | `apps-*` | workload |
 | 30 | `apps-api-common-kargo` | `kargo-pipelines` | api-common Kargo Project, Warehouse, Stage, credential |
 
-root-app은 34개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
+root-app은 35개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
 controller Ready를 보장하지 않는다. PostgreSQL 적용 전 CNPG CRD/controller readiness처럼
 런타임 의존성을 별도로 확인해야 한다.
 
@@ -101,16 +102,17 @@ flowchart LR
     APP --> PG["CNPG PostgreSQL"]
     APP --> GARAGE["Garage S3 API"]
     IMG["images.okbear.dev"] --> PROXY["Garage web proxy"] --> GARAGE
+    GUI["garage.okbear.dev"] --> UI["garage-ui"] -->|"admin API"| GARAGE
 ```
 
 외부 트래픽은 Cloudflare Tunnel과 Traefik Gateway API를 거친다. cert-manager가 DNS-01
 wildcard certificate를 제공한다. Garage의 S3/RPC/Admin endpoint는 내부에 두고 website
-endpoint만 route로 공개한다.
+endpoint와 Dex 로그인이 필요한 관리 UI만 route로 공개한다.
 
 Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
 bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
 OpenBao와 ESO 경로는 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook,
-Kargo 앱별 GHCR·Git credential에 적용되어 있고, 나머지
+Garage UI admin token·OIDC client secret, Kargo 앱별 GHCR·Git credential에 적용되어 있고, 나머지
 workload Secret은 SOPS/KSOPS를 유지한다. 상세 절차는 [Secret 관리](secrets.md)에 있다.
 
 ## 이미지 승격 경계

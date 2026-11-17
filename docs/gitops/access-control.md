@@ -7,9 +7,10 @@ GitHub Team을 Dex가 `groups` claim(`homelab-platform-org:<team slug>`)으로 �
 | --- | --- | --- | --- |
 | Argo CD | `role:admin` | 권한 없음 | `ansible/roles/argocd/templates/argocd-values.yaml.j2` |
 | Grafana | Org Admin, 모든 대시보드 | Viewer, `10 Common Backend` 폴더 | `gitops/platform/monitoring/values.yaml`, 폴더 권한 |
-| OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 읽기·쓰기 (dev, prod) | 아래 OpenBao 절차 |
+| OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 dev 읽기·쓰기, prod 읽기 (`prod/image` 거부) | 아래 OpenBao 절차 |
 | Kargo | admin | viewer, 모든 Project 조회 | `gitops/platform/kargo/values.yaml` `api.oidc` |
-| Garage UI (도입 예정) | `admin_roles` | 지정한 bucket | 도입 시 `access_control`에 설정 |
+| Garage 관리 UI | `admin_roles` | 권한 없음 | `gitops/platform/garage/ui/config.yaml` |
+| Garage 데이터 | 모든 bucket | 사람용 S3 key: `common-dev` 읽기·쓰기, `common-prod` 읽기 | `gitops/platform/garage/README.md` |
 | bastion SSH | Tailscale SSH | 불가 | Tailscale 정책 (Dex와 무관) |
 
 Argo CD와 Grafana의 로컬 admin 계정, OpenBao 복구 수단은 Dex와 GitHub 장애에 대비한 비상 접근용으로 유지한다.
@@ -32,22 +33,32 @@ path "*" {
 EOF
 ```
 
-`common-backend`는 dev와 prod 모두 읽고 쓸 수 있다. prod 값을 바꾸면 ESO가 `refreshInterval` 안에 Secret으로
-동기화한다. 버전 영구 삭제(`destroy`)와 metadata 삭제는 주지 않는다.
+`common-backend`는 dev를 읽고 쓰고, prod는 읽기만 한다. prod 값 변경은 `platform-admin`이 하고 ESO가
+`refreshInterval` 안에 Secret으로 동기화한다. prod Garage 앱 key(`prod/image`)는 읽기도 막는다. 버전 영구
+삭제(`destroy`)와 metadata 삭제는 주지 않는다.
 
 ```bash
 bao policy write common-backend - <<'EOF'
-path "secret/data/apps/common/*" {
+# dev: 읽기·쓰기, soft delete와 복구
+path "secret/data/apps/common/dev/*" {
   capabilities = ["create", "read", "update", "patch", "delete"]
+}
+path "secret/delete/apps/common/dev/*" {
+  capabilities = ["update"]
+}
+path "secret/undelete/apps/common/dev/*" {
+  capabilities = ["update"]
+}
+# prod: 읽기만. 값 변경과 삭제는 platform-admin이 한다.
+path "secret/data/apps/common/prod/*" {
+  capabilities = ["read"]
+}
+# prod Garage 앱 key는 쓰기 권한이 있어 읽는 것만으로 읽기 전용 사람용 key를 우회한다.
+path "secret/data/apps/common/prod/image" {
+  capabilities = ["deny"]
 }
 path "secret/metadata/apps/common/*" {
   capabilities = ["read", "list"]
-}
-path "secret/delete/apps/common/*" {
-  capabilities = ["update"]
-}
-path "secret/undelete/apps/common/*" {
-  capabilities = ["update"]
 }
 EOF
 ```
@@ -102,6 +113,30 @@ EOF
 ```
 
 UI 로그인에서 Method를 `OIDC`로 고르고 Role에 위 역할 이름을 넣는다. 비우면 `common-backend`로 로그인한다.
+
+## Garage
+
+Garage 권한 경계는 key-bucket 권한뿐이다. 관리 UI는 admin token 하나로 동작하므로 UI 안의 bucket별 접근
+제어는 경계가 되지 않는다. 그래서 관리와 데이터 접근을 나눈다.
+
+- 관리 UI는 `platform-admin`만 쓴다. Dex `admin_roles`에 `homelab-platform-org:platform-admin`만 넣고, 팀
+  그룹을 `access_control`에 추가하지 않는다.
+- 팀은 사람용 S3 key로 자기 bucket에만 접근한다. key는 `secret/apps/<app>/<env>/storage-console`에 두고,
+  팀은 기존 OpenBao 정책으로 받아 간다.
+- 팀은 prod 앱 key 경로(`secret/apps/<app>/prod/image`)를 읽을 수 없다. 앱 key는 쓰기 권한이 있어 읽기 전용
+  사람용 key를 우회하기 때문이다. OpenBao 정책에서 `deny`로 막고, 이 경로의 key 교체는 `platform-admin`이 한다.
+  ESO는 별도 정책(`common-prod`)으로 읽으므로 영향이 없다.
+- 새 애플리케이션은 `<app>-<env>` bucket, 앱 key, 사람용 key, OpenBao 경로, GitHub Team을 한 묶음으로 만든다.
+
+bucket과 key 목록, 발급 명령은 [Garage README](../../gitops/platform/garage/README.md#권한-분리)를 따른다.
+팀원이 빠지면 GitHub Team에서 제거하고 사람용 key를 교체한다.
+
+```bash
+kubectl -n garage exec deploy/garage -- /garage key create team-common-backend-dev-v2
+kubectl -n garage exec deploy/garage -- /garage bucket allow --read --write --key <NEW_KEY_ID> common-dev
+# OpenBao 값을 새 key로 바꾼 뒤 기존 key 삭제
+kubectl -n garage exec deploy/garage -- /garage key delete --yes <OLD_KEY_ID>
+```
 
 ## Grafana
 
