@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage-ui
+      app.kubernetes.io/instance: platform-garage-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: garage-ui
+        app.kubernetes.io/instance: platform-garage-ui
+        app.kubernetes.io/part-of: object-storage
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        homelab.okbear.dev/environment: dev
+      tolerations:
+        - key: homelab.okbear.dev/environment
+          operator: Equal
+          value: dev
+          effect: NoSchedule
+      containers:
+        - name: garage-ui
+          image: noooste/garage-ui:v0.14.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GARAGE_UI_GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: garage-ui
+                  key: admin-token
+            - name: GARAGE_UI_AUTH_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: garage-ui
+                  key: oidc-client-secret
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            # JWT 서명 키(/app/data/jwt-key.pem). Pod가 바뀌면 다시 로그인한다.
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: garage-ui
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

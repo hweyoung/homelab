@@ -16,6 +16,7 @@ hosts:
   infisical: infisical.okbear.dev
   openbao: openbao.okbear.dev
   garageImages: images.okbear.dev
+  garageUi: garage.okbear.dev
   grafana: grafana.okbear.dev
   dex: dex.okbear.dev
   kargo: kargo.okbear.dev
@@ -340,6 +341,16 @@ applications:
     namespace: garage
     wave: -9
     path: gitops/platform/garage/exposure
+    syncPolicyRef: platform-existing-namespace
+
+  # --- Garage 관리 UI (Dex OIDC, platform-admin 전용) ---
+  - name: garage-ui
+    group: platform
+    project: platform
+    type: kustomize
+    namespace: garage
+    wave: -8
+    path: gitops/platform/garage/ui
     syncPolicyRef: platform-existing-namespace
 
   # --- Kargo promotion controller (CRDs + controllers) ---
