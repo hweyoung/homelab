@@ -111,7 +111,7 @@ endpoint와 Dex 로그인이 필요한 관리 UI만 route로 공개한다.
 
 Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
 bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
-OpenBao와 ESO 경로는 api-common dev/prod 앱 Secret과 prod GHCR pull Secret, Grafana admin,
+OpenBao와 ESO 경로는 api-common dev/prod 앱 Secret, DB 계정 Secret과 GHCR pull Secret, Grafana admin,
 Alertmanager Discord webhook, Garage UI admin token·OIDC client secret, Kargo 앱별 GHCR·Git
 credential에 적용되어 있고, 나머지
 workload Secret은 SOPS/KSOPS를 유지한다. 상세 절차는 [Secret 관리](secrets.md)에 있다.

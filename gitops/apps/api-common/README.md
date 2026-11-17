@@ -34,12 +34,16 @@ dev ExternalSecret 하나가 고정 이름 `api-common-secret`을 생성한다.
 | GARAGE_ACCESS_KEY (dev) | apps/common/dev/image | garage-access-key |
 | GARAGE_SECRET_KEY (dev) | apps/common/dev/image | garage-secret-key |
 
+imagePullSecret `ghcr-pull-secret`은 별도 ExternalSecret이 `apps/common/dev/ghcr`의 `username`,
+`password`(classic PAT, `read:packages`)로 만든다. `common-dev` policy가 `apps/common/dev/*`를
+읽으므로 경로만 추가하면 된다.
+
 OpenBao DB 값은 실제 PostgreSQL
 계정과 일치해야 한다. 앱 ExternalSecret은 DB 계정 비밀번호를 변경하지 않는다.
 
 dev 앱 Secret은 ESO로 전환을 완료했고 기존 KSOPS `secret-generator.yaml`과 `secret.sops.env`는
 삭제했다. Deployment는 기존 `api-common-secret` 참조를 유지하며, KSOPS의 해시 이름 대신
-ESO의 고정 이름을 사용한다. CNPG DB 계정 Secret은 dev, prod 모두 ESO로 만든다([DB 계정](#db-계정)). GHCR pull Secret은 dev는 SOPS, prod는 ESO다.
+ESO의 고정 이름을 사용한다. CNPG DB 계정 Secret은 dev, prod 모두 ESO로 만든다([DB 계정](#db-계정)). GHCR pull Secret도 두 환경 모두 ESO로 만들어 api-common에는 SOPS 파일이 없다.
 
 전환 전 기존 Deployment가 해시 Secret을 참조하는지 확인한다. 필요하면 먼저 ExternalSecret만
 선적용하여 동기화 성공을 확인한 뒤 앱 변경을 sync한다. 고정 이름 Secret을 이미 다른 주체가
@@ -50,11 +54,11 @@ ESO의 고정 이름을 사용한다. CNPG DB 계정 Secret은 dev, prod 모두 
 정적 검증:
 
 ```bash
-kustomize build gitops/apps/api-common/overlays/dev/external-secrets
+kustomize build gitops/apps/api-common/overlays/dev
 helm template root-app gitops/clusters/homelab/root-app
 ```
 
-dev 전체 렌더링은 기존 KSOPS 실행과 복호화 환경이 필요하다.
+KSOPS generator가 없으므로 dev 전체를 로컬에서 렌더할 수 있다.
 Argo CD sync 후 클러스터에서 다음을 확인한다.
 
 ```bash
@@ -77,7 +81,7 @@ SecretStore Ready는 인증 연결, ExternalSecret Ready는 KV 읽기와 Secret 
 | 도메인 | `commonplant-dev.okbear.dev` | `commonplant.okbear.dev` |
 | DB | `postgres-dev` / `api_common` (reclaim `delete`) | `postgres-prod` / `api_common` (reclaim `retain`) |
 | Garage bucket | `common-dev` | `common-prod` |
-| GHCR pull Secret | KSOPS `overlays/dev/ghcr-secret.sops.yaml` | ESO `ghcr-pull-secret` ← `apps/common/prod/ghcr` |
+| GHCR pull Secret | ESO `ghcr-pull-secret` ← `apps/common/dev/ghcr` | ESO `ghcr-pull-secret` ← `apps/common/prod/ghcr` |
 | 이미지 | Kargo dev Stage 자동 승격 | Kargo prod Stage (dev 통과 Freight만) |
 
 `apps-prod` AppProject는 Secret을 허용하지 않으므로 prod의 Secret은 모두 ExternalSecret이 만든다.
@@ -130,7 +134,9 @@ CNPG가 DB 비밀번호를 바꾸고, 앱은 `rollout restart`로 새 값을 읽
 
 #### dev 전환
 
-dev는 KSOPS가 만들던 `api-common-db-secret-dev`를 같은 이름의 ExternalSecret으로 바꿨다.
+dev는 KSOPS가 만들던 `api-common-db-secret-dev`(postgres-dev)와 `ghcr-pull-secret`(api-common-dev)을
+같은 이름의 ExternalSecret으로 바꿨다. 아래는 DB 계정 기준이며 GHCR도 소유권 충돌 대응은 같다.
+GHCR Secret은 이미지를 새로 받을 때만 쓰이므로 재생성 사이의 공백은 실행 중인 Pod에 영향이 없다.
 전환 전에 SOPS 값과 OpenBao 값이 같은지 확인한다. 다르면 sync 후 CNPG가 DB 비밀번호를
 OpenBao 값으로 바꾼다. 앱도 OpenBao 값을 쓰므로 앱 접속은 유지되지만 의도하지 않은 변경이다.
 
