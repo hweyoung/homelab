@@ -4,9 +4,9 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 각 구성 요소가 어떻게 동작하는지, 이 환경에서 왜 이렇게 구성했는지, 구성 중 바꾼 결정을 함께
 기록한다. 운영 절차와 명령은 [Kargo README](../../gitops/platform/kargo/README.md)를 기준으로 한다.
 
-현재 상태는 **dev 자동 승격 동작 확인**이다. GHCR 이미지로 Freight가 만들어지고 dev Promotion이
-성공해 새 digest가 `api-common-dev`에 배포됐다. 승격 뒤 main이 진행되면 Stage가 Unhealthy로 남는 문제를
-수정 중이다(hweyoung/homelab#329).
+현재 상태는 **dev 자동 승격과 UI 로그인 동작 확인**이다. GHCR 이미지로 Freight가 만들어지고 dev
+Promotion이 성공해 새 digest가 `api-common-dev`에 배포됐다. `https://kargo.okbear.dev`에서 Dex SSO로
+로그인된다. 다음 단계는 prod 승격이다.
 
 ## 구성 의도
 
@@ -181,6 +181,17 @@ Synced·Healthy만 확인한다. 승격 커밋은 main에 push된 뒤 sync되므
 변경 경로를 따로 설계해야 해서 택하지 않았다. 대신 승격 직후 Argo CD가 새 커밋을 반영하기 전에
 잠깐 Healthy로 보일 수 있으므로, prod 승격 판단에는 verification(smoke test)을 함께 둔다.
 
+### UI 로그인: Dex CORS
+
+UI는 떴지만 SSO 버튼에서 `OIDC: Failed to fetch`로 실패했다. Kargo UI는 PKCE SPA라 브라우저가 Dex의
+discovery와 token endpoint를 직접 호출한다. Dex가 `kargo.okbear.dev` origin을 허용하지 않아 브라우저가
+응답을 막았다. 서버에서 Dex를 호출하는 Argo CD, Grafana, OpenBao에는 없던 요구 사항이다. Dex
+`web.allowedOrigins`에 `https://kargo.okbear.dev`를 추가했다(hweyoung/homelab#330).
+
+`platform-kargo-route`는 처음 배포 직후 Degraded였고 다시 sync하자 정상이 됐다. 원인은 따로 확인하지
+않았다. 같은 증상이 반복되면 HTTPRoute의 `status.parents` 조건과 `kargo` namespace의
+`gateway-access` 라벨을 먼저 본다.
+
 ### PR 기반 승격 보류
 
 Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `main` 변경을 막을 수 있다.
@@ -223,11 +234,13 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 | OpenBao 값, policy, role | 입력 완료 |
 | SecretStore, ExternalSecret 2개 | Synced, Healthy |
 | Project, ProjectConfig, Stage, SA | Synced |
-| Warehouse | OutOfSync → `strictSemvers` 명시(#327 merge), Synced 미확인 |
+| Warehouse | OutOfSync → `strictSemvers` 명시(#327) |
 | Freight 생성 | `b1db445` 생성 |
 | dev Promotion | `Succeeded`. 승격 커밋 `cd1b93d`가 main에 push되고 Application sync 성공 |
 | `apps-api-common-dev` | Synced, Healthy, Pod Running |
-| dev Stage health | Unhealthy(리비전 불일치) → `desiredRevision` 제거(#329) |
+| dev Stage health | Unhealthy(리비전 불일치) → `desiredRevision` 제거(#329). 새 설정은 다음 Promotion부터 적용 |
+| `platform-kargo-route` | 첫 배포 직후 Degraded, 재sync 후 정상 |
+| Kargo UI SSO | CORS로 실패 → Dex `allowedOrigins` 추가(#330) 후 로그인 성공 |
 
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
@@ -235,7 +248,9 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 
 ## 한계와 후속 작업
 
-- Argo CD에서 Warehouse Synced와 #329 merge 후 dev Stage Healthy를 확인해야 한다.
+- #329 이후 Promotion에서 dev Stage가 Healthy로 남는지 확인해야 한다. health 설정은 Promotion 때 등록되므로
+  같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
+- Kargo CLI(`kargo login --sso`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
 - prod workload, `api-common-prod` Application, prod Stage와 승인 방식이 없다.
 - GHCR token은 개인 계정 classic PAT다. 조직 봇 계정으로 옮겨야 한다.
