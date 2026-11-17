@@ -73,7 +73,8 @@ Garage 권한은 key와 bucket 사이의 `read`/`write`/`owner`뿐입니다. buc
 | `common-prod` | `team-common-backend-prod` | read | `apps/common/prod/storage-console` |
 
 사람용 key를 앱 경로 아래에 두면 OpenBao의 기존 팀 정책(`common-backend`)으로 해당 팀만 받아 갈 수
-있습니다. bucket이나 key를 추가·회수하면 이 표도 함께 고칩니다. 현재 권한은 다음 명령으로 확인합니다.
+있습니다. 팀 정책은 `apps/common/prod/image`를 `deny`로 막습니다. 쓰기 권한이 있는 prod 앱 key를 팀이 읽으면
+읽기 전용 사람용 key가 의미 없어지기 때문입니다. bucket이나 key를 추가·회수하면 이 표도 함께 고칩니다. 현재 권한은 다음 명령으로 확인합니다.
 
 ```bash
 kubectl -n garage exec deploy/garage -- /garage bucket info common-prod
