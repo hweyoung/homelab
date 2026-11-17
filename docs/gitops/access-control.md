@@ -9,7 +9,7 @@ GitHub Team을 Dex가 `groups` claim(`homelab-platform-org:<team slug>`)으로 �
 | Grafana | Org Admin, 모든 대시보드 | Viewer, `10 Common Backend` 폴더 | `gitops/platform/monitoring/values.yaml`, 폴더 권한 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 읽기·쓰기 (dev, prod) | 아래 OpenBao 절차 |
 | Kargo | admin | viewer, 모든 Project 조회 | `gitops/platform/kargo/values.yaml` `api.oidc` |
-| Garage 관리 UI (도입 예정) | `admin_roles` | 권한 없음 | 아래 Garage 절 |
+| Garage 관리 UI | `admin_roles` | 권한 없음 | `gitops/platform/garage/ui/config.yaml` |
 | Garage 데이터 | 모든 bucket | 사람용 S3 key: `common-dev` 읽기·쓰기, `common-prod` 읽기 | `gitops/platform/garage/README.md` |
 | bastion SSH | Tailscale SSH | 불가 | Tailscale 정책 (Dex와 무관) |
 

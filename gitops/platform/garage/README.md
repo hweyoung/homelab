@@ -95,6 +95,69 @@ Garage v2 admin token scope도 API 단위라 bucket별로 제한할 수 없습�
 사람용 key로 S3 클라이언트(Cyberduck, rclone 등)나 S3 key로 로그인하는 웹 브라우저를 사용합니다.
 S3 API와 admin API는 계속 공개 경로에 노출하지 않습니다.
 
+## 관리 UI 배포
+
+`ui/`는 [garage-ui](https://github.com/Noooste/garage-ui) `v0.14.0`을 `https://garage.okbear.dev`에 배포합니다
+(root-app의 `platform-garage-ui`).
+
+- 로그인은 Dex OIDC만 씁니다. 비밀번호와 admin token 로그인은 항상 전체 관리자라 끕니다.
+- `admin_roles`에 `homelab-platform-org:platform-admin`만 두고 `access_control: {}`로 기본 거부를 켭니다.
+  다른 Dex 사용자는 로그인해도 모든 API가 403입니다.
+- Garage 연결에는 PVC의 master `admin_token` 대신 `garage admin-token create`로 만든 UI 전용 토큰을 씁니다.
+  회수할 때 Garage 설정과 재시작 없이 이 토큰만 지웁니다.
+- 객체 조회·업로드는 UI가 해당 bucket 권한이 있는 key의 secret을 admin API로 읽어 처리합니다.
+- JWT 서명 키는 `emptyDir`에 두므로 Pod가 바뀌면 다시 로그인합니다.
+
+merge 전에 다음을 준비합니다. Dex의 `GARAGE_UI_CLIENT_SECRET`은 `dex-env.sops.yaml`에 들어 있습니다.
+
+```bash
+# UI 전용 admin token. 출력되는 token은 다시 볼 수 없다.
+kubectl -n garage exec deploy/garage -- /garage admin-token create garage-ui
+kubectl -n garage exec deploy/garage -- /garage admin-token info garage-ui
+```
+
+`admin-token info`의 Scope가 전체(`*`)인지 확인합니다. OpenBao에는 다음을 적용합니다. `bao`는
+`platform-openbao-0` Pod 안에서 관리자 토큰으로 실행합니다.
+
+```bash
+bao policy write garage - <<'EOF'
+path "secret/data/platform/garage/*" {
+  capabilities = ["read"]
+}
+EOF
+
+bao write auth/kubernetes/role/garage \
+  bound_service_account_names=eso-garage \
+  bound_service_account_namespaces=garage \
+  audience=openbao \
+  policies=garage \
+  ttl=1h
+```
+
+값은 age 개인키가 있는 저장소 체크아웃에서 표준 입력으로 넘겨 명령 인자에 드러나지 않게 합니다.
+`ADMIN_TOKEN`에는 위에서 만든 토큰을 붙여 넣습니다. 미리 `kubectl -n openbao exec -it platform-openbao-0 -- bao login`이
+필요합니다.
+
+```bash
+read -rs ADMIN_TOKEN
+CLIENT_SECRET="$(sops -d --extract '["stringData"]["GARAGE_UI_CLIENT_SECRET"]' gitops/platform/dex/secrets/dex-env.sops.yaml)"
+printf '{"admin-token":"%s","oidc-client-secret":"%s"}' "$ADMIN_TOKEN" "$CLIENT_SECRET" \
+  | kubectl -n openbao exec -i platform-openbao-0 -- bao kv put secret/platform/garage/ui -
+unset ADMIN_TOKEN CLIENT_SECRET
+```
+
+Cloudflare Tunnel Public Hostname에 `garage.okbear.dev`를 다른 관리 도구와 같은 Traefik 서비스로 추가합니다.
+merge 후 확인합니다.
+
+```bash
+kubectl -n garage wait --for=condition=Ready externalsecret/garage-ui --timeout=120s
+kubectl -n garage rollout status deploy/garage-ui --timeout=5m
+kubectl -n dex rollout status deploy/dex --timeout=5m
+```
+
+`platform-admin`으로 로그인해 bucket 목록이 보이는지, `common-backend` 계정은 권한 없음 화면이 나오는지
+확인합니다. UI 전용 토큰을 회수할 때는 `/garage admin-token delete garage-ui`를 실행합니다.
+
 ## 외부 이미지 URL과 Bucket Routing
 
 외부에는 `images.okbear.dev` 하나만 사용합니다. `garage-web-proxy`가 첫 번째 path segment를

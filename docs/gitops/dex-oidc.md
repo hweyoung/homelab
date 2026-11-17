@@ -8,8 +8,7 @@
 | Issuer | `https://dex.okbear.dev` |
 | 사용자 원본 | GitHub org `homelab-platform-org` |
 | 그룹 | `platform-admin`, `common-backend` |
-| 연동 플랫폼 | Argo CD, Grafana, OpenBao |
-| 도입 예정 | Garage UI |
+| 연동 플랫폼 | Argo CD, Grafana, OpenBao, Kargo, Garage UI |
 | 적용 PR | hweyoung/homelab#321, #322, #323 |
 
 ## 왜 Dex인가
@@ -69,7 +68,7 @@ Secret을 SOPS에 둔 이유는 OpenBao 장애와 무관하게 Dex가 떠야 하
 | Grafana | Org Admin, 모든 폴더 | Viewer, `10 Common Backend` | Dex에서 거부 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 읽기·쓰기 (dev, prod) | Dex에서 거부 |
 | Kargo | admin | viewer (모든 Project 조회) | Dex에서 거부 |
-| Garage UI (예정) | 관리자 | 지정 bucket | 기본 거부 |
+| Garage UI | 관리자 | 로그인 가능, 권한 없음 (UI 기본 거부) | 로그인 가능, 권한 없음 (UI 기본 거부) |
 | bastion SSH | Tailscale SSH | 불가 | 불가 |
 
 Dex의 `teams` 목록에 없는 org 멤버는 Dex 단계에서 거부된다. 관리 지점을 하나 줄이려고 이 목록을 지우면
@@ -187,14 +186,17 @@ OpenBao 내부 설정은 GitOps로 관리하지 않는다. 아래 명령을 마�
   `web.allowedOrigins`에 `https://kargo.okbear.dev`를 넣는다. 서버에서 Dex를 호출하는 Argo CD, Grafana,
   OpenBao에는 필요 없다.
 
-### Garage UI (예정)
+### Garage UI
 
 Garage는 키-버킷 단위 권한만 있고 버킷 정책을 지원하지 않는다. `garage-ui`의 `bucket_prefixes`도 **버킷 이름 접두사**이며
 버킷 내부 폴더 단위 제한으로 보지 않는다. 도입할 때 주의한다.
 
 - `garage-ui` 문서상 이 기능은 보안 경계가 아니다. UI 내부의 단일 토큰과 S3 키를 가진 사람은 우회할 수 있다.
-- 그래서 관리 UI는 `platform-admin` 전용으로 둔다. Dex의 `staticClients`에 client를 추가하고 `admin_roles`에
-  `homelab-platform-org:platform-admin`만 넣는다. 팀 그룹은 `access_control`에 넣지 않는다.
+- 그래서 관리 UI는 `platform-admin` 전용으로 둔다. Dex client는 `garage-ui`(secret `GARAGE_UI_CLIENT_SECRET`)이고,
+  `admin_roles`에는 `homelab-platform-org:platform-admin`만 넣는다. `access_control: {}`로 기본 거부를 켜고 팀은
+  정의하지 않는다. 설정은 `gitops/platform/garage/ui/config.yaml`이다.
+- client secret은 OpenBao `secret/platform/garage/ui`의 `oidc-client-secret`에도 같은 값으로 넣는다. 절차는
+  [Garage README](../../gitops/platform/garage/README.md#관리-ui-배포)를 따른다.
 - 팀의 데이터 접근은 버킷별 사람용 S3 키로 Garage가 직접 제한한다. [access-control.md](access-control.md#garage)를 따른다.
 
 ### bastion SSH
@@ -587,7 +589,7 @@ JSON에서는 잘못된 값이 그대로 저장되어 나중에 다른 오류로
 | Dex, Argo CD, Grafana, OpenBao GitHub 로그인 | 관리자 계정으로 확인 |
 | `common-backend` 권한 | 같은 계정의 Team 소속을 바꿔 확인 |
 | 실제 팀원 계정, Team 없는 org 멤버 | 미확인 |
-| Garage UI | 미도입 |
+| Garage UI | 매니페스트 추가, 로그인 미확인 |
 | Tailscale 경로 | 미적용, 현재 관리 도구는 공개 경로와 Cloudflare Access 사용 중 |
 
 Cloudflare Access가 켜져 있는 동안에는 Access와 플랫폼 로그인을 각각 거치므로 이중 로그인이 남는다.
