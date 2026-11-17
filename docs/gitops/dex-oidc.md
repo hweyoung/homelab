@@ -598,7 +598,7 @@ JSON에서는 잘못된 값이 그대로 저장되어 나중에 다른 오류로
 | Dex, Argo CD, Grafana, OpenBao GitHub 로그인 | 관리자 계정으로 확인 |
 | `common-backend` 권한 | 같은 계정의 Team 소속을 바꿔 확인 |
 | 실제 팀원 계정, Team 없는 org 멤버 | 미확인 |
-| Garage UI | 매니페스트 추가, 로그인 미확인 |
+| Garage UI | 배포와 Secret 동기화 확인 (2026-11-17). 절차와 장애 기록은 Garage README |
 | Tailscale 경로 | 미적용, 현재 관리 도구는 공개 경로와 Cloudflare Access 사용 중 |
 
 Cloudflare Access가 켜져 있는 동안에는 Access와 플랫폼 로그인을 각각 거치므로 이중 로그인이 남는다.
