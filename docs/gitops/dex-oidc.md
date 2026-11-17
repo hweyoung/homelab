@@ -68,7 +68,7 @@ Secret을 SOPS에 둔 이유는 OpenBao 장애와 무관하게 Dex가 떠야 하
 | Grafana | Org Admin, 모든 폴더 | Viewer, `10 Common Backend` | Dex에서 거부 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 dev 읽기·쓰기, prod 읽기 (`prod/image` 거부) | Dex에서 거부 |
 | Kargo | admin | viewer (모든 Project 조회) | Dex에서 거부 |
-| Garage UI | 관리자 | 로그인 가능, 권한 없음 (UI 기본 거부) | 로그인 가능, 권한 없음 (UI 기본 거부) |
+| Garage UI | 관리자 | `common-dev` 조회·업로드·삭제, `common-prod` 조회 | Dex에서 거부 |
 | bastion SSH | Tailscale SSH | 불가 | 불가 |
 
 Dex의 `teams` 목록에 없는 org 멤버는 Dex 단계에서 거부된다. 관리 지점을 하나 줄이려고 이 목록을 지우면
@@ -192,12 +192,14 @@ Garage는 키-버킷 단위 권한만 있고 버킷 정책을 지원하지 않�
 버킷 내부 폴더 단위 제한으로 보지 않는다. 도입할 때 주의한다.
 
 - `garage-ui` 문서상 이 기능은 보안 경계가 아니다. UI 내부의 단일 토큰과 S3 키를 가진 사람은 우회할 수 있다.
-- 그래서 관리 UI는 `platform-admin` 전용으로 둔다. Dex client는 `garage-ui`(secret `GARAGE_UI_CLIENT_SECRET`)이고,
-  `admin_roles`에는 `homelab-platform-org:platform-admin`만 넣는다. `access_control: {}`로 기본 거부를 켜고 팀은
-  정의하지 않는다. 설정은 `gitops/platform/garage/ui/config.yaml`이다.
+- Dex client는 `garage-ui`(secret `GARAGE_UI_CLIENT_SECRET`)이다. `admin_roles`에 `homelab-platform-org:platform-admin`,
+  `team_attribute_path: groups`로 팀을 읽고 `access_control.teams`에 `common-backend` binding만 둔다. 설정은
+  `gitops/platform/garage/ui/config.yaml`이다.
+- 팀원이 S3 key 없이 웹에서 데이터를 다루도록 이 UI 계층 권한을 받아들였다. bucket 이름이 서로의 접두사가 되지
+  않게 짓는다.
 - client secret은 OpenBao `secret/platform/garage/ui`의 `oidc-client-secret`에도 같은 값으로 넣는다. 절차는
   [Garage README](../../gitops/platform/garage/README.md#관리-ui-배포)를 따른다.
-- 팀의 데이터 접근은 버킷별 사람용 S3 키로 Garage가 직접 제한한다. [access-control.md](access-control.md#garage)를 따른다.
+- 팀 권한과 운영 규칙은 [access-control.md](access-control.md#garage)를 따른다.
 
 ### bastion SSH
 
@@ -340,7 +342,7 @@ path "secret/undelete/apps/common/dev/*" {
 path "secret/data/apps/common/prod/*" {
   capabilities = ["read"]
 }
-# prod Garage 앱 key는 쓰기 권한이 있어 읽는 것만으로 읽기 전용 사람용 key를 우회한다.
+# prod Garage 앱 key는 쓰기 권한이 있어 읽는 것만으로 관리 UI의 prod 읽기 전용을 우회한다.
 path "secret/data/apps/common/prod/image" {
   capabilities = ["deny"]
 }

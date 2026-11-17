@@ -9,8 +9,7 @@ GitHub Team을 Dex가 `groups` claim(`homelab-platform-org:<team slug>`)으로 �
 | Grafana | Org Admin, 모든 대시보드 | Viewer, `10 Common Backend` 폴더 | `gitops/platform/monitoring/values.yaml`, 폴더 권한 |
 | OpenBao | `platform-admin` 정책 | `secret/apps/common` 하위 dev 읽기·쓰기, prod 읽기 (`prod/image` 거부) | 아래 OpenBao 절차 |
 | Kargo | admin | viewer, 모든 Project 조회 | `gitops/platform/kargo/values.yaml` `api.oidc` |
-| Garage 관리 UI | `admin_roles` | 권한 없음 | `gitops/platform/garage/ui/config.yaml` |
-| Garage 데이터 | 모든 bucket | 사람용 S3 key: `common-dev` 읽기·쓰기, `common-prod` 읽기 | `gitops/platform/garage/README.md` |
+| Garage 관리 UI | 모든 bucket·key 관리 | `common-dev` 조회·업로드·삭제, `common-prod` 조회 | `gitops/platform/garage/ui/config.yaml` `access_control` |
 | bastion SSH | Tailscale SSH | 불가 | Tailscale 정책 (Dex와 무관) |
 
 Argo CD와 Grafana의 로컬 admin 계정, OpenBao 복구 수단은 Dex와 GitHub 장애에 대비한 비상 접근용으로 유지한다.
@@ -53,7 +52,7 @@ path "secret/undelete/apps/common/dev/*" {
 path "secret/data/apps/common/prod/*" {
   capabilities = ["read"]
 }
-# prod Garage 앱 key는 쓰기 권한이 있어 읽는 것만으로 읽기 전용 사람용 key를 우회한다.
+# prod Garage 앱 key는 쓰기 권한이 있어 읽는 것만으로 관리 UI의 prod 읽기 전용을 우회한다.
 path "secret/data/apps/common/prod/image" {
   capabilities = ["deny"]
 }
@@ -116,26 +115,29 @@ UI 로그인에서 Method를 `OIDC`로 고르고 Role에 위 역할 이름을 �
 
 ## Garage
 
-Garage 권한 경계는 key-bucket 권한뿐이다. 관리 UI는 admin token 하나로 동작하므로 UI 안의 bucket별 접근
-제어는 경계가 되지 않는다. 그래서 관리와 데이터 접근을 나눈다.
+팀원은 GitHub Team으로 관리 UI(`https://garage.okbear.dev`)에 로그인해 자기 bucket을 다룬다. S3 key는
+애플리케이션만 쓰고 사람에게 나눠 주지 않는다.
 
-- 관리 UI는 `platform-admin`만 쓴다. Dex `admin_roles`에 `homelab-platform-org:platform-admin`만 넣고, 팀
-  그룹을 `access_control`에 추가하지 않는다.
-- 팀은 사람용 S3 key로 자기 bucket에만 접근한다. key는 `secret/apps/<app>/<env>/storage-console`에 두고,
-  팀은 기존 OpenBao 정책으로 받아 간다.
-- 팀은 prod 앱 key 경로(`secret/apps/<app>/prod/image`)를 읽을 수 없다. 앱 key는 쓰기 권한이 있어 읽기 전용
-  사람용 key를 우회하기 때문이다. OpenBao 정책에서 `deny`로 막고, 이 경로의 key 교체는 `platform-admin`이 한다.
-  ESO는 별도 정책(`common-prod`)으로 읽으므로 영향이 없다.
-- 새 애플리케이션은 `<app>-<env>` bucket, 앱 key, 사람용 key, OpenBao 경로, GitHub Team을 한 묶음으로 만든다.
+| 그룹 | 권한 | 설정 |
+| --- | --- | --- |
+| `platform-admin` | 모든 bucket·key·클러스터 관리 | `auth.oidc.admin_roles` |
+| `common-backend` | `common-dev*` 조회·업로드·삭제, `common-prod*` 조회 | `access_control.teams` |
+| 그 외 | Dex에서 거부 | Dex `teams` |
 
-bucket과 key 목록, 발급 명령은 [Garage README](../../gitops/platform/garage/README.md#권한-분리)를 따른다.
-팀원이 빠지면 GitHub Team에서 제거하고 사람용 key를 교체한다.
+- 팀 권한은 garage-ui가 검사하는 UI 계층 권한이다. UI는 admin token 하나로 Garage를 호출하므로 Garage가
+  사용자별로 강제하지 않는다. 팀원을 신뢰할 수 있는 내부 인원으로 보고 선택했다.
+- `bucket_prefixes`는 접두사 비교다. bucket 이름이 다른 bucket 이름의 접두사가 되지 않게 짓는다.
+- 팀은 prod 앱 key 경로(`secret/apps/<app>/prod/image`)를 읽을 수 없다. 앱 key는 쓰기 권한이 있어 관리 UI의
+  prod 읽기 전용을 우회하기 때문이다. OpenBao 정책에서 `deny`로 막고, 이 경로의 key 교체는 `platform-admin`이
+  한다. ESO는 별도 정책(`common-prod`)으로 읽으므로 영향이 없다.
+- 새 애플리케이션은 `<app>-<env>` bucket, 앱 key, OpenBao 경로, GitHub Team, `access_control.teams` binding을
+  한 묶음으로 만든다. 새 Team은 Dex `teams`에도 추가한다.
+
+팀원이 빠지면 GitHub Team에서 제거한다. 남은 garage-ui 세션은 `session_max_age`(8h)까지 유효하므로 즉시
+끊으려면 garage-ui Pod를 재시작한다. JWT 서명 키가 `emptyDir`이라 모든 세션이 무효가 된다.
 
 ```bash
-kubectl -n garage exec deploy/garage -- /garage key create team-common-backend-dev-v2
-kubectl -n garage exec deploy/garage -- /garage bucket allow --read --write --key <NEW_KEY_ID> common-dev
-# OpenBao 값을 새 key로 바꾼 뒤 기존 key 삭제
-kubectl -n garage exec deploy/garage -- /garage key delete --yes <OLD_KEY_ID>
+kubectl -n garage rollout restart deploy/garage-ui
 ```
 
 ## Grafana
