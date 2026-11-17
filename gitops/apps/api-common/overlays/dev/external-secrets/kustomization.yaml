@@ -7,3 +7,4 @@ resources:
   - serviceaccount.yaml
   - secretstore.yaml
   - externalsecret.yaml
+  - ghcr-pull-secret.yaml
