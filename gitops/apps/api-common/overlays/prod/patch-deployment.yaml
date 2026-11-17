@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-common
+
+spec:
+  # Kargo prod Stage의 첫 승격으로 이미지 digest가 들어오기 전까지 띄우지 않는다.
+  replicas: 0
+
+  template:
+    spec:
+      nodeSelector:
+        homelab.okbear.dev/environment: prod
+
+      tolerations:
+        - key: homelab.okbear.dev/environment
+          operator: Equal
+          value: prod
+          effect: NoSchedule
+
+      containers:
+        - name: api-common
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

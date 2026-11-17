@@ -570,6 +570,16 @@ applications:
     annotations:
       kargo.akuity.io/authorized-stage: kargo-api-common:dev
 
+  # --- CommonPlant (prod) ---
+  - name: api-common-prod
+    group: apps
+    project: apps-prod
+    type: kustomize
+    namespace: api-common-prod
+    wave: 30
+    path: gitops/apps/api-common/overlays/prod
+    syncPolicyRef: apps-prod
+
   # --- CommonPlant Kargo 파이프라인 (Project, Warehouse, Stage, credential) ---
   - name: api-common-kargo
     group: apps
