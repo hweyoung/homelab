@@ -39,7 +39,7 @@ OpenBao DB 값은 실제 PostgreSQL
 
 dev 앱 Secret은 ESO로 전환을 완료했고 기존 KSOPS `secret-generator.yaml`과 `secret.sops.env`는
 삭제했다. Deployment는 기존 `api-common-secret` 참조를 유지하며, KSOPS의 해시 이름 대신
-ESO의 고정 이름을 사용한다. GHCR pull Secret과 CNPG DB 계정 Secret은 기존 SOPS 방식으로 유지한다.
+ESO의 고정 이름을 사용한다. dev의 GHCR pull Secret과 CNPG DB 계정 Secret은 기존 SOPS 방식으로 유지한다. prod는 둘 다 ESO로 만든다.
 
 전환 전 기존 Deployment가 해시 Secret을 참조하는지 확인한다. 필요하면 먼저 ExternalSecret만
 선적용하여 동기화 성공을 확인한 뒤 앱 변경을 sync한다. 고정 이름 Secret을 이미 다른 주체가
@@ -88,10 +88,44 @@ prod의 ExternalSecret은 키 7개를 읽는다. 하나라도 없으면 해당 S
 
 | OpenBao 경로 (mount `secret`) | 키 |
 | --- | --- |
-| `apps/common/prod/database` | `username`, `password` (DB role Secret과 같은 값) |
+| `apps/common/prod/database` | `username`(`api_common`), `password` |
 | `apps/common/prod/auth` | `jwt-secret` |
 | `apps/common/prod/image` | `garage-access-key`, `garage-secret-key` (`common-prod` bucket 전용 key) |
 | `apps/common/prod/ghcr` | `username`, `password` (classic PAT, `read:packages`) |
+
+### prod DB 계정
+
+DB 계정 비밀번호는 OpenBao `apps/common/prod/database` 한 곳에서 관리한다. Kubernetes Secret은
+다른 namespace에서 참조할 수 없으므로 같은 값을 ESO가 두 namespace에 각각 만든다.
+
+| namespace | Secret | 사용처 | SecretStore / OpenBao role |
+| --- | --- | --- | --- |
+| `api-common-prod` | `api-common-secret` | 앱 `DB_USERNAME`, `DB_PASSWORD` | `openbao-common-prod` / `common-prod` |
+| `postgres-prod` | `api-common-db-secret-prod` | CNPG `DatabaseRole` `passwordSecret` | `openbao-api-common-prod` / `postgres-api-common-prod` |
+
+`postgres-prod` 쪽 리소스는 `databases/postgres/overlays/prod/api-common/external-secrets.yaml`에
+있다. 상위 overlay가 이름에 `-prod`를 붙이므로 참조 이름에는 suffix를 포함해 적는다. Secret에
+`cnpg.io/reload` 라벨이 있어 값이 바뀌면 CNPG가 DB 비밀번호를 다시 적용한다.
+
+`postgres-prod` role의 policy는 DB 경로 하나만 읽는다.
+
+```bash
+bao policy write postgres-api-common-prod - <<'EOF'
+path "secret/data/apps/common/prod/database" {
+  capabilities = ["read"]
+}
+EOF
+
+bao write auth/kubernetes/role/postgres-api-common-prod \
+  bound_service_account_names=eso-api-common-prod \
+  bound_service_account_namespaces=postgres-prod \
+  audience=openbao \
+  token_policies=postgres-api-common-prod \
+  token_ttl=1h token_max_ttl=4h
+```
+
+비밀번호를 바꿀 때는 OpenBao 값만 바꾼다. ESO가 두 Secret을 갱신하면(최대 `refreshInterval` 1시간)
+CNPG가 DB 비밀번호를 바꾸고, 앱은 `rollout restart`로 새 값을 읽는다.
 
 앱의 `application-prod.yml`은 `ddl-auto: validate`라 스키마를 만들지 않는다. 마이그레이션 도구가
 없으므로 prod DB 스키마를 준비하지 않으면 첫 기동에서 실패한다.
@@ -100,5 +134,6 @@ prod의 ExternalSecret은 키 7개를 읽는다. 하나라도 없으면 해당 S
 kustomize build gitops/apps/api-common/overlays/prod
 kubectl -n api-common-prod wait --for=condition=Ready secretstore/openbao-common-prod --timeout=120s
 kubectl -n api-common-prod wait --for=condition=Ready externalsecret --all --timeout=120s
+kubectl -n postgres-prod wait --for=condition=Ready externalsecret/api-common-db-secret-prod --timeout=120s
 kubectl -n postgres-prod get databaserole,database
 ```

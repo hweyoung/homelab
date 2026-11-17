@@ -37,7 +37,7 @@ Secret 이름을 양쪽이 동시에 소유하지 않도록 명시적으로 owne
 | cert-manager | `platform/cert-manager-config/cloudflare-api-token.sops.yaml` | DNS-01 issuer |
 | Cloudflare Tunnel | `platform/cloudflared/cloudflare-tunnel-token.sops.yaml` | cloudflared |
 | PostgreSQL | `databases/postgres/overlays/{dev,prod}/*.sops.yaml` | CNPG bootstrap/role |
-| api-common | `databases/postgres/overlays/{dev,prod}/api-common/db-auth-secret.sops.yaml` | DB role. 앱은 같은 값을 OpenBao `apps/common/<env>/database`에서 읽는다 |
+| api-common | `databases/postgres/overlays/dev/api-common/db-auth-secret.sops.yaml` | dev DB role. prod는 ESO가 앱과 같은 OpenBao `apps/common/prod/database`에서 만든다 |
 | api-common | `apps/api-common/overlays/dev/ghcr-secret.sops.yaml` | dev imagePullSecret. prod는 ESO(`apps/common/prod/ghcr`) |
 | Infisical 준비 | `platform/infisical/bootstrap/*.sops.yaml` 등 | 현재 root-app에서 비활성 |
 

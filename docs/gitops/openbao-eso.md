@@ -8,7 +8,7 @@ api-common dev의 앱 Secret `api-common-secret`은 OpenBao + External Secrets O
 | --- | --- |
 | 대상 | `api-common-dev` 네임스페이스의 `api-common-secret` |
 | 이전 방식 | KSOPS `secret-generator.yaml` + `secret.sops.env` (삭제 완료) |
-| 계속 SOPS 사용 | dev GHCR pull Secret(`overlays/dev/ghcr-secret*`), CNPG DB 계정 Secret |
+| 계속 SOPS 사용 | dev GHCR pull Secret(`overlays/dev/ghcr-secret*`), dev CNPG DB 계정 Secret, CNPG bootstrap Secret |
 | prod | `api-common-secret`과 GHCR pull Secret `ghcr-pull-secret`을 ESO로 동기화. workload는 Kargo 첫 승격 전까지 replicas 0 |
 
 ## 인증·동기화 흐름
@@ -118,6 +118,7 @@ prod는 GHCR pull Secret도 ESO로 만들므로 `apps/common/prod/ghcr`에 `user
 | 소비자 | 네임스페이스 / SA | OpenBao 경로 | policy·role |
 | --- | --- | --- | --- |
 | Kargo api-common credential | `kargo-api-common` / `eso-kargo-api-common` | `platform/kargo/api-common/{ghcr,git}` | `kargo-api-common` ([README](../../gitops/platform/kargo/README.md)) |
+| api-common prod DB 계정 (CNPG `DatabaseRole`) | `postgres-prod` / `eso-api-common-prod` | `apps/common/prod/database` | `postgres-api-common-prod` ([README](../../gitops/apps/api-common/README.md#prod-db-계정)) |
 
 Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role을 따로 만든다.
 
