@@ -34,6 +34,7 @@ auth:
     username_attribute: preferred_username
     name_attribute: name
     role_attribute_path: groups
+    team_attribute_path: groups
     admin_roles:
       - homelab-platform-org:platform-admin
     session_max_age: 28800
@@ -42,9 +43,21 @@ auth:
     cookie_http_only: true
     cookie_same_site: lax
 
-# 섹션이 있으면 기본 거부다. 팀을 정의하지 않으므로 admin_roles 사용자만 접근한다.
-# 팀 데이터 접근은 UI가 아니라 버킷별 사람용 S3 key로 한다 (README 「권한 분리」).
-access_control: {}
+# 섹션이 있으면 기본 거부다. admin_roles 사용자는 전체, 아래 팀은 binding만 허용한다.
+# UI 계층 권한이며 Garage가 강제하는 경계는 아니다 (README 「UI 접근」).
+# bucket_prefixes는 접두사 비교라 `common-prod`는 `common-prod-*` bucket도 포함한다.
+access_control:
+  presets:
+    bucket_read: [bucket.list, bucket.read, object.list, object.read]
+    bucket_write: ["preset:bucket_read", object.write, object.delete]
+  teams:
+    - name: common-backend
+      claim_values: ["homelab-platform-org:common-backend"]
+      bindings:
+        - bucket_prefixes: ["common-dev"]
+          permissions: ["preset:bucket_write"]
+        - bucket_prefixes: ["common-prod"]
+          permissions: ["preset:bucket_read"]
 
 # 프런트엔드와 API가 같은 origin이다.
 cors:

@@ -67,22 +67,21 @@ Garage 권한은 key와 bucket 사이의 `read`/`write`/`owner`뿐입니다. buc
 
 - bucket 이름은 `<app>-<env>`입니다. 공개 website bucket과 비공개 파일 bucket은 분리합니다
   (`common-prod`, `common-prod-private`).
-- 애플리케이션 key와 사람이 쓰는 key를 나눕니다. 팀원이 빠지면 사람용 key만 교체하고 앱은 재배포하지
-  않습니다.
+- S3 key는 애플리케이션만 씁니다. 사람은 key를 받지 않고 관리 UI에서 팀 권한으로 접근합니다.
 - key에 `owner`를 주지 않습니다. `owner`는 S3 API로 website, CORS 같은 bucket 설정을 바꿀 수 있습니다.
   bucket 설정은 관리자가 CLI나 관리 UI에서 합니다.
-- prod의 사람용 key는 읽기 전용이 기본입니다. 쓰기가 필요할 때만 잠시 `--write`를 부여하고 회수합니다.
+- bucket 이름이 다른 bucket 이름의 접두사가 되지 않게 합니다. 관리 UI 팀 권한은 접두사로 비교하므로
+  `common-prod`에 준 권한이 `common-prod-private`에도 적용됩니다. 권한이 다르면 `common-private-prod`처럼
+  앞부분을 다르게 짓습니다.
 
-| bucket | key | 권한 | OpenBao 경로 (`secret/`) |
+| bucket | 앱 key | OpenBao 경로 (`secret/`) | `common-backend` (관리 UI) |
 | --- | --- | --- | --- |
-| `common-dev` | `app-common-dev` | read, write | `apps/common/dev/image` |
-| `common-prod` | `app-common-prod` | read, write | `apps/common/prod/image` |
-| `common-dev` | `team-common-backend-dev` | read, write | `apps/common/dev/storage-console` |
-| `common-prod` | `team-common-backend-prod` | read | `apps/common/prod/storage-console` |
+| `common-dev` | `app-common-dev` (read, write) | `apps/common/dev/image` | 조회, 업로드, 삭제 |
+| `common-prod` | `app-common-prod` (read, write) | `apps/common/prod/image` | 조회 |
 
-사람용 key를 앱 경로 아래에 두면 OpenBao의 기존 팀 정책(`common-backend`)으로 해당 팀만 받아 갈 수
-있습니다. 팀 정책은 `apps/common/prod/image`를 `deny`로 막습니다. 쓰기 권한이 있는 prod 앱 key를 팀이 읽으면
-읽기 전용 사람용 key가 의미 없어지기 때문입니다. bucket이나 key를 추가·회수하면 이 표도 함께 고칩니다. 현재 권한은 다음 명령으로 확인합니다.
+OpenBao 팀 정책(`common-backend`)은 `apps/common/prod/image`를 `deny`로 막습니다. 쓰기 권한이 있는 prod 앱
+key를 팀이 읽으면 관리 UI의 prod 읽기 전용을 우회할 수 있기 때문입니다. bucket이나 key, 팀 권한을
+추가·회수하면 이 표와 `ui/config.yaml`을 함께 고칩니다. 현재 권한은 다음 명령으로 확인합니다.
 
 ```bash
 kubectl -n garage exec deploy/garage -- /garage bucket info common-prod
@@ -94,15 +93,18 @@ kubectl -n garage exec deploy/garage -- /garage key info app-common-prod
 
 ### UI 접근
 
-| 용도 | 대상 | 인증 | 경계 |
-| --- | --- | --- | --- |
-| 관리 UI (bucket·key·권한 관리) | `platform-admin` | Dex OIDC | UI가 admin token을 쓰므로 Garage 관리자 권한과 같음 |
-| 데이터 조회·업로드 | 각 팀 | 사람용 S3 key | Garage가 key-bucket 권한으로 직접 제한 |
+| 대상 | GitHub Team | 관리 UI 권한 |
+| --- | --- | --- |
+| 관리자 | `platform-admin` (`admin_roles`) | 모든 bucket·key·클러스터 관리 |
+| 팀 | `common-backend` (`access_control.teams`) | `common-dev*` 조회·업로드·삭제, `common-prod*` 조회 |
+| 그 외 Dex 사용자 | - | 모든 API 403 |
 
-관리 UI의 bucket별 접근 제어는 UI 내부 기능이고 보안 경계가 아닙니다. 팀에게 관리 UI를 열지 않습니다.
-Garage v2 admin token scope도 API 단위라 bucket별로 제한할 수 없습니다. 팀원은 OpenBao에서 받은
-사람용 key로 S3 클라이언트(Cyberduck, rclone 등)나 S3 key로 로그인하는 웹 브라우저를 사용합니다.
-S3 API와 admin API는 계속 공개 경로에 노출하지 않습니다.
+팀에는 object 조회·업로드·삭제와 bucket 조회만 줍니다. bucket 생성·설정 변경, key, 권한 부여, 클러스터
+작업은 관리자만 합니다. 새 팀이나 bucket은 `ui/config.yaml`의 `access_control.teams`에 binding을 추가합니다.
+
+이 권한은 garage-ui가 검사하는 UI 계층 권한입니다. UI는 admin token 하나로 Garage를 호출하므로 Garage가
+사용자별로 강제하는 경계는 아니며, UI 버그가 있으면 binding 밖에 접근할 수 있습니다. 팀원을 신뢰할 수 있는
+내부 인원으로 보고 선택한 구성입니다. S3 API와 admin API는 계속 공개 경로에 노출하지 않습니다.
 
 ## 관리 UI 배포
 
@@ -110,62 +112,134 @@ S3 API와 admin API는 계속 공개 경로에 노출하지 않습니다.
 (root-app의 `platform-garage-ui`).
 
 - 로그인은 Dex OIDC만 씁니다. 비밀번호와 admin token 로그인은 항상 전체 관리자라 끕니다.
-- `admin_roles`에 `homelab-platform-org:platform-admin`만 두고 `access_control: {}`로 기본 거부를 켭니다.
-  다른 Dex 사용자는 로그인해도 모든 API가 403입니다.
+- `admin_roles`에 `homelab-platform-org:platform-admin`을 두고, `access_control`로 기본 거부를 켠 뒤
+  `common-backend` 팀 binding만 허용합니다. 권한은 「UI 접근」 표를 따릅니다.
 - Garage 연결에는 PVC의 master `admin_token` 대신 `garage admin-token create`로 만든 UI 전용 토큰을 씁니다.
   회수할 때 Garage 설정과 재시작 없이 이 토큰만 지웁니다.
 - 객체 조회·업로드는 UI가 해당 bucket 권한이 있는 key의 secret을 admin API로 읽어 처리합니다.
 - JWT 서명 키는 `emptyDir`에 두므로 Pod가 바뀌면 다시 로그인합니다.
 
-merge 전에 다음을 준비합니다. Dex의 `GARAGE_UI_CLIENT_SECRET`은 `dex-env.sops.yaml`에 들어 있습니다.
+### 적용 절차
 
-```bash
-# UI 전용 admin token. 출력되는 token은 다시 볼 수 없다.
-kubectl -n garage exec deploy/garage -- /garage admin-token create garage-ui
-kubectl -n garage exec deploy/garage -- /garage admin-token info garage-ui
+Secret 흐름은 다음과 같습니다. 두 값이 모두 있어야 ESO가 `garage-ui` Secret을 만들고, 하나라도 없으면
+Secret 자체가 생기지 않아 Pod가 뜨지 않습니다.
+
+```text
+OpenBao secret/platform/garage/ui ── role garage (SA eso-garage) ──> SecretStore openbao-garage
+  ├─ admin-token         (garage admin-token create)         ──> ExternalSecret garage-ui ──> Secret garage-ui
+  └─ oidc-client-secret  (= Dex dex-env GARAGE_UI_CLIENT_SECRET)                              └─> Deployment env
 ```
 
-`admin-token info`의 Scope가 전체(`*`)인지 확인합니다. OpenBao에는 다음을 적용합니다. `bao`는
-`platform-openbao-0` Pod 안에서 관리자 토큰으로 실행합니다.
+`bao` 명령은 마스터 노드에서 `platform-openbao-0` Pod 안으로 실행합니다. 먼저 관리자로 로그인합니다.
 
 ```bash
-bao policy write garage - <<'EOF'
-path "secret/data/platform/garage/*" {
-  capabilities = ["read"]
-}
-EOF
-
-bao write auth/kubernetes/role/garage \
-  bound_service_account_names=eso-garage \
-  bound_service_account_namespaces=garage \
-  audience=openbao \
-  policies=garage \
-  ttl=1h
+kubectl -n openbao exec -it platform-openbao-0 -- bao login
 ```
 
-값은 age 개인키가 있는 저장소 체크아웃에서 표준 입력으로 넘겨 명령 인자에 드러나지 않게 합니다.
-`ADMIN_TOKEN`에는 위에서 만든 토큰을 붙여 넣습니다. 미리 `kubectl -n openbao exec -it platform-openbao-0 -- bao login`이
-필요합니다.
+1. UI 전용 admin token을 만듭니다. 출력되는 token은 다시 볼 수 없으므로 바로 다음 단계에 씁니다.
+
+   ```bash
+   kubectl -n garage exec deploy/garage -- /garage admin-token create garage-ui
+   kubectl -n garage exec deploy/garage -- /garage admin-token info garage-ui
+   ```
+
+   `admin-token info`의 Scope가 전체인지 확인합니다.
+
+2. ESO가 OpenBao에 로그인할 정책과 kubernetes role을 만듭니다. **이 단계가 빠지면 SecretStore가
+   `InvalidProviderConfig`로 남습니다.**
+
+   ```bash
+   kubectl -n openbao exec -i platform-openbao-0 -- bao policy write garage - <<'EOF'
+   path "secret/data/platform/garage/*" {
+     capabilities = ["read"]
+   }
+   EOF
+
+   kubectl -n openbao exec platform-openbao-0 -- bao write auth/kubernetes/role/garage \
+     bound_service_account_names=eso-garage \
+     bound_service_account_namespaces=garage \
+     audience=openbao \
+     policies=garage \
+     ttl=1h
+   ```
+
+3. 값을 넣습니다. 표준 입력으로 넘겨 명령 인자와 화면에 값이 남지 않게 합니다. `admin-token`은 1단계 출력을
+   붙여 넣고, `oidc-client-secret`은 Dex Secret과 같은 값을 클러스터에서 읽습니다.
+
+   ```bash
+   read -rs ADMIN_TOKEN
+   printf '%s' "$ADMIN_TOKEN" \
+     | kubectl -n openbao exec -i platform-openbao-0 -- bao kv put secret/platform/garage/ui admin-token=-
+   unset ADMIN_TOKEN
+
+   kubectl -n dex get secret dex-env -o jsonpath='{.data.GARAGE_UI_CLIENT_SECRET}' | base64 -d \
+     | kubectl -n openbao exec -i platform-openbao-0 -- bao kv patch secret/platform/garage/ui oidc-client-secret=-
+   ```
+
+   두 번째 값은 반드시 `kv patch`로 넣습니다. `kv put`은 기존 키를 지우고 새로 씁니다. 키 이름만 확인합니다.
+
+   ```bash
+   kubectl -n openbao exec platform-openbao-0 -- bao kv get -format=json secret/platform/garage/ui | jq -r '.data.data | keys[]'
+   ```
+
+   `admin-token`, `oidc-client-secret` 두 줄이 나와야 합니다.
+
+4. ESO를 바로 다시 동기화합니다. ESO에는 별도 sync 명령이 없고 annotation 값이 바뀌면 다시 처리합니다.
+   기다리면 SecretStore는 주기적으로, ExternalSecret은 `refreshInterval`(1h)마다 다시 시도합니다.
+
+   ```bash
+   kubectl -n garage annotate secretstore openbao-garage force-sync="$(date +%s)" --overwrite
+   kubectl -n garage annotate externalsecret garage-ui force-sync="$(date +%s)" --overwrite
+   kubectl -n garage get secretstore,externalsecret
+   kubectl -n garage rollout status deploy/garage-ui --timeout=5m
+   ```
+
+   SecretStore `READY=True`, ExternalSecret `SecretSynced`이면 정상입니다. Secret이 생기면
+   `CreateContainerConfigError`였던 Pod는 kubelet이 다시 시도해 자동으로 뜹니다.
+
+5. Dex를 재시작합니다. Dex는 `dex-env`를 시작할 때만 읽으므로 `GARAGE_UI_CLIENT_SECRET`이 추가되기 전에 뜬
+   Pod는 client 인증을 거부합니다.
+
+   ```bash
+   kubectl -n dex rollout restart deploy/dex && kubectl -n dex rollout status deploy/dex --timeout=5m
+   ```
+
+6. Cloudflare Tunnel Public Hostname에 `garage.okbear.dev`를 다른 관리 도구와 같은 Traefik 서비스로 추가합니다.
+
+`platform-admin`으로 로그인해 모든 bucket이 보이는지, `common-backend` 계정은 `common-dev`, `common-prod`만
+보이고 `common-prod`에 업로드가 거부되는지 확인합니다. 팀 계정의 해석된 권한은 로그인 상태에서
+`https://garage.okbear.dev/api/v1/capabilities`로 볼 수 있습니다. UI 전용 토큰을 회수할 때는 `/garage admin-token delete garage-ui`를 실행합니다.
+
+### 트러블슈팅
+
+2026-11-17 첫 배포에서 2단계를 빠뜨려 다음 순서로 증상이 이어졌습니다. 위에서 아래로 확인합니다.
+
+| 위치 | 증상 | 원인 | 조치 |
+| --- | --- | --- | --- |
+| Pod 이벤트 | `Error: secret "garage-ui" not found` | ESO가 Secret을 만들지 못함 | 아래 ExternalSecret 확인 |
+| ExternalSecret | `SecretSyncedError: could not get secret data from provider` | 원인을 담지 않는 일반 메시지 | `describe`의 Events 확인 |
+| ExternalSecret Events | `SecretStore "openbao-garage" is not ready` | SecretStore 인증 실패 | SecretStore 확인 |
+| SecretStore | `InvalidProviderConfig: unable to create client` | OpenBao role `garage`가 없거나 SA·namespace·audience 불일치 | 2단계 실행 |
+| `bao policy read garage` | `No policy named: garage` | 정책 없음 | 2단계 실행 |
+| `bao read auth/kubernetes/role/garage` | `No value found at ...` | role 없음 | 2단계 실행 |
+| ExternalSecret Events | `cannot find property`, `key ... does not exist` | 두 값 중 하나가 없음 | 3단계에서 빠진 값을 `kv patch` |
+| 로그인 | Dex에서 client 인증 실패 | Dex Pod가 이전 `dex-env`를 읽고 있음 | 5단계 실행 |
+
+상태는 다음 명령으로 봅니다.
 
 ```bash
-read -rs ADMIN_TOKEN
-CLIENT_SECRET="$(sops -d --extract '["stringData"]["GARAGE_UI_CLIENT_SECRET"]' gitops/platform/dex/secrets/dex-env.sops.yaml)"
-printf '{"admin-token":"%s","oidc-client-secret":"%s"}' "$ADMIN_TOKEN" "$CLIENT_SECRET" \
-  | kubectl -n openbao exec -i platform-openbao-0 -- bao kv put secret/platform/garage/ui -
-unset ADMIN_TOKEN CLIENT_SECRET
+kubectl -n garage get secretstore openbao-garage -o jsonpath='{range .status.conditions[*]}{.reason}: {.message}{"\n"}{end}'
+kubectl -n garage get externalsecret garage-ui -o jsonpath='{range .status.conditions[*]}{.reason}: {.message}{"\n"}{end}'
+kubectl -n garage describe externalsecret garage-ui | sed -n '/Events:/,$p'
 ```
 
-Cloudflare Tunnel Public Hostname에 `garage.okbear.dev`를 다른 관리 도구와 같은 Traefik 서비스로 추가합니다.
-merge 후 확인합니다.
+ESO 컨트롤러 Deployment 이름은 Helm release 접두사가 붙어 `external-secrets`가 아닙니다. 이름을 먼저 확인하고
+로그를 봅니다.
 
 ```bash
-kubectl -n garage wait --for=condition=Ready externalsecret/garage-ui --timeout=120s
-kubectl -n garage rollout status deploy/garage-ui --timeout=5m
-kubectl -n dex rollout status deploy/dex --timeout=5m
+kubectl -n external-secrets get deploy
+kubectl -n external-secrets logs deploy/<컨트롤러 이름> --since=10m | grep -i garage | tail -20
 ```
-
-`platform-admin`으로 로그인해 bucket 목록이 보이는지, `common-backend` 계정은 권한 없음 화면이 나오는지
-확인합니다. UI 전용 토큰을 회수할 때는 `/garage admin-token delete garage-ui`를 실행합니다.
 
 ## 외부 이미지 URL과 Bucket Routing
 
