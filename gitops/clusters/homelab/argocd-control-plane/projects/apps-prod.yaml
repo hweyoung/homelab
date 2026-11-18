@@ -20,6 +20,15 @@ spec:
       kind: "*"
 
   namespaceResourceWhitelist:
+    - group: ""
+      kind: ServiceAccount
+
+    - group: external-secrets.io
+      kind: SecretStore
+
+    - group: external-secrets.io
+      kind: ExternalSecret
+
     - group: apps
       kind: Deployment
 

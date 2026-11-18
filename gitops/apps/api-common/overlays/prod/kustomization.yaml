@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: api-common-prod
+
+resources:
+  - ../../base
+  - httproute.yaml
+  - external-secrets
+
+configMapGenerator:
+  - name: api-common-config
+    envs:
+      - config.env
+
+# images는 Kargo prod Stage가 dev에서 검증한 digest로 채운다. 수동으로 수정하지 않는다.
+patches:
+  - path: patch-deployment.yaml

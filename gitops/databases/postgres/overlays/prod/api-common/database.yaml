@@ -1,0 +1,15 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: postgres-api-common
+  namespace: postgres-prod
+
+spec:
+  cluster:
+    name: postgres-prod
+
+  name: api_common
+  owner: api_common
+
+  # prod 데이터는 Database 리소스를 지워도 남긴다.
+  databaseReclaimPolicy: retain

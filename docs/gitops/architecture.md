@@ -48,10 +48,10 @@ desired state와 클러스터를 지속적으로 맞춘다.
 | -6 | `platform-grafana-route`, `platform-loki` | `platform` | Grafana route, 로그 저장소 |
 | -5 | `platform-alloy` | `platform` | Pod 로그 수집 DaemonSet |
 | 10 | `databases-postgres-{dev,prod}` | `databases` | CNPG Cluster |
-| 30 | `apps-nginx-{dev,prod}`, `apps-api-common-dev` | `apps-*` | workload |
+| 30 | `apps-nginx-{dev,prod}`, `apps-api-common-{dev,prod}` | `apps-*` | workload |
 | 30 | `apps-api-common-kargo` | `kargo-pipelines` | api-common Kargo Project, Warehouse, Stage, credential |
 
-root-app은 35개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
+root-app은 36개의 활성 하위 Application을 선언한다. 같은 wave는 병렬일 수 있고 wave는
 controller Ready를 보장하지 않는다. PostgreSQL 적용 전 CNPG CRD/controller readiness처럼
 런타임 의존성을 별도로 확인해야 한다.
 
@@ -111,8 +111,9 @@ endpoint와 Dex 로그인이 필요한 관리 UI만 route로 공개한다.
 
 Secret은 두 경로로 나뉜다. Ansible Vault가 Argo CD의 age key와 선택적 root repo PAT를
 bootstrap하고, Git의 SOPS payload는 repo-server/KSOPS가 Kubernetes Secret으로 만든다.
-OpenBao와 ESO 경로는 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook,
-Garage UI admin token·OIDC client secret, Kargo 앱별 GHCR·Git credential에 적용되어 있고, 나머지
+OpenBao와 ESO 경로는 api-common dev/prod 앱 Secret, DB 계정 Secret과 GHCR pull Secret, Grafana admin,
+Alertmanager Discord webhook, Garage UI admin token·OIDC client secret, Kargo 앱별 GHCR·Git
+credential에 적용되어 있고, 나머지
 workload Secret은 SOPS/KSOPS를 유지한다. 상세 절차는 [Secret 관리](secrets.md)에 있다.
 
 ## 이미지 승격 경계
@@ -128,7 +129,8 @@ flowchart LR
 digest/Freight를 승격하는 경계를 목표로 한다. 현재는 controller(`platform-kargo`)와 api-common
 dev 파이프라인(`apps-api-common-kargo`)이 선언되어 있다. dev Stage는 새 `sha-<commit>` 이미지를
 자동 승격해 dev overlay digest를 `main`에 커밋하고 `apps-api-common-dev`를 sync한다. prod
-Stage는 아직 없으므로 동일 digest의 dev→prod 승격은 라이브 완료 상태가 아니다.
+workload(`apps-api-common-prod`)는 replicas 0으로 선언되어 있고 prod Stage는 아직 없으므로 동일
+digest의 dev→prod 승격은 라이브 완료 상태가 아니다.
 
 파이프라인은 앱별로 `gitops/apps/<앱>/kargo/`에 두고 `kargo-pipelines` AppProject로 배포한다.
 GHCR·Git credential도 Project namespace마다 따로 두어 token 소유자와 폐기 범위를 앱 단위로
@@ -155,8 +157,8 @@ GHCR·Git credential도 Project namespace마다 따로 두어 token 소유자와
 | 서비스 | Certificate/HTTPRoute, DB readiness, 실제 HTTP/S3 요청 | end-to-end 동작 |
 
 KSOPS는 plugin과 age key가 없는 로컬 환경에서 완전히 렌더할 수 없다. CI는 generator를
-제외하고 build하며, 검사 항목은 [GitOps 검증](validation.md)에 정리했다. 또한 현재
+제외하고 build하며, 검사 항목은 [GitOps 검증](validation.md)에 정리했다. 이전에는
 `ghcr-secret-generator.sops.yaml`이라는 잘못 이름 붙은 비암호화 generator 때문에 CI의
-SOPS filename 검사는 실패한다. 이 문서 갱신은 현재 파일 구조의 정적 대조 결과이며 cluster
+SOPS filename 검사가 실패했으나 해당 파일을 삭제해 해소했다. 이 문서 갱신은 현재 파일 구조의 정적 대조 결과이며 cluster
 상태와 실제 트래픽은 검증하지 않았다. 운영 절차는
 [GitOps 운영](README.md)을 참고한다.

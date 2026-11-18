@@ -8,8 +8,8 @@ api-common dev의 앱 Secret `api-common-secret`은 OpenBao + External Secrets O
 | --- | --- |
 | 대상 | `api-common-dev` 네임스페이스의 `api-common-secret` |
 | 이전 방식 | KSOPS `secret-generator.yaml` + `secret.sops.env` (삭제 완료) |
-| 계속 SOPS 사용 | GHCR pull Secret(`base/ghcr-secret*`), CNPG DB 계정 Secret |
-| prod | overlay 작성 중, root-app 미등록, OpenBao role 미생성 |
+| 계속 SOPS 사용 | CNPG bootstrap Secret(`postgres-secret-<env>`). api-common에는 SOPS 파일이 없음 |
+| prod | `api-common-secret`과 GHCR pull Secret `ghcr-pull-secret`을 ESO로 동기화. workload는 Kargo 첫 승격 전까지 replicas 0 |
 
 ## 인증·동기화 흐름
 
@@ -109,12 +109,16 @@ bao write auth/kubernetes/role/common-dev \
 ```
 
 prod는 `dev`를 `prod`로 바꿔 같은 순서로 만든다. role은 prod SA가 생긴 뒤 만들어도 된다.
+GHCR pull Secret도 ESO로 만들므로 `apps/common/<env>/ghcr`에 `username`과
+`password`(classic PAT, `read:packages`)를 추가로 넣는다. policy `common-<env>`가
+`secret/data/apps/common/<env>/*`를 읽으면 경로를 따로 추가할 필요가 없다.
 
 같은 방식을 쓰는 다른 소비자의 경로와 role은 다음과 같다. 절차는 각 README를 따른다.
 
 | 소비자 | 네임스페이스 / SA | OpenBao 경로 | policy·role |
 | --- | --- | --- | --- |
 | Kargo api-common credential | `kargo-api-common` / `eso-kargo-api-common` | `platform/kargo/api-common/{ghcr,git}` | `kargo-api-common` ([README](../../gitops/platform/kargo/README.md)) |
+| api-common DB 계정 (CNPG `DatabaseRole`) | `postgres-<env>` / `eso-api-common-<env>` | `apps/common/<env>/database` | `postgres-api-common-<env>` ([README](../../gitops/apps/api-common/README.md#db-계정)) |
 
 Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role을 따로 만든다.
 
@@ -153,16 +157,16 @@ Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role
 | `kubectl auth can-i create serviceaccounts/token`이 `no` | `kubectl auth can-i`가 `serviceaccounts/token`을 "이름이 token인 SA"로 해석함 | `--subresource=token`으로 확인하면 `yes` |
 | 값을 바꿨는데 앱에 반영 안 됨 | `envFrom`은 Pod 시작 때만 읽힘. ESO는 Pod를 재시작하지 않음 | `rollout restart`. 필요하면 Reloader 도입 검토 |
 | 해시가 붙은 `api-common-secret-xxxxx`가 남아 있음 | KSOPS가 만든 이전 Secret. Argo CD prune이 꺼져 있으면 남음 | Pod가 참조하지 않는지 확인 후 삭제 |
-| dev overlay 전체 `kustomize build` 실패 | GHCR generator가 ksops를 쓰는데 로컬에 ksops가 없음 | `kustomize build .../external-secrets`만 로컬에서 검증 |
+| dev overlay 전체 `kustomize build` 실패 | GHCR generator가 ksops를 쓰는데 로컬에 ksops가 없음 | GHCR pull Secret을 ESO로 바꿔 generator를 없앰. 지금은 전체 build 가능 |
 
 ## 남은 작업
 
 - [ ] 수동 ClusterRoleBinding `openbao-tokenreview` 삭제 (chart 바인딩과 중복)
 - [ ] OpenBao HTTPRoute에서 `http` 리스너 제거 또는 https 리다이렉트 (현재 평문 접근 가능)
-- [ ] dev/prod Garage 경로와 property 이름 통일
+- [x] dev/prod Garage 경로와 property 이름 통일 (prod도 `apps/common/prod/image`)
 - [ ] SecretStore `server` 주소를 dev도 FQDN(`platform-openbao.openbao.svc.cluster.local`)으로 맞춤
 - [ ] 해시 붙은 이전 KSOPS Secret 정리 확인
 - [ ] prod: OpenBao 시크릿·policy·role(`common-prod`, `api-common-prod`, `eso-common-prod`) 생성
-- [ ] prod: `api-common-prod` Application을 root-app에 등록하고 `apps-prod` AppProject 변경과 함께 반영
+- [x] prod: `api-common-prod` Application을 root-app에 등록하고 `apps-prod` AppProject 변경과 함께 반영
 - [ ] OpenBao 운영: auto-unseal 없음(재시작 시 수동 unseal), audit device·snapshot agent 미설정
-- [ ] (선택) GHCR pull Secret도 ESO `dockerconfigjson` 템플릿으로 전환 검토
+- [x] GHCR pull Secret을 ESO `dockerconfigjson` 템플릿으로 구성 (dev, prod)
