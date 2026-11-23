@@ -12,7 +12,7 @@ Promotion이 성공해 새 digest가 `api-common-dev`에 배포됐다. `https://
 
 | 원칙 | 구성에 드러나는 방식 |
 | --- | --- |
-| 앱 CI는 홈랩 저장소를 모른다 | 앱 CI는 테스트와 GHCR 이미지 발행까지만 한다. homelab 저장소 쓰기는 Kargo만 가진다. |
+| 앱 CI는 홈랩 저장소를 모른다 | 앱 CI는 테스트, GHCR 이미지 발행, Kargo API로의 prod Promote 요청까지만 한다. homelab 저장소 쓰기는 Kargo만 가진다. |
 | 한 번 빌드한 이미지를 그대로 올린다 | 승격 단위는 mutable tag가 아니라 Freight가 가리키는 image digest다. prod는 dev에서 검증한 Freight만 받는다. |
 | 환경 설정은 승격하지 않는다 | ConfigMap, Secret, DB endpoint, domain은 각 overlay에 남기고 이미지 digest만 바꾼다. |
 | 파이프라인은 앱 옆에 둔다 | 컨트롤러는 `platform/kargo`, 앱별 Project·Warehouse·Stage는 `apps/<앱>/kargo`에 둔다. |
@@ -29,7 +29,7 @@ flowchart LR
     DEV -->|"digest 커밋 · push"| GIT["homelab main<br/>overlays/dev"]
     DEV -->|"argocd-update"| ARGO["apps-api-common-dev"]
     GIT --> ARGO --> POD["api-common-dev"]
-    DEV -->|"검증된 Freight"| PROD["Stage prod<br/>수동 Promote"]
+    DEV -->|"검증된 Freight"| PROD["Stage prod<br/>release PR merge 시 Promote"]
     PROD -->|"digest 커밋 · push"| GITP["homelab main<br/>overlays/prod"]
     PROD -->|"argocd-update"| ARGOP["apps-api-common-prod"]
     GITP --> ARGOP --> PODP["api-common-prod"]
@@ -111,7 +111,10 @@ Kargo `Project`는 cluster-scoped 리소스다. `apps-dev`/`apps-prod`는 cluste
 | --- | --- |
 | destination | `kargo-api-*` namespace |
 | cluster 리소스 | `kargo.akuity.io/Project`만 |
-| namespace 리소스 | ProjectConfig, Warehouse, Stage, PromotionTask, ServiceAccount, SecretStore, ExternalSecret |
+| namespace 리소스 | ProjectConfig, Warehouse, Stage, PromotionTask, ServiceAccount, SecretStore, ExternalSecret, Role, RoleBinding |
+
+Role과 RoleBinding은 앱 CI가 쓰는 Kargo role을 선언하려고 허용했다. destination이 `kargo-api-*`라서
+권한은 해당 Project namespace 안에서만 유효하다.
 
 ### Namespace
 
@@ -220,8 +223,38 @@ discovery와 token endpoint를 직접 호출한다. Dex가 `kargo.okbear.dev` or
 
 Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `main` 변경을 막을 수 있다.
 하지만 승격 판단은 이미 Kargo의 Stage와 Freight 검증이 맡고 있어 PR merge가 같은 역할을
-반복한다. dev와 prod 모두 직접 push를 유지한다. prod 승인은 Kargo에서 Promote하는 행위로 하고,
-이후 Organization 저장소의 release PR(develop → main) merge가 CI로 Promote를 요청하게 바꾼다.
+반복한다. dev와 prod 모두 직접 push를 유지한다. prod 승인은 Organization 저장소의 release PR
+(develop → main) 리뷰와 merge가 맡고, merge되면 CI가 Kargo API로 Promote를 요청한다.
+
+## Organization 저장소 연동
+
+배포 이력은 팀이 쓰는 Organization 저장소(`v3_CommonPlant_Backend_Repo`)에 남긴다. homelab은 개인
+저장소라 팀원이 보지 않고, Kargo UI는 viewer 권한으로만 열려 있다.
+
+```text
+feature -> develop merge
+  build-dev-image: sha-<커밋> 이미지 빌드
+  deploy-dev (Environment dev): Kargo가 dev에 자동 승격할 때까지 기다림
+develop -> main release PR (merge commit)
+  deploy-prod (Environment prod): main HEAD의 두 번째 부모(develop 커밋)로 Freight를 찾아 prod Promote 요청
+```
+
+| 항목 | 내용 |
+| --- | --- |
+| 이력 | job에 `environment`를 지정해 GitHub가 Deployments에 dev/prod 배포를 기록한다. public 저장소라 Free 플랜에서도 Environment를 쓸 수 있다 |
+| 이미지 | main merge 때 다시 빌드하지 않는다. develop에서 빌드해 dev에서 검증한 digest를 prod로 올린다 |
+| 커밋 대응 | release PR은 merge commit으로 합친다. squash/rebase는 커밋 sha가 바뀌어 이미지 태그와 연결되지 않는다 |
+| 권한 | CI는 Kargo role `github-actions` token만 가진다. Freight·Stage·Promotion 조회와 prod Promote만 할 수 있고 homelab 저장소 권한은 없다 |
+| 검증 | Kargo prod Stage는 dev를 통과한 Freight만 받는다. CI도 Promote 전에 `status.verifiedIn.dev`를 확인한다 |
+| 되돌리기 | `Deploy Prod` workflow를 수동 실행해 이전 develop 커밋을 지정한다. Kargo에 Freight가 남아 있어야 한다 |
+
+Kargo role은 `apps/api-common/kargo/ci-promoter.yaml`에 같은 이름의 ServiceAccount, Role,
+RoleBinding으로 선언한다. API token은 `kargo create token`으로 발급하고 Kargo 1.11 문서에 만료
+기간이 없으므로, 교체할 때는 지우고 다시 만든다. 발급한 값은 다시 조회할 수 없고 Git에 두지 않는다.
+
+Kargo 1.11 CLI의 `kargo login`에는 token 옵션이 없다. `KARGO_API_ADDRESS`와 `KARGO_API_TOKEN`을
+함께 설정하면 CLI가 그 token으로 API를 호출한다. `kargo promote --wait`은 결과와 관계없이
+끝나므로 CI는 Promotion의 `status.phase`를 따로 확인한다.
 
 ### CI 평문 Secret 검사
 
@@ -277,11 +310,12 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
   같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
 - Kargo CLI(`kargo login --sso`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
-- prod는 수동 Promote만 된다. Organization 저장소 CI가 release PR merge 시 Kargo API로 Promote를
-  요청하고 GitHub Deployments에 이력을 남기는 구성은 아직 없다.
+- Organization 저장소 workflow(`deploy-dev`, `Deploy Prod`)는 초안 단계다. 팀 저장소에 반영하고
+  실제 배포로 확인해야 한다.
+- Kargo API token은 만료 기간이 문서에 없다. 교체 주기를 정해야 한다.
 - prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. 첫 배포 스키마는 직접 준비했으며,
   이후 스키마 변경을 어떻게 반영할지 정해야 한다.
 - GHCR token은 개인 계정 classic PAT다. 조직 봇 계정으로 옮겨야 한다.
-- rollback은 과거 검증 Freight 재승격으로 하되 절차를 아직 정리하지 않았다.
+- rollback은 `Deploy Prod` 수동 실행으로 하되, Kargo Freight GC로 오래된 Freight가 지워지면 할 수 없다.
 - 1.12 업그레이드 전에 `kargo-cluster-secrets` 정리와 `pushIntegrationPolicy` 기본값 변경을
   확인해야 한다.

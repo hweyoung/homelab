@@ -77,8 +77,8 @@ platform/namespaces (-50)
 Kargo `Project`는 cluster-scoped라 `apps-dev`/`apps-prod` AppProject에 둘 수 없습니다.
 `platform`은 모든 리소스를 허용하므로 앱 파이프라인용 `kargo-pipelines` AppProject를 따로
 두었습니다. 이 AppProject는 `kargo.akuity.io`의 `Project`, `ProjectConfig`, `Warehouse`,
-`Stage`, `PromotionTask`와 credential용 `ServiceAccount`, `SecretStore`, `ExternalSecret`만
-허용하고 배포 대상은 `kargo-api-*` namespace로 제한합니다.
+`Stage`, `PromotionTask`와 credential용 `ServiceAccount`, `SecretStore`, `ExternalSecret`,
+앱 CI용 Kargo role을 위한 `Role`, `RoleBinding`만 허용하고 배포 대상은 `kargo-api-*` namespace로 제한합니다.
 
 argocd namespace의 `kargo-controller` Role/RoleBinding은
 `argocd-control-plane/kargo-controller-rbac.yaml`이 소유합니다. chart도 같은 이름으로 만들기
@@ -195,6 +195,7 @@ UI 로그인 버튼에서 `OIDC: Failed to fetch`가 나오면 Dex `web.allowedO
 | `Warehouse` `api-common` | `sha-<40자리 커밋>` 태그만 수집하고 빌드 시각이 가장 최근인 이미지를 고른다 |
 | `Stage` `dev` | dev overlay에 digest를 고정해 `main`에 push하고 `apps-api-common-dev`를 sync |
 | `Stage` `prod` | dev를 통과한 Freight를 Promote하면 prod overlay에 같은 digest를 고정하고 `apps-api-common-prod`를 sync |
+| Kargo role `github-actions` | Organization 저장소 CI용. Freight·Stage·Promotion 조회와 prod Promote만 |
 
 `apps-api-common-dev`와 `apps-api-common-prod`에는 각각
 `kargo.akuity.io/authorized-stage: kargo-api-common:<stage>` annotation이 있어야 `argocd-update`
@@ -202,7 +203,8 @@ step이 sync할 수 있습니다. 두 overlay의 이미지는 Kargo가 관리하
 
 ### prod 승격
 
-prod는 자동 승격하지 않습니다. dev Stage에서 확인한 Freight를 `platform-admin`이 Promote합니다.
+prod는 자동 승격하지 않습니다. 평소에는 Organization 저장소의 release PR merge 때 CI가 Promote를
+요청합니다([CI 연동](#ci-연동)). 아래는 CI 없이 `platform-admin`이 직접 Promote하는 절차입니다.
 
 1. UI에서 `kargo-api-common` Project를 열고 prod Stage에 dev가 통과한 Freight가 보이는지 확인합니다.
 2. Freight를 prod Stage로 Promote합니다. CLI는 다음과 같습니다.
@@ -365,10 +367,39 @@ kubectl get promotion -n kargo-api-common
 4. dev Promotion이 `Succeeded`이고 `main`에 승격 커밋이 생긴다.
 5. `apps-api-common-dev`가 해당 커밋으로 sync되고 dev Stage가 Healthy다.
 
+### CI 연동
+
+Organization 저장소의 GitHub Actions는 Kargo role `github-actions`의 API token으로 Kargo를 호출합니다.
+구성 이유는 [Kargo 이미지 승격 문서](../../../docs/gitops/promotion.md#organization-저장소-연동)에 있습니다.
+
+token은 `platform-admin`으로 로그인한 CLI에서 발급합니다. 출력된 token은 다시 볼 수 없으므로 바로
+GitHub에 넣습니다.
+
+```bash
+kargo login https://kargo.okbear.dev --sso
+kargo create token --project kargo-api-common --role github-actions github-actions
+kargo get tokens --project kargo-api-common
+```
+
+Organization 저장소 설정:
+
+| 위치 | 이름 | 값 |
+| --- | --- | --- |
+| Settings → Environments | `dev`, `prod` | `prod`는 Deployment branches를 `main`으로 제한. 필요하면 Required reviewers |
+| 각 Environment secret | `KARGO_API_TOKEN` | 위에서 발급한 token |
+| Repository variable | `KARGO_API_ADDRESS` | `https://kargo.okbear.dev` |
+| Repository variable | `KARGO_PROJECT` | `kargo-api-common` |
+| Repository variable | `KARGO_CLI_SHA256` | `kargo-linux-amd64` v1.11.0의 sha256 |
+| Settings → Rules | `main` ruleset | Allowed merge methods를 Merge로 제한 |
+
+token을 교체할 때는 지우고 다시 만든 뒤 GitHub secret을 바꿉니다.
+
+```bash
+kargo delete token --project kargo-api-common github-actions
+```
+
 ## 다음 단계
 
 1. dev 배포 뒤 HTTP smoke test를 추가합니다.
-2. Organization 저장소 CI가 release PR(develop → main) merge 때 Kargo API로 prod Promote를 요청하고
-   GitHub Deployments에 이력을 남깁니다.
-3. prod 앱 스키마 변경 반영 방식(마이그레이션 도구 등)을 정합니다.
-4. rollback은 과거 검증 Freight를 재승격해 Git 이력으로 남깁니다.
+2. prod 앱 스키마 변경 반영 방식(마이그레이션 도구 등)을 정합니다.
+3. GHCR token과 Kargo API token의 교체 주기를 정합니다.
