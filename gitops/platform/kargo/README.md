@@ -197,7 +197,7 @@ UI 로그인 버튼에서 `OIDC: Failed to fetch`가 나오면 Dex `web.allowedO
 | `Warehouse` `api-common` | `sha-<40자리 커밋>` 태그만 수집하고 빌드 시각이 가장 최근인 이미지를 고른다 |
 | `Stage` `dev` | dev overlay에 digest를 고정해 `main`에 push하고 `apps-api-common-dev`를 sync |
 | `Stage` `prod` | dev를 통과한 Freight를 Promote하면 prod overlay에 같은 digest를 고정하고 `apps-api-common-prod`를 sync |
-| Kargo role `github-actions` | Organization 저장소 CI용. Freight·Stage·Promotion 조회와 prod Promote만 |
+| Kargo role `github-actions` | Organization 저장소 CI용. Freight·Stage·Promotion 조회, Warehouse `api-common` refresh(`patch`), prod Promote만 |
 
 `apps-api-common-dev`와 `apps-api-common-prod`에는 각각
 `kargo.akuity.io/authorized-stage: kargo-api-common:<stage>` annotation이 있어야 `argocd-update`

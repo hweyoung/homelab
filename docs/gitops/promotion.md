@@ -24,7 +24,7 @@ Promotion이 성공해 새 digest가 `api-common-dev`에 배포됐다. `https://
 ```mermaid
 flowchart LR
     SRC["umc-commonplant/api-common<br/>GitHub Actions"] -->|"sha-커밋 태그"| GHCR["GHCR"]
-    GHCR -->|"5분 주기 조회"| WH["Warehouse<br/>api-common"]
+    GHCR -->|"5분 주기 조회 · CI refresh"| WH["Warehouse<br/>api-common"]
     WH -->|"Freight"| DEV["Stage dev<br/>자동 승격"]
     DEV -->|"digest 커밋 · push"| GIT["homelab main<br/>overlays/dev"]
     DEV -->|"argocd-update"| ARGO["apps-api-common-dev"]
@@ -252,7 +252,7 @@ Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `m
 ```text
 feature -> develop merge
   build-dev-image: sha-<커밋> 이미지 빌드
-  deploy-dev (Environment dev): Kargo가 dev에 자동 승격할 때까지 기다림
+  deploy-dev (Environment dev): Warehouse refresh 후 Kargo가 dev에 자동 승격할 때까지 기다림
 develop -> main release PR (merge commit)
   deploy-prod (Environment prod): main HEAD의 두 번째 부모(develop 커밋)로 Freight를 찾아 prod Promote 요청
 ```
@@ -262,7 +262,8 @@ develop -> main release PR (merge commit)
 | 이력 | job에 `environment`를 지정해 GitHub가 Deployments에 dev/prod 배포를 기록한다. public 저장소라 Free 플랜에서도 Environment를 쓸 수 있다 |
 | 이미지 | main merge 때 다시 빌드하지 않는다. develop에서 빌드해 dev에서 검증한 digest를 prod로 올린다 |
 | 커밋 대응 | release PR은 merge commit으로 합친다. squash/rebase는 커밋 sha가 바뀌어 이미지 태그와 연결되지 않는다 |
-| 권한 | CI는 Kargo role `github-actions` token만 가진다. Freight·Stage·Promotion 조회와 prod Promote만 할 수 있고 homelab 저장소 권한은 없다 |
+| 권한 | CI는 Kargo role `github-actions` token만 가진다. Freight·Stage·Promotion 조회, Warehouse `api-common` refresh, prod Promote만 할 수 있고 homelab 저장소 권한은 없다 |
+| 대기 시간 | Warehouse는 GHCR을 5분마다 조회한다. deploy-dev가 빌드 직후 `kargo refresh warehouse`로 바로 조회시켜 Freight 생성을 기다리지 않는다. refresh가 실패해도 5분 주기 조회로 진행된다 |
 | 검증 | Kargo prod Stage는 dev를 통과한 Freight만 받는다. CI도 Promote 전에 `status.verifiedIn.dev`를 확인한다 |
 | 되돌리기 | `Deploy Prod` workflow를 수동 실행해 이전 develop 커밋을 지정한다. Kargo에 Freight가 남아 있어야 한다 |
 
