@@ -219,6 +219,24 @@ discovery와 token endpoint를 직접 호출한다. Dex가 `kargo.okbear.dev` or
 않았다. 같은 증상이 반복되면 HTTPRoute의 `status.parents` 조건과 `kargo` namespace의
 `gateway-access` 라벨을 먼저 본다.
 
+### API token 발급: kubectl
+
+Kargo UI의 Create API Token이 `secrets "github-actions" is forbidden: create is not permitted`로
+실패했다. Kargo API 서버는 요청한 사용자가 아니라 자기 ServiceAccount로 token Secret을 만든다.
+`api.secretManagementEnabled: false`이면 chart가 API 서버의 Project namespace 권한
+(`kargo-project-admin`)에서 `secrets`를 뺀다. CLI의 `kargo create token`도 같은 API라 같은 이유로 실패한다.
+
+값을 켜면 UI에서 Secret을 만들고 고치는 기능도 열려 credential을 OpenBao로만 관리한다는 원칙과 맞지
+않는다. 그래서 Kargo가 만드는 것과 같은 라벨(`rbac.kargo.akuity.io/api-token`)과 annotation을 붙인
+`kubernetes.io/service-account-token` Secret을 kubectl로 만들었다. 값은 Kubernetes가 채운다.
+
+### CLI 로그인: Dex redirect URI 포트
+
+CLI callback으로 `http://localhost/auth/callback`을 등록했지만 실제로는 맞지 않았다. Dex 2.46은
+`redirectURIs`가 있으면 등록된 값과 문자 그대로 같은 주소만 허용하고, Kargo CLI는
+`http://localhost:<port>/auth/callback`을 쓴다. `--port`를 줘도 주소에 포트가 들어가므로 포트 없는 값과
+일치할 수 없다. `http://localhost:8085/auth/callback`으로 바꾸고 `--port 8085`로 로그인한다.
+
 ### PR 기반 승격 보류
 
 Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `main` 변경을 막을 수 있다.
@@ -249,8 +267,9 @@ develop -> main release PR (merge commit)
 | 되돌리기 | `Deploy Prod` workflow를 수동 실행해 이전 develop 커밋을 지정한다. Kargo에 Freight가 남아 있어야 한다 |
 
 Kargo role은 `apps/api-common/kargo/ci-promoter.yaml`에 같은 이름의 ServiceAccount, Role,
-RoleBinding으로 선언한다. API token은 `kargo create token`으로 발급하고 Kargo 1.11 문서에 만료
-기간이 없으므로, 교체할 때는 지우고 다시 만든다. 발급한 값은 다시 조회할 수 없고 Git에 두지 않는다.
+RoleBinding으로 선언한다. API token은 이 ServiceAccount의 token Secret이며 kubectl로 만든다(아래
+"API token 발급: kubectl"). 만료 기간이 없으므로 교체할 때는 Secret을 지우고 다시 만든다. token 값은
+Git에 두지 않는다.
 
 Kargo 1.11 CLI의 `kargo login`에는 token 옵션이 없다. `KARGO_API_ADDRESS`와 `KARGO_API_TOKEN`을
 함께 설정하면 CLI가 그 token으로 API를 호출한다. `kargo promote --wait`은 결과와 관계없이
@@ -308,7 +327,7 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 
 - #329 이후 Promotion에서 dev Stage가 Healthy로 남는지 확인해야 한다. health 설정은 Promotion 때 등록되므로
   같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
-- Kargo CLI(`kargo login --sso`) 로그인은 확인하지 않았다.
+- Kargo CLI(`kargo login --sso --port 8085`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
 - Organization 저장소 workflow(`deploy-dev`, `Deploy Prod`)는 초안 단계다. 팀 저장소에 반영하고
   실제 배포로 확인해야 한다.

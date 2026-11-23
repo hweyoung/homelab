@@ -176,8 +176,10 @@ prod 값은 `platform-admin`만 바꾼다. 바뀐 값은 ESO가 동기화 주기
 
 - Kargo는 PKCE를 쓰므로 Dex client `kargo`는 `public: true`이고 client secret이 없다. `dex-env`에 값을
   추가하지 않는다.
-- redirect URI는 UI용 `https://kargo.okbear.dev/login`과 CLI용 `http://localhost/auth/callback`이다. Dex는
-  public client라도 `redirectURIs`가 있으면 localhost를 자동 허용하지 않으므로 둘 다 등록한다.
+- redirect URI는 UI용 `https://kargo.okbear.dev/login`과 CLI용 `http://localhost:8085/auth/callback`이다.
+  Dex는 `redirectURIs`가 있으면 등록된 값과 문자 그대로 같은 주소만 허용한다. Kargo CLI는
+  `http://localhost:<port>/auth/callback`을 쓰므로 포트를 고정해 등록하고 `kargo login --sso --port 8085`로
+  로그인한다.
 - `api.oidc.admins.claims.groups`에 `platform-admin`, `viewers`에 `common-backend`를 둔다. viewer는 모든
   Project를 읽을 수 있지만 승격이나 수정은 할 수 없다.
 - 로컬 admin 계정(`api.adminAccount`)은 끈다. 비밀번호 hash와 token signing key를 따로 관리해야 하고,
@@ -445,6 +447,7 @@ Grafana admin 비밀번호는 DB를 처음 만들 때만 반영되므로 UI에�
 | Grafana 로그인 거부 | 그룹 매핑 없음(strict) | Team 소속과 `role_attribute_path` 확인 |
 | Grafana GitHub 로그인만 실패 | Secret이 Pod 기동 후 생성되어 값이 비어 있음 | 아래 "Grafana client secret 반영 확인" 참고 |
 | Kargo UI `OIDC: Failed to fetch` | 브라우저의 Dex discovery 요청이 CORS로 막힘 | Dex `web.allowedOrigins`에 `https://kargo.okbear.dev` 추가 |
+| `kargo login --sso`에서 Dex `Unregistered redirect_uri` | CLI가 임의 포트의 callback을 써서 등록 값과 다름 | `--port 8085`로 실행. Dex에 `http://localhost:8085/auth/callback` 등록 |
 | Dex에서 로그인 거부 | Team 미소속, 초대 미수락 | Team 소속 확인. owner도 Team에 있어야 함 |
 | 그룹이 비어 있음 | 개인 계정 소유 OAuth App이 접근 제한에 걸림 | org 소유 앱으로 등록 |
 | Team 변경이 반영되지 않음 | 기존 세션 유지 | 로그아웃 후 재로그인 |

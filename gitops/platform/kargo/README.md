@@ -177,8 +177,10 @@ curl -sI https://kargo.okbear.dev | head -1
 2. 브라우저에서 GitHub(Dex) 로그인 후 `kargo-api-common` Project가 보인다.
 3. `platform-admin`은 Promote가 가능하고 `common-backend`는 조회만 된다.
 
-CLI는 `kargo login https://kargo.okbear.dev --sso`로 로그인합니다. Dex에 등록한 CLI callback은
-`http://localhost/auth/callback`이며 실제 CLI 로그인은 아직 확인하지 않았습니다.
+CLI는 `kargo login https://kargo.okbear.dev --sso --port 8085`로 로그인합니다. Dex는 redirect URI가
+등록된 값과 문자 그대로 같아야 허용하는데 CLI는 `http://localhost:<port>/auth/callback`을 쓰므로, Dex에
+`http://localhost:8085/auth/callback`을 등록하고 포트를 고정합니다. `--port`를 빼면 임의 포트를 써서
+Dex가 거절합니다. 실제 CLI 로그인은 아직 확인하지 않았습니다.
 
 UI 로그인 버튼에서 `OIDC: Failed to fetch`가 나오면 Dex `web.allowedOrigins`에
 `https://kargo.okbear.dev`가 있는지 확인합니다. 브라우저가 Dex를 직접 호출하므로 CORS가 필요합니다.
@@ -372,13 +374,41 @@ kubectl get promotion -n kargo-api-common
 Organization 저장소의 GitHub Actions는 Kargo role `github-actions`의 API token으로 Kargo를 호출합니다.
 구성 이유는 [Kargo 이미지 승격 문서](../../../docs/gitops/promotion.md#organization-저장소-연동)에 있습니다.
 
-token은 `platform-admin`으로 로그인한 CLI에서 발급합니다. 출력된 token은 다시 볼 수 없으므로 바로
-GitHub에 넣습니다.
+Kargo UI의 Create API Token과 `kargo create token`은 이 구성에서 동작하지 않습니다. Kargo API 서버가
+자기 ServiceAccount로 token Secret을 만드는데, `api.secretManagementEnabled: false`이면 chart가 API 서버의
+Project namespace 권한(`kargo-project-admin`)에서 `secrets`를 빼기 때문입니다(`secrets ... is forbidden:
+create is not permitted`). UI의 Secret 관리 기능까지 열리므로 이 값은 켜지 않고, Kargo가 만드는 것과 같은
+token Secret을 kubectl로 한 번 만듭니다. token 값은 Kubernetes가 채우므로 Git에 둘 값은 없지만,
+`kargo-pipelines`가 Secret을 허용하지 않고 CI 평문 Secret 검사에도 걸리므로 GitOps로 관리하지 않습니다.
 
 ```bash
-kargo login https://kargo.okbear.dev --sso
-kargo create token --project kargo-api-common --role github-actions github-actions
-kargo get tokens --project kargo-api-common
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-actions
+  namespace: kargo-api-common
+  labels:
+    rbac.kargo.akuity.io/api-token: "true"
+  annotations:
+    kubernetes.io/service-account.name: github-actions
+    rbac.kargo.akuity.io/managed: "true"
+type: kubernetes.io/service-account-token
+EOF
+
+# 값은 출력하지 않고 길이만 확인한다
+kubectl -n kargo-api-common get secret github-actions -o jsonpath='{.data.token}' | base64 -d | wc -c
+```
+
+token은 화면에 출력하지 않고 Organization 저장소 Environment secret에 바로 넣습니다.
+
+```bash
+R=UMC-CommonPlant/v3_CommonPlant_Backend_Repo
+for env in dev prod; do
+  gh api -X PUT repos/$R/environments/$env >/dev/null
+  kubectl -n kargo-api-common get secret github-actions -o jsonpath='{.data.token}' \
+    | base64 -d | gh secret set KARGO_API_TOKEN --env $env --repo $R
+done
 ```
 
 Organization 저장소 설정:
@@ -386,16 +416,17 @@ Organization 저장소 설정:
 | 위치 | 이름 | 값 |
 | --- | --- | --- |
 | Settings → Environments | `dev`, `prod` | `prod`는 Deployment branches를 `main`으로 제한. 필요하면 Required reviewers |
-| 각 Environment secret | `KARGO_API_TOKEN` | 위에서 발급한 token |
+| 각 Environment secret | `KARGO_API_TOKEN` | 위에서 만든 token |
 | Repository variable | `KARGO_API_ADDRESS` | `https://kargo.okbear.dev` |
 | Repository variable | `KARGO_PROJECT` | `kargo-api-common` |
 | Repository variable | `KARGO_CLI_SHA256` | `kargo-linux-amd64` v1.11.0의 sha256 |
 | Settings → Rules | `main` ruleset | Allowed merge methods를 Merge로 제한 |
 
-token을 교체할 때는 지우고 다시 만든 뒤 GitHub secret을 바꿉니다.
+token을 교체할 때는 Secret을 지우고 위 절차를 다시 실행합니다. ServiceAccount를 지우면 Kubernetes가
+token Secret도 함께 지웁니다.
 
 ```bash
-kargo delete token --project kargo-api-common github-actions
+kubectl -n kargo-api-common delete secret github-actions
 ```
 
 ## 다음 단계
