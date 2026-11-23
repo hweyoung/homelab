@@ -6,3 +6,4 @@ resources:
   - external-secrets.yaml
   - warehouse.yaml
   - stage-dev.yaml
+  - stage-prod.yaml

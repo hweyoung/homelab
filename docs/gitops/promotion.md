@@ -6,7 +6,7 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 
 현재 상태는 **dev 자동 승격과 UI 로그인 동작 확인**이다. GHCR 이미지로 Freight가 만들어지고 dev
 Promotion이 성공해 새 digest가 `api-common-dev`에 배포됐다. `https://kargo.okbear.dev`에서 Dex SSO로
-로그인된다. 다음 단계는 prod 승격이다.
+로그인된다. prod Stage를 추가했고, prod 승격은 dev를 통과한 Freight를 사람이 Promote해야 진행된다.
 
 ## 구성 의도
 
@@ -29,6 +29,10 @@ flowchart LR
     DEV -->|"digest 커밋 · push"| GIT["homelab main<br/>overlays/dev"]
     DEV -->|"argocd-update"| ARGO["apps-api-common-dev"]
     GIT --> ARGO --> POD["api-common-dev"]
+    DEV -->|"검증된 Freight"| PROD["Stage prod<br/>수동 Promote"]
+    PROD -->|"digest 커밋 · push"| GITP["homelab main<br/>overlays/prod"]
+    PROD -->|"argocd-update"| ARGOP["apps-api-common-prod"]
+    GITP --> ARGOP --> PODP["api-common-prod"]
     BAO["OpenBao"] -->|"ESO"| CRED["ghcr-credentials<br/>git-credentials"]
     CRED -.-> WH
     CRED -.-> DEV
@@ -43,6 +47,7 @@ flowchart LR
 | `ProjectConfig` | 같은 파일 | dev Stage만 자동 승격 |
 | `Warehouse` `api-common` | `warehouse.yaml` | `^sha-[0-9a-f]{40}$` 태그만 수집, 빌드 시각 기준 최신(`NewestBuild`), 조회 5개 제한 |
 | `Stage` `dev` | `stage-dev.yaml` | Warehouse에서 직접 Freight를 받아 dev overlay에 반영 |
+| `Stage` `prod` | `stage-prod.yaml` | dev Stage를 통과한 Freight만 받아 prod overlay에 반영. 자동 승격 없음 |
 | SA, SecretStore, ExternalSecret 2개 | `external-secrets.yaml` | OpenBao에서 GHCR·Git credential을 가져온다 |
 
 처음에는 API/UI를 끄고 controller만 설치했다. 이후 `https://kargo.okbear.dev`로 UI를 열고 Dex
@@ -63,6 +68,25 @@ viewer다. external webhook은 계속 끈다.
 `argocd-update`가 동작하려면 대상 Application에 `kargo.akuity.io/authorized-stage:
 kargo-api-common:dev` annotation이 있어야 한다. root-app의 `api-common-dev` 항목에 선언했다.
 dev overlay의 이미지는 Kargo가 관리하므로 수동으로 바꾸지 않는다.
+
+### prod Stage 단계
+
+prod Stage는 dev Stage와 같은 step을 쓰고 대상만 다르다.
+
+| 항목 | dev | prod |
+| --- | --- | --- |
+| Freight 출처 | Warehouse (`sources.direct`) | dev Stage (`sources.stages: [dev]`) |
+| 승격 시작 | 새 Freight가 오면 자동 | UI나 CLI에서 Promote |
+| overlay | `overlays/dev` | `overlays/prod` |
+| 커밋 메시지 | `[Chore] api-common dev 이미지 승격 (<tag>)` | `[Chore] api-common prod 이미지 승격 (<tag>)` |
+| Application | `apps-api-common-dev` | `apps-api-common-prod` (`authorized-stage: kargo-api-common:prod`) |
+
+dev Stage를 거치지 않은 Freight는 prod에 Promote할 수 없다. 같은 이미지가 dev와 prod에
+digest로 고정되므로 prod에서 다시 빌드하지 않는다. 두 Stage가 비슷하지만 지금은 Stage마다
+step을 그대로 두었다. Stage가 늘어나면 `PromotionTask`로 묶는다.
+
+prod overlay는 replicas 0으로 시작했다. 첫 Promote로 digest가 들어간 뒤 replicas를 올리는
+변경을 따로 merge한다. 이미지 없이 Pod를 띄우면 태그 없는 이미지(`latest`)를 받으려다 실패한다.
 
 ## 배포 단위와 순서
 
@@ -196,7 +220,8 @@ discovery와 token endpoint를 직접 호출한다. Dex가 `kargo.okbear.dev` or
 
 Kargo가 `main`에 직접 push하지 않고 PR을 열게 하면 ruleset으로 `main` 변경을 막을 수 있다.
 하지만 승격 판단은 이미 Kargo의 Stage와 Freight 검증이 맡고 있어 PR merge가 같은 역할을
-반복한다. dev는 직접 push를 유지하고, prod Stage를 만들 때 승인 방식을 다시 정한다.
+반복한다. dev와 prod 모두 직접 push를 유지한다. prod 승인은 Kargo에서 Promote하는 행위로 하고,
+이후 Organization 저장소의 release PR(develop → main) merge가 CI로 Promote를 요청하게 바꾼다.
 
 ### CI 평문 Secret 검사
 
@@ -252,7 +277,9 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
   같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
 - Kargo CLI(`kargo login --sso`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
-- prod workload, `api-common-prod` Application, prod Stage와 승인 방식이 없다.
+- prod는 수동 Promote만 된다. Organization 저장소 CI가 release PR merge 시 Kargo API로 Promote를
+  요청하고 GitHub Deployments에 이력을 남기는 구성은 아직 없다.
+- prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. replicas를 올리기 전에 스키마를 준비해야 한다.
 - GHCR token은 개인 계정 classic PAT다. 조직 봇 계정으로 옮겨야 한다.
 - rollback은 과거 검증 Freight 재승격으로 하되 절차를 아직 정리하지 않았다.
 - 1.12 업그레이드 전에 `kargo-cluster-secrets` 정리와 `pushIntegrationPolicy` 기본값 변경을

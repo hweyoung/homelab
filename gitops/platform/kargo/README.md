@@ -194,10 +194,32 @@ UI 로그인 버튼에서 `OIDC: Failed to fetch`가 나오면 Dex `web.allowedO
 | SA, SecretStore, ExternalSecret | OpenBao에서 GHCR·Git credential을 가져온다 |
 | `Warehouse` `api-common` | `sha-<40자리 커밋>` 태그만 수집하고 빌드 시각이 가장 최근인 이미지를 고른다 |
 | `Stage` `dev` | dev overlay에 digest를 고정해 `main`에 push하고 `apps-api-common-dev`를 sync |
+| `Stage` `prod` | dev를 통과한 Freight를 Promote하면 prod overlay에 같은 digest를 고정하고 `apps-api-common-prod`를 sync |
 
-`apps-api-common-dev`에는 `kargo.akuity.io/authorized-stage: kargo-api-common:dev`
-annotation이 있어야 `argocd-update` step이 sync할 수 있습니다. dev overlay의 이미지는
-이제 Kargo가 관리하므로 수동으로 수정하지 않습니다.
+`apps-api-common-dev`와 `apps-api-common-prod`에는 각각
+`kargo.akuity.io/authorized-stage: kargo-api-common:<stage>` annotation이 있어야 `argocd-update`
+step이 sync할 수 있습니다. 두 overlay의 이미지는 Kargo가 관리하므로 수동으로 수정하지 않습니다.
+
+### prod 승격
+
+prod는 자동 승격하지 않습니다. dev Stage에서 확인한 Freight를 `platform-admin`이 Promote합니다.
+
+1. UI에서 `kargo-api-common` Project를 열고 prod Stage에 dev가 통과한 Freight가 보이는지 확인합니다.
+2. Freight를 prod Stage로 Promote합니다. CLI는 다음과 같습니다.
+
+```bash
+kargo get freight --project kargo-api-common
+kargo promote --project kargo-api-common --freight <freight 이름> --stage prod
+```
+
+3. Promotion이 `Succeeded`이고 `main`에 `[Chore] api-common prod 이미지 승격` 커밋이 생겼는지 봅니다.
+4. 첫 승격 뒤에는 `overlays/prod/patch-deployment.yaml`의 replicas를 올리는 변경을 merge합니다.
+
+```bash
+kubectl get promotion -n kargo-api-common
+kubectl get stage prod -n kargo-api-common -o jsonpath='{.status.health}'
+kubectl -n api-common-prod get deploy api-common -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
 
 ### Credential
 
@@ -346,6 +368,7 @@ kubectl get promotion -n kargo-api-common
 ## 다음 단계
 
 1. dev 배포 뒤 HTTP smoke test를 추가합니다.
-2. prod workload와 `api-common-prod` Application을 준비합니다.
-3. prod Stage는 dev에서 검증된 Freight를 PR로 올리고, PR merge를 승인으로 사용합니다.
+2. Organization 저장소 CI가 release PR(develop → main) merge 때 Kargo API로 prod Promote를 요청하고
+   GitHub Deployments에 이력을 남깁니다.
+3. prod 앱 스키마 준비 방식을 정하고 replicas를 올립니다.
 4. rollback은 과거 검증 Freight를 재승격해 Git 이력으로 남깁니다.
