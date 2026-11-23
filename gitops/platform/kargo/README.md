@@ -370,5 +370,5 @@ kubectl get promotion -n kargo-api-common
 1. dev 배포 뒤 HTTP smoke test를 추가합니다.
 2. Organization 저장소 CI가 release PR(develop → main) merge 때 Kargo API로 prod Promote를 요청하고
    GitHub Deployments에 이력을 남깁니다.
-3. prod 앱 스키마 준비 방식을 정하고 replicas를 올립니다.
+3. prod 앱 스키마 변경 반영 방식(마이그레이션 도구 등)을 정합니다.
 4. rollback은 과거 검증 Freight를 재승격해 Git 이력으로 남깁니다.

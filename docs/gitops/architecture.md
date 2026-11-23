@@ -129,8 +129,8 @@ flowchart LR
 digest/Freight를 승격하는 경계를 목표로 한다. 현재는 controller(`platform-kargo`)와 api-common
 dev 파이프라인(`apps-api-common-kargo`)이 선언되어 있다. dev Stage는 새 `sha-<commit>` 이미지를
 자동 승격해 dev overlay digest를 `main`에 커밋하고 `apps-api-common-dev`를 sync한다. prod
-workload(`apps-api-common-prod`)는 replicas 0으로 선언되어 있고 prod Stage는 아직 없으므로 동일
-digest의 dev→prod 승격은 라이브 완료 상태가 아니다.
+Stage는 dev를 통과한 Freight를 Promote하면 같은 digest를 prod overlay에 커밋하고
+`apps-api-common-prod`를 sync한다.
 
 파이프라인은 앱별로 `gitops/apps/<앱>/kargo/`에 두고 `kargo-pipelines` AppProject로 배포한다.
 GHCR·Git credential도 Project namespace마다 따로 두어 token 소유자와 폐기 범위를 앱 단위로

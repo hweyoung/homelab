@@ -9,7 +9,7 @@ api-common dev의 앱 Secret `api-common-secret`은 OpenBao + External Secrets O
 | 대상 | `api-common-dev` 네임스페이스의 `api-common-secret` |
 | 이전 방식 | KSOPS `secret-generator.yaml` + `secret.sops.env` (삭제 완료) |
 | 계속 SOPS 사용 | CNPG bootstrap Secret(`postgres-secret-<env>`). api-common에는 SOPS 파일이 없음 |
-| prod | `api-common-secret`과 GHCR pull Secret `ghcr-pull-secret`을 ESO로 동기화. workload는 Kargo 첫 승격 전까지 replicas 0 |
+| prod | `api-common-secret`과 GHCR pull Secret `ghcr-pull-secret`을 ESO로 동기화. workload는 Kargo prod Stage가 이미지를 관리 |
 
 ## 인증·동기화 흐름
 

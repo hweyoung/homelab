@@ -85,8 +85,8 @@ dev Stage를 거치지 않은 Freight는 prod에 Promote할 수 없다. 같은 �
 digest로 고정되므로 prod에서 다시 빌드하지 않는다. 두 Stage가 비슷하지만 지금은 Stage마다
 step을 그대로 두었다. Stage가 늘어나면 `PromotionTask`로 묶는다.
 
-prod overlay는 replicas 0으로 시작했다. 첫 Promote로 digest가 들어간 뒤 replicas를 올리는
-변경을 따로 merge한다. 이미지 없이 Pod를 띄우면 태그 없는 이미지(`latest`)를 받으려다 실패한다.
+prod overlay는 replicas 0으로 시작했다. 이미지 없이 Pod를 띄우면 태그 없는 이미지(`latest`)를
+받으려다 실패하기 때문이다. 첫 Promote로 digest가 들어간 뒤 replicas를 1로 올렸다.
 
 ## 배포 단위와 순서
 
@@ -279,7 +279,8 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
 - prod는 수동 Promote만 된다. Organization 저장소 CI가 release PR merge 시 Kargo API로 Promote를
   요청하고 GitHub Deployments에 이력을 남기는 구성은 아직 없다.
-- prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. replicas를 올리기 전에 스키마를 준비해야 한다.
+- prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. 첫 배포 스키마는 직접 준비했으며,
+  이후 스키마 변경을 어떻게 반영할지 정해야 한다.
 - GHCR token은 개인 계정 classic PAT다. 조직 봇 계정으로 옮겨야 한다.
 - rollback은 과거 검증 Freight 재승격으로 하되 절차를 아직 정리하지 않았다.
 - 1.12 업그레이드 전에 `kargo-cluster-secrets` 정리와 `pushIntegrationPolicy` 기본값 변경을
