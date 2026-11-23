@@ -1,7 +1,8 @@
 # Organization 저장소 GitHub Actions가 쓰는 Kargo role.
 # Kargo role은 같은 이름의 ServiceAccount, Role, RoleBinding이다.
-# API token은 Git에 두지 않고 `kargo create token --project kargo-api-common --role github-actions`로
-# 발급해 Organization 저장소의 GitHub Environment secret에 넣는다.
+# API token Secret은 Git에 두지 않고 kubectl로 만든다(secretManagementEnabled: false라 Kargo API가
+# token Secret을 만들 수 없다. 절차는 platform/kargo/README.md CI 연동). 값은 Organization 저장소
+# GitHub Environment secret에 넣는다.
 # 권한: Freight·Stage·Promotion 조회와 prod Stage Promote만. dev는 자동 승격이라 Promote 권한이 없다.
 apiVersion: v1
 kind: ServiceAccount

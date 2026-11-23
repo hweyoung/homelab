@@ -70,13 +70,15 @@ config:
         - https://garage.okbear.dev/auth/oidc/callback
 
     # Kargo는 PKCE를 쓰는 public client라 client secret이 없다.
-    # redirectURIs가 있으면 Dex는 localhost를 자동 허용하지 않으므로 CLI callback도 등록한다.
+    # redirectURIs가 있으면 Dex는 등록된 주소와 문자 그대로 같은 redirect만 허용한다.
+    # Kargo CLI는 http://localhost:<port>/auth/callback을 쓰므로 포트를 고정해 등록하고
+    # `kargo login --sso --port 8085`로 로그인한다.
     - id: kargo
       name: Kargo
       public: true
       redirectURIs:
         - https://kargo.okbear.dev/login
-        - http://localhost/auth/callback
+        - http://localhost:8085/auth/callback
 
 nodeSelector:
   homelab.okbear.dev/environment: prod
