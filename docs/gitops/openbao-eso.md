@@ -139,6 +139,73 @@ Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role
 `envFrom`은 Pod 시작 때만 읽힌다. 값을 바꾼 뒤에는
 `kubectl -n api-common-dev rollout restart deployment/api-common`을 실행한다.
 
+## KSOPS Secret을 ESO로 옮긴 뒤 확인
+
+hweyoung/homelab#334에서 dev의 DB 계정 Secret(`postgres-dev/api-common-db-secret-dev`)과 GHCR pull
+Secret(`api-common-dev/ghcr-pull-secret`)을 같은 이름의 ExternalSecret으로 바꿨다. merge 뒤 실제로 겪은
+순서대로 확인한다.
+
+### sync가 멈추는 위치
+
+Argo CD는 wave 순서(SA -3 → SecretStore -2 → ExternalSecret -1 → workload 0)로 적용하고, 앞 wave가
+Healthy가 아니면 다음 wave를 만들지 않는다. 마지막 wave까지 성공해야 이전 리소스를 prune한다.
+
+| 보이는 상태 | 의미 |
+| --- | --- |
+| SecretStore Degraded, ExternalSecret `Missing` | OpenBao 로그인 실패로 ExternalSecret이 아직 생성되지 않음 |
+| 이전 KSOPS Secret `OutOfSync` | prune 대상이지만 sync가 끝나지 않아 남아 있음 |
+
+sync가 중간에 멈춘 동안에는 이전 Secret이 지워지지 않으므로 실행 중인 Pod와 DB 계정에는 영향이 없다.
+
+### 확인 순서
+
+```bash
+# 1. SecretStore와 ExternalSecret 상태
+for ns in api-common-dev api-common-prod postgres-dev postgres-prod; do
+  echo "== $ns"; kubectl -n $ns get secretstore,externalsecret
+done
+
+# 2. 실패한 리소스의 이벤트
+kubectl -n <ns> describe secretstore <name> | sed -n '/Events:/,$p'
+kubectl -n <ns> describe externalsecret <name> | sed -n '/Events:/,$p'
+
+# 3. 이전 Secret을 ESO가 넘겨받았는지 (ExternalSecret이어야 함)
+kubectl -n postgres-dev get secret api-common-db-secret-dev -o jsonpath='{.metadata.ownerReferences[0].kind}{"\n"}'
+kubectl -n api-common-dev get secret ghcr-pull-secret -o jsonpath='{.metadata.ownerReferences[0].kind}{"\n"}'
+```
+
+OpenBao 값을 넣거나 고친 뒤 재시도를 기다리지 않으려면 ExternalSecret에 annotation을 바꿔 즉시
+동기화한다.
+
+```bash
+kubectl -n <ns> annotate externalsecret <name> force-sync=$(date +%s) --overwrite
+```
+
+소유자가 비어 있고 ExternalSecret이 소유권 오류로 실패하면 이전 Secret을 지워 ESO가 다시 만들게 한다.
+DB 계정 Secret은 `DatabaseRole`이 reclaim `retain`이라 계정이 남고, GHCR Secret은 이미지를 새로 받을 때만
+쓰이므로 재생성 사이의 공백이 실행 중인 Pod에 영향을 주지 않는다.
+
+### 남은 리소스 정리 (OrphanedResourceWarning)
+
+`apps-dev`/`apps-prod` AppProject는 `orphanedResources.warn: true`라 Argo CD가 추적하지 않는 리소스를
+경고만 하고 지우지 않는다. 전환 뒤 `apps-api-common-dev`에 다음 두 개가 남았다.
+
+| 리소스 | 정체 |
+| --- | --- |
+| ConfigMap `api-common-config-<이전 해시>` | `configMapGenerator`가 내용이 바뀔 때 만든 이전 이름 |
+| Secret `api-common-secret-<해시>` | ESO 전환 전 KSOPS가 만들던 앱 Secret |
+
+Pod가 참조하지 않는지 확인한 뒤 지운다.
+
+```bash
+argocd app resources apps-api-common-dev | grep ' Yes$'
+kubectl -n api-common-dev get deploy api-common -o yaml | grep -n "api-common-config-\|api-common-secret"
+kubectl -n api-common-dev get pods -o yaml | grep -c "<이전 이름의 해시>"   # 0이어야 함
+kubectl -n api-common-dev delete configmap <이전 ConfigMap>
+kubectl -n api-common-dev delete secret <이전 Secret>
+argocd app get apps-api-common-dev --refresh | grep -i "condition\|orphan"
+```
+
 ## 트러블슈팅
 
 대부분의 문제는 이름 불일치(namespace, 경로, property, audience)나 복사한 명령의 형식 오류였다.
@@ -156,8 +223,10 @@ Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role
 | `create_kubernetes_role: not found` | 함수를 정의한 셸을 나왔다가 새 셸에서 호출함 | role은 이미 생성돼 있었음. `bao read`로 확인 |
 | `kubectl auth can-i create serviceaccounts/token`이 `no` | `kubectl auth can-i`가 `serviceaccounts/token`을 "이름이 token인 SA"로 해석함 | `--subresource=token`으로 확인하면 `yes` |
 | 값을 바꿨는데 앱에 반영 안 됨 | `envFrom`은 Pod 시작 때만 읽힘. ESO는 Pod를 재시작하지 않음 | `rollout restart`. 필요하면 Reloader 도입 검토 |
-| 해시가 붙은 `api-common-secret-xxxxx`가 남아 있음 | KSOPS가 만든 이전 Secret. Argo CD prune이 꺼져 있으면 남음 | Pod가 참조하지 않는지 확인 후 삭제 |
+| 해시가 붙은 `api-common-secret-xxxxx`가 남아 있음, Application에 `OrphanedResourceWarning` | KSOPS가 만든 이전 Secret이나 이전 해시의 ConfigMap. Argo CD 추적에서 빠져 prune되지 않음 | Pod가 참조하지 않는지 확인 후 삭제([남은 리소스 정리](#남은-리소스-정리-orphanedresourcewarning)) |
 | SecretStore `InvalidProviderConfig`, 이벤트에 `lookup platform-openbao.openbao.svc.cluster.local ... no such host` | 클러스터 DNS 도메인은 `homelab.local`인데 `cluster.local` FQDN을 씀 | `server: http://platform-openbao.openbao:8200`으로 수정 |
+| ExternalSecret 이벤트 `error processing spec.data[0] (key: apps/common/dev/ghcr), err: Secret does not exist` | ExternalSecret이 읽는 OpenBao 경로가 아예 없음. 같은 SecretStore의 다른 ExternalSecret이 정상이면 로그인·policy는 문제 아님 | 값을 넣고 `force-sync` annotation으로 즉시 동기화 |
+| SecretStore가 Degraded이고 ExternalSecret이 `Missing` | 앞 wave(SecretStore)가 Healthy가 아니라 Argo CD가 다음 wave를 만들지 않음 | SecretStore 이벤트부터 해결. 이전 Secret은 sync가 끝날 때까지 prune되지 않음 |
 | dev overlay 전체 `kustomize build` 실패 | GHCR generator가 ksops를 쓰는데 로컬에 ksops가 없음 | GHCR pull Secret을 ESO로 바꿔 generator를 없앰. 지금은 전체 build 가능 |
 
 ## 남은 작업
