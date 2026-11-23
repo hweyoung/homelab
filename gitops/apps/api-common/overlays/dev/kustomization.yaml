@@ -11,6 +11,6 @@ configMapGenerator:
   - config.env
 images:
 - name: ghcr.io/umc-commonplant/api-common
-  digest: sha256:93b0839fd07da56bf8ed97611a89b39cda83da92a676bb33958abaa12a70e7ca
+  digest: sha256:4322586bc6f284e2ebda506c8b96916cf9095d379f01a90bdda671d367ef1840
 patches:
 - path: patch-deployment.yaml
