@@ -162,6 +162,37 @@ kubectl -n postgres-dev get secret api-common-db-secret-dev -o jsonpath='{.metad
 앱의 `application-prod.yml`은 `ddl-auto: validate`라 스키마를 만들지 않는다. 마이그레이션 도구가
 없으므로 prod DB 스키마를 준비하지 않으면 첫 기동에서 실패한다.
 
+### prod 스키마 초기화
+
+첫 배포에서 `Schema-validation: missing table [belong]`으로 기동에 실패했다. 앱은 DB에 접속했지만
+`api_common` DB에 테이블이 없었다. dev는 `ddl-auto: create-drop`이라 앱이 기동할 때 엔티티 기준
+스키마를 만들므로, dev DB의 스키마만 덤프해 prod에 적용했다.
+
+1. dev 스키마를 덤프하고 내용을 확인한다. `Defaulted container "postgres"` 메시지는 오류가 아니다.
+
+```bash
+kubectl -n postgres-dev exec postgres-dev-1 -c postgres -- pg_dump -d api_common --schema-only --no-owner > /tmp/api_common_schema.sql
+grep 'CREATE TABLE' /tmp/api_common_schema.sql
+```
+
+2. prod `api_common` DB가 비어 있는지 확인한다. 이미 테이블이 있으면 그대로 적용하지 않는다.
+
+```bash
+kubectl -n postgres-prod exec postgres-prod-1 -c postgres -- psql -d api_common -c '\dt *.*' | grep -vE 'pg_catalog|information_schema'
+```
+
+3. 테이블 소유자가 `api_common`이 되도록 `SET ROLE` 후 적용하고, 오류가 나면 멈춘다.
+
+```bash
+kubectl -n postgres-prod exec -i postgres-prod-1 -c postgres -- psql -d api_common -v ON_ERROR_STOP=1 -c 'SET ROLE api_common' -f - < /tmp/api_common_schema.sql
+kubectl -n api-common-prod rollout restart deploy/api-common
+kubectl -n api-common-prod rollout status deploy/api-common
+```
+
+Pod 이름은 CNPG primary 기준이다(`kubectl -n postgres-<env> get pods`). 이 방법은 첫 초기화용이다.
+엔티티가 바뀌면 prod 스키마도 따로 바꿔야 하므로, 앱 저장소에 Flyway 같은 마이그레이션 도구를
+도입해야 한다.
+
 ```bash
 kustomize build gitops/apps/api-common/overlays/prod
 kubectl -n api-common-prod wait --for=condition=Ready secretstore/openbao-common-prod --timeout=120s
