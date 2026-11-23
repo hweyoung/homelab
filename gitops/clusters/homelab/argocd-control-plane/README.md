@@ -32,7 +32,7 @@ root-app (App-of-Apps)
 | `databases` | postgres-dev, postgres-prod, infisical | Namespace만 | ✅ 전체 |
 | `apps-dev` | `api-*-dev` | ❌ 차단 | SA, SecretStore, ExternalSecret, Deployment, Service, ConfigMap, Secret, LimitRange, ResourceQuota, NetworkPolicy, HTTPRoute |
 | `apps-prod` | `api-*-prod` | ❌ 차단 | SA, SecretStore, ExternalSecret, Deployment, Service, ConfigMap, HTTPRoute |
-| `kargo-pipelines` | `kargo-api-*` | Kargo `Project`만 | Kargo ProjectConfig, Warehouse, Stage, PromotionTask, SA, SecretStore, ExternalSecret |
+| `kargo-pipelines` | `kargo-api-*` | Kargo `Project`만 | Kargo ProjectConfig, Warehouse, Stage, PromotionTask, SA, SecretStore, ExternalSecret, Role, RoleBinding |
 
 - source repo는 모두 homelab 저장소로 한정합니다. 정확한 목록은 `projects/*.yaml`이 기준입니다.
 - **platform**만 operator/CRD/ClusterRole 같은 cluster-scoped 리소스를 생성할 수 있습니다.
