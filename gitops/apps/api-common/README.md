@@ -86,8 +86,8 @@ SecretStore Ready는 인증 연결, ExternalSecret Ready는 KV 읽기와 Secret 
 | 이미지 | Kargo dev Stage 자동 승격 | Kargo prod Stage (dev 통과 Freight만) |
 
 `apps-prod` AppProject는 Secret을 허용하지 않으므로 prod의 Secret은 모두 ExternalSecret이 만든다.
-prod overlay에는 `images`가 없고 replicas가 0이다. Kargo prod Stage가 첫 digest를 커밋한 뒤
-replicas를 올린다.
+prod overlay의 `images`는 Kargo prod Stage가 커밋한다. 첫 digest가 들어오기 전까지 replicas 0으로
+두었다가 첫 승격 뒤 1로 올렸다.
 
 prod의 ExternalSecret은 키 7개를 읽는다. 하나라도 없으면 해당 Secret이 생성되지 않는다.
 
