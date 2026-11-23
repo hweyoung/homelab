@@ -15,7 +15,8 @@ Namespace는 기존 namespaces Application이 관리한다.
 OpenBao의 KV v2 `secret` 엔진, Kubernetes Auth, Role, Policy와 비밀값은 별도 구성한다.
 Role은 dev SA 이름과 Namespace에 바인딩하고 audience는 `openbao`로 맞춘다.
 Kubernetes API 주소는 꺾쇠괄호 없이 `https://kubernetes.default.svc:443`를 사용한다.
-SecretStore는 내부 HTTP Service `platform-openbao.openbao.svc.cluster.local:8200`에 연결한다.
+SecretStore는 내부 HTTP Service `platform-openbao.openbao:8200`에 연결한다. 이 클러스터의 DNS 도메인은
+`homelab.local`이라 `*.svc.cluster.local`은 조회되지 않는다.
 
 현재 ESO 2.9.0 차트는 컨트롤러 SA `external-secrets/platform-external-secrets`에
 `serviceaccounts/token` 생성 권한을 부여하므로 별도 TokenRequest RBAC는 추가하지 않는다.

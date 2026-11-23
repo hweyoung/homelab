@@ -157,6 +157,7 @@ Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role
 | `kubectl auth can-i create serviceaccounts/token`이 `no` | `kubectl auth can-i`가 `serviceaccounts/token`을 "이름이 token인 SA"로 해석함 | `--subresource=token`으로 확인하면 `yes` |
 | 값을 바꿨는데 앱에 반영 안 됨 | `envFrom`은 Pod 시작 때만 읽힘. ESO는 Pod를 재시작하지 않음 | `rollout restart`. 필요하면 Reloader 도입 검토 |
 | 해시가 붙은 `api-common-secret-xxxxx`가 남아 있음 | KSOPS가 만든 이전 Secret. Argo CD prune이 꺼져 있으면 남음 | Pod가 참조하지 않는지 확인 후 삭제 |
+| SecretStore `InvalidProviderConfig`, 이벤트에 `lookup platform-openbao.openbao.svc.cluster.local ... no such host` | 클러스터 DNS 도메인은 `homelab.local`인데 `cluster.local` FQDN을 씀 | `server: http://platform-openbao.openbao:8200`으로 수정 |
 | dev overlay 전체 `kustomize build` 실패 | GHCR generator가 ksops를 쓰는데 로컬에 ksops가 없음 | GHCR pull Secret을 ESO로 바꿔 generator를 없앰. 지금은 전체 build 가능 |
 
 ## 남은 작업
@@ -164,7 +165,7 @@ Kargo는 앱마다 `platform/kargo/<앱>/*` 경로와 `kargo-<앱>` policy·role
 - [ ] 수동 ClusterRoleBinding `openbao-tokenreview` 삭제 (chart 바인딩과 중복)
 - [ ] OpenBao HTTPRoute에서 `http` 리스너 제거 또는 https 리다이렉트 (현재 평문 접근 가능)
 - [x] dev/prod Garage 경로와 property 이름 통일 (prod도 `apps/common/prod/image`)
-- [ ] SecretStore `server` 주소를 dev도 FQDN(`platform-openbao.openbao.svc.cluster.local`)으로 맞춤
+- [x] SecretStore `server` 주소 통일: 모두 `platform-openbao.openbao:8200`. 클러스터 도메인이 `homelab.local`이라 `svc.cluster.local`은 쓰지 않음
 - [ ] 해시 붙은 이전 KSOPS Secret 정리 확인
 - [ ] prod: OpenBao 시크릿·policy·role(`common-prod`, `api-common-prod`, `eso-common-prod`) 생성
 - [x] prod: `api-common-prod` Application을 root-app에 등록하고 `apps-prod` AppProject 변경과 함께 반영
