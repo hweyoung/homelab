@@ -7,3 +7,4 @@ resources:
   - warehouse.yaml
   - stage-dev.yaml
   - stage-prod.yaml
+  - ci-promoter.yaml

@@ -1,0 +1,57 @@
+# Organization 저장소 GitHub Actions가 쓰는 Kargo role.
+# Kargo role은 같은 이름의 ServiceAccount, Role, RoleBinding이다.
+# API token은 Git에 두지 않고 `kargo create token --project kargo-api-common --role github-actions`로
+# 발급해 Organization 저장소의 GitHub Environment secret에 넣는다.
+# 권한: Freight·Stage·Promotion 조회와 prod Stage Promote만. dev는 자동 승격이라 Promote 권한이 없다.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-actions
+  namespace: kargo-api-common
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: github-actions
+  namespace: kargo-api-common
+rules:
+  - apiGroups:
+      - kargo.akuity.io
+    resources:
+      - freight
+      - stages
+      - promotions
+      - warehouses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kargo.akuity.io
+    resources:
+      - promotions
+    verbs:
+      - create
+  - apiGroups:
+      - kargo.akuity.io
+    resources:
+      - stages
+    resourceNames:
+      - prod
+    verbs:
+      - promote
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions
+  namespace: kargo-api-common
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: github-actions
+subjects:
+  - kind: ServiceAccount
+    name: github-actions
+    namespace: kargo-api-common
