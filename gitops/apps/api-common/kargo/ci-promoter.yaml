@@ -20,7 +20,8 @@ rules:
   - apiGroups:
       - kargo.akuity.io
     resources:
-      - freight
+      # Kubernetes 리소스 이름은 복수형이다(freights.kargo.akuity.io).
+      - freights
       - stages
       - promotions
       - warehouses
