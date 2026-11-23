@@ -415,12 +415,19 @@ Organization 저장소 설정:
 
 | 위치 | 이름 | 값 |
 | --- | --- | --- |
-| Settings → Environments | `dev`, `prod` | `prod`는 Deployment branches를 `main`으로 제한. 필요하면 Required reviewers |
+| Settings → Environments | `dev` | Deployment branches를 `develop`으로 제한 |
+| Settings → Environments | `prod` | Deployment branches를 `main`으로 제한. 필요하면 Required reviewers |
 | 각 Environment secret | `KARGO_API_TOKEN` | 위에서 만든 token |
 | Repository variable | `KARGO_API_ADDRESS` | `https://kargo.okbear.dev` |
 | Repository variable | `KARGO_PROJECT` | `kargo-api-common` |
 | Repository variable | `KARGO_CLI_SHA256` | `kargo-linux-amd64` v1.11.0의 sha256 |
 | Settings → Rules | `main` ruleset | Allowed merge methods를 Merge로 제한 |
+
+두 Environment의 배포 허용 브랜치를 반드시 제한합니다. Environment secret은 허용된 브랜치에서 실행된
+job만 읽을 수 있습니다. 제한이 없으면 쓰기 권한이 있는 팀원이 feature 브랜치에서 workflow를 고쳐 token을
+꺼낼 수 있고, 두 Environment가 같은 token을 쓰므로 prod Promote까지 할 수 있습니다. 제한하면 token은
+리뷰를 거쳐 develop/main에 들어간 workflow만 씁니다. token이 새어도 할 수 있는 일은
+`kargo-api-common` 조회와 dev를 통과한 Freight의 prod Promote뿐입니다.
 
 token을 교체할 때는 Secret을 지우고 위 절차를 다시 실행합니다. ServiceAccount를 지우면 Kubernetes가
 token Secret도 함께 지웁니다.
