@@ -4,9 +4,10 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 각 구성 요소가 어떻게 동작하는지, 이 환경에서 왜 이렇게 구성했는지, 구성 중 바꾼 결정을 함께
 기록한다. 운영 절차와 명령은 [Kargo README](../../gitops/platform/kargo/README.md)를 기준으로 한다.
 
-현재 상태는 **dev 자동 승격과 UI 로그인 동작 확인**이다. GHCR 이미지로 Freight가 만들어지고 dev
-Promotion이 성공해 새 digest가 `api-common-dev`에 배포됐다. `https://kargo.okbear.dev`에서 Dex SSO로
-로그인된다. prod Stage를 추가했고, prod 승격은 dev를 통과한 Freight를 사람이 Promote해야 진행된다.
+현재 상태는 **dev 자동 승격과 Organization 저장소 dev 배포 기록 동작 확인, prod CI 승격 미완료**다.
+develop merge 이미지가 dev에 자동 승격되고 Organization 저장소 Environment `dev`에 기록된다. prod는
+Kargo에서 직접 Promote해 첫 배포를 마쳤지만, release PR merge로 실행되는 `Deploy Prod`는 아직 성공한
+적이 없다. 진행 경과는 [연동 적용 기록](#연동-적용-기록)에 있다.
 
 ## 구성 의도
 
@@ -276,6 +277,43 @@ Kargo 1.11 CLI의 `kargo login`에는 token 옵션이 없다. `KARGO_API_ADDRESS
 함께 설정하면 CLI가 그 token으로 API를 호출한다. `kargo promote --wait`은 결과와 관계없이
 끝나므로 CI는 Promotion의 `status.phase`를 따로 확인한다.
 
+### 팀 운영 규칙
+
+`Deploy Prod`는 release PR의 develop 쪽 커밋 이미지가 dev에 배포돼 있어야 성공한다. 아래 순서를
+지키지 않으면 prod 승격이 실패한다(아래 기록의 2026-11-23 실패 사례).
+
+1. develop에 merge하면 `deploy-dev`가 성공할 때까지 기다린다.
+2. release PR(develop → main)은 develop 최신 커밋의 `deploy-dev`가 성공한 뒤 **Create a merge commit**으로 합친다.
+3. release 진행 중에는 develop에 merge하지 않는다. 새 develop 커밋이 오면 이전 `deploy-dev`는 취소되고
+   Kargo도 최신 이미지만 dev에 올리므로 release 커밋 이미지가 dev를 건너뛴다.
+4. main → develop 이력 맞추기(back-merge)는 `Deploy Prod`가 끝난 뒤에 한다.
+5. `Deploy Prod`가 실패하면 Actions → Deploy Prod → Run workflow로 dev에 배포된 develop 커밋 SHA를 넣어 다시 실행한다.
+
+### 연동 적용 기록
+
+2026-11-23 Organization 저장소 연동을 적용하며 생긴 문제와 대응이다.
+
+| 순서 | 증상 | 원인 | 대응 |
+| --- | --- | --- | --- |
+| 1 | Kargo UI Create API Token이 `secrets ... is forbidden` | `secretManagementEnabled: false`라 Kargo API 서버에 Project namespace Secret 생성 권한이 없음 | kubectl로 token Secret 생성(hweyoung/homelab#340) |
+| 2 | `kargo login --sso`가 Dex에서 거절될 상태 | Dex는 redirect URI를 문자 그대로 비교, CLI는 포트가 붙은 callback 사용 | callback을 `http://localhost:8085/auth/callback`으로 고정(#340) |
+| 3 | `deploy-dev`가 `freights.kargo.akuity.io ... list is not permitted` | Role에 단수형 `freight`를 적음 | `freights`로 수정(hweyoung/homelab#342) |
+| 4 | 3의 403을 "Freight가 아직 없다"로 보고 15분 대기 | bash가 `$(...)` 안의 오류로 멈추지 않음 | 스크립트에 `inherit_errexit`(Organization #172) |
+| 5 | `deploy-dev`가 Freight 생성을 최대 5분 대기 | Warehouse 조회 주기 5분 | 빌드 직후 `kargo refresh warehouse`(hweyoung/homelab#343, Organization #177) |
+| 6 | release PR #173 merge 직후 `Deploy Prod`가 "Freight가 없습니다"로 실패 | develop 쪽 커밋(#175 merge)의 이미지를 빌드하기 시작한 지 30초 만에 release가 merge됨 | 팀 운영 규칙 2번 |
+| 7 | release 커밋의 `deploy-dev`가 취소됨 | release 직후 back-merge(#176)가 develop에 들어와 새 `deploy-dev`가 이전 것을 취소 | 팀 운영 규칙 3, 4번 |
+| 8 | refresh가 성공해도 새 이미지가 Freight로 잡히지 않음 | 앱 코드가 같아 캐시 빌드가 이어지며 이미지 `created`가 모두 같음 | 빌드에 `SOURCE_DATE_EPOCH`(Organization #178). 아래 "캐시 빌드와 NewestBuild" |
+
+2026-11-23 기준 상태:
+
+| 항목 | 상태 |
+| --- | --- |
+| dev | `sha-e6f3caf…` Freight. 앱 코드는 main(`3c2dcf0`)과 같다 |
+| prod | `sha-437ec26…`(Kargo에서 직접 Promote한 첫 배포) |
+| Environment `dev` 기록 | `127fbff` success. 이후 커밋은 7, 8번으로 실패 또는 취소 |
+| Environment `prod` 기록 | `3c2dcf0`(release #173) failure |
+| 다음 단계 | Organization #178 merge → 새 develop 커밋 `deploy-dev` 성공 확인 → 그 SHA로 `Deploy Prod` 수동 실행 |
+
 ### CI 평문 Secret 검사
 
 ExternalSecret template에 `password: "{{ .password }}"`를 쓰면 CI의 평문 Secret 정규식에
@@ -292,6 +330,21 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 `warehouse.yaml`에 `strictSemvers: true`를 명시했다. `NewestBuild`에서는 동작에 영향이 없다.
 수정은 hweyoung/homelab#327로 merge했고, 실클러스터 diff로 다른 필드가 없는지 확인한다. 새 앱의 Warehouse도 webhook 기본값이
 있는 필드는 처음부터 명시한다.
+
+### 새 이미지가 Freight로 잡히지 않음: 캐시 빌드와 NewestBuild
+
+develop에 이력만 맞추는 merge(#175, #176)와 workflow만 바꾼 PR이 이어지자, 새 이미지가 push되고
+Warehouse refresh도 성공했는데 Freight가 생기지 않았다. GHCR의 이미지 config를 보니
+`sha-127fbff…`부터 `sha-bda7f7e…`까지 다섯 이미지의 `created`가 모두 `2026-11-23T16:01:14Z`였다.
+
+Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 모든 레이어가 캐시다. 이때 BuildKit은
+처음 빌드한 시각을 `created`로 그대로 쓴다. `NewestBuild`는 `created`로 최신을 고르므로 같은 시각의
+이미지 중 이미 Freight가 된 것에 머물렀다.
+
+앱 CI가 빌드할 때 `SOURCE_DATE_EPOCH`를 커밋 시각(`git log -1 --format=%ct`)으로 넘기도록 했다.
+캐시된 빌드에서도 `created`가 이 값을 따른다(로컬 buildx 0.33으로 확인). develop 커밋은 시간 순으로
+쌓이므로 새 커밋 이미지가 항상 최신이 된다. 앱 코드가 같아도 이미지 digest는 label(revision)이 달라
+서로 다르다.
 
 ## 검증
 
@@ -319,6 +372,9 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 | dev Stage health | Unhealthy(리비전 불일치) → `desiredRevision` 제거(#329). 새 설정은 다음 Promotion부터 적용 |
 | `platform-kargo-route` | 첫 배포 직후 Degraded, 재sync 후 정상 |
 | Kargo UI SSO | CORS로 실패 → Dex `allowedOrigins` 추가(#330) 후 로그인 성공 |
+| prod 첫 배포 | Kargo UI에서 `mouthy-lynx` Promote(`d78ee57`) 후 replicas 1(#337) |
+| Organization `deploy-dev` | `127fbff`에서 성공, Environment `dev`에 기록 |
+| Organization `Deploy Prod` | release #173에서 실패(연동 적용 기록 6, 7번). 재실행 전 |
 
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
@@ -330,8 +386,9 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
   같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
 - Kargo CLI(`kargo login --sso --port 8085`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
-- Organization 저장소 workflow(`deploy-dev`, `Deploy Prod`)는 초안 단계다. 팀 저장소에 반영하고
-  실제 배포로 확인해야 한다.
+- `Deploy Prod`가 release PR merge로 성공한 적이 없다. Organization #178 이후 다시 확인해야 한다.
+- 팀 운영 규칙(release 전 `deploy-dev` 성공 확인, release 중 develop merge 금지)은 사람이 지켜야 한다.
+  Organization 저장소 문서나 PR 템플릿에도 남겨야 한다.
 - Kargo API token은 만료 기간이 문서에 없다. 교체 주기를 정해야 한다.
 - prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. 첫 배포 스키마는 직접 준비했으며,
   이후 스키마 변경을 어떻게 반영할지 정해야 한다.
