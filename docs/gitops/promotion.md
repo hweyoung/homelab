@@ -279,15 +279,37 @@ Kargo 1.11 CLI의 `kargo login`에는 token 옵션이 없다. `KARGO_API_ADDRESS
 
 ### 팀 운영 규칙
 
-`Deploy Prod`는 release PR의 develop 쪽 커밋 이미지가 dev에 배포돼 있어야 성공한다. 아래 순서를
-지키지 않으면 prod 승격이 실패한다(아래 기록의 2026-11-23 실패 사례).
+Kargo CI/CD를 적용하자 Organization 저장소의 PR 하나가 운영 API를 바꿀 수 있게 됐다.
 
-1. develop에 merge하면 `deploy-dev`가 성공할 때까지 기다린다.
-2. release PR(develop → main)은 develop 최신 커밋의 `deploy-dev`가 성공한 뒤 **Create a merge commit**으로 합친다.
-3. release 진행 중에는 develop에 merge하지 않는다. 새 develop 커밋이 오면 이전 `deploy-dev`는 취소되고
-   Kargo도 최신 이미지만 dev에 올리므로 release 커밋 이미지가 dev를 건너뛴다.
-4. main → develop 이력 맞추기(back-merge)는 `Deploy Prod`가 끝난 뒤에 한다.
-5. `Deploy Prod`가 실패하면 Actions → Deploy Prod → Run workflow로 dev에 배포된 develop 커밋 SHA를 넣어 다시 실행한다.
+- 운영 중인 애플리케이션에 영향을 주는 변경이 충분한 검토 없이 main에 포함될 수 있다.
+- dev는 자동 배포라 확인할 시간이 짧다. develop 기능을 충분히 검증하지 못한 채 prod로 올라갈 수 있다.
+
+그래서 merge 조건을 Organization 저장소 ruleset으로 강제한다. 정책 원문은 Organization 저장소
+`docs/repository-policy.md`에 있다.
+
+| 대상 | 조건 |
+| --- | --- |
+| feature → develop | 승인 1명, Required Check `validate`, Squash만 허용 |
+| develop → main (release) | 승인 2명, 마지막 push 이후 승인, Required Check `validate`·`deploy-dev`, Merge Commit만 허용 |
+| 공통 | 직접 push 금지, 리뷰 대화 해결 필수, admin 우회 없음 |
+| `Deploy Prod` | develop에 없는 커밋(hotfix 브랜치 등)은 승격하지 않고 실패 |
+
+main 승인 인원을 3명이 아니라 2명으로 둔 이유는 GitHub 제약이다. PR 작성자는 자기 PR을 승인할 수 없고,
+read 권한 사용자의 승인은 필수 승인 수에 들어가지 않는다. write 이상 권한자가 3명이라 2명이 작성자를 뺀
+전원이다.
+
+release PR의 head는 develop 최신 커밋이고, 그 커밋에 `deploy-dev` check 결과가 붙는다. 이 check를 main의
+Required Check로 두어 아래 2, 3번 규칙을 GitHub가 막는다.
+
+1. develop에 merge하면 `deploy-dev`가 성공할 때까지 기다리고 dev에서 기능을 확인한다.
+2. release PR(develop → main)은 develop 최신 커밋의 `deploy-dev`가 성공한 뒤 **Create a merge commit**으로
+   합친다. 성공 전에는 merge 버튼이 막힌다.
+3. release PR을 연 뒤 develop에 새 커밋이 merge되면 그 커밋의 `deploy-dev`가 끝날 때까지 merge가 막히고
+   이전 승인도 무효가 된다. 바뀐 내용을 다시 검토한다.
+4. main → develop back-merge는 하지 않는다. main에는 develop 커밋과 내용 없는 merge commit만 있다.
+   운영 오류 수정도 develop을 거쳐 release PR로 올린다.
+5. `Deploy Prod`가 실패하면 Actions → Deploy Prod → Run workflow로 dev에 배포된 develop 커밋 SHA를 넣어
+   다시 실행한다.
 
 ### 연동 적용 기록
 
@@ -386,9 +408,7 @@ Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 
   같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
 - Kargo CLI(`kargo login --sso --port 8085`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다.
-- `Deploy Prod`가 release PR merge로 성공한 적이 없다. Organization #178 이후 다시 확인해야 한다.
-- 팀 운영 규칙(release 전 `deploy-dev` 성공 확인, release 중 develop merge 금지)은 사람이 지켜야 한다.
-  Organization 저장소 문서나 PR 템플릿에도 남겨야 한다.
+- 팀 운영 규칙 1번의 dev 기능 확인과 release PR 리뷰 내용은 ruleset이 강제하지 못한다. 승인자가 확인해야 한다.
 - Kargo API token은 만료 기간이 문서에 없다. 교체 주기를 정해야 한다.
 - prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. 첫 배포 스키마는 직접 준비했으며,
   이후 스키마 변경을 어떻게 반영할지 정해야 한다.
