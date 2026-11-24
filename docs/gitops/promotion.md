@@ -4,10 +4,9 @@ CommonPlant 애플리케이션 이미지를 Kargo로 환경별 GitOps overlay에
 각 구성 요소가 어떻게 동작하는지, 이 환경에서 왜 이렇게 구성했는지, 구성 중 바꾼 결정을 함께
 기록한다. 운영 절차와 명령은 [Kargo README](../../gitops/platform/kargo/README.md)를 기준으로 한다.
 
-현재 상태는 **dev 자동 승격과 Organization 저장소 dev 배포 기록 동작 확인, prod CI 승격 미완료**다.
-develop merge 이미지가 dev에 자동 승격되고 Organization 저장소 Environment `dev`에 기록된다. prod는
-Kargo에서 직접 Promote해 첫 배포를 마쳤지만, release PR merge로 실행되는 `Deploy Prod`는 아직 성공한
-적이 없다. 진행 경과는 [연동 적용 기록](#연동-적용-기록)에 있다.
+현재 상태는 **Organization 저장소 연동 동작 확인**이다. develop merge 이미지가 dev에 자동 승격되고,
+develop → main release PR merge로 실행되는 `Deploy Prod`가 같은 이미지를 prod로 승격한다. 결과는
+Organization 저장소 Environment `dev`, `prod`에 기록된다. 진행 경과는 [연동 적용 기록](#연동-적용-기록)에 있다.
 
 ## 구성 의도
 
@@ -336,6 +335,11 @@ Required Check로 두어 아래 2, 3번 규칙을 GitHub가 막는다.
 | Environment `prod` 기록 | `3c2dcf0`(release #173) failure |
 | 다음 단계 | Organization #178 merge → 새 develop 커밋 `deploy-dev` 성공 확인 → 그 SHA로 `Deploy Prod` 수동 실행 |
 
+2026-11-24 Organization #178 merge 후 `deploy-dev`가 29초 만에 성공했다(develop `44f7e5d`). 이어 release PR
+#181(develop `fc96db5`)을 merge하자 `Deploy Prod`가 처음 성공했다. Freight `1a44900…`의 Promotion이 20초 만에
+`Succeeded`가 됐고, Kargo가 `ba97b70 [Chore] api-common prod 이미지 승격 (sha-fc96db5…)`을 push했다. dev와 prod
+overlay digest가 같고 Environment `prod`에 `f758c56` success가 기록됐다.
+
 ### CI 평문 Secret 검사
 
 ExternalSecret template에 `password: "{{ .password }}"`를 쓰면 CI의 평문 Secret 정규식에
@@ -395,8 +399,8 @@ Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 
 | `platform-kargo-route` | 첫 배포 직후 Degraded, 재sync 후 정상 |
 | Kargo UI SSO | CORS로 실패 → Dex `allowedOrigins` 추가(#330) 후 로그인 성공 |
 | prod 첫 배포 | Kargo UI에서 `mouthy-lynx` Promote(`d78ee57`) 후 replicas 1(#337) |
-| Organization `deploy-dev` | `127fbff`에서 성공, Environment `dev`에 기록 |
-| Organization `Deploy Prod` | release #173에서 실패(연동 적용 기록 6, 7번). 재실행 전 |
+| Organization `deploy-dev` | `127fbff`에서 첫 성공. Organization #178 이후 약 30초 |
+| Organization `Deploy Prod` | release #173 실패(연동 적용 기록 6, 7번) 후 release #181에서 성공(`sha-fc96db5…`) |
 
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
