@@ -293,6 +293,21 @@ defaulting webhook은 image subscription의 빈 값을 채운다(`imageSelection
 수정은 hweyoung/homelab#327로 merge했고, 실클러스터 diff로 다른 필드가 없는지 확인한다. 새 앱의 Warehouse도 webhook 기본값이
 있는 필드는 처음부터 명시한다.
 
+### 새 이미지가 Freight로 잡히지 않음: 캐시 빌드와 NewestBuild
+
+develop에 이력만 맞추는 merge(#175, #176)와 workflow만 바꾼 PR이 이어지자, 새 이미지가 push되고
+Warehouse refresh도 성공했는데 Freight가 생기지 않았다. GHCR의 이미지 config를 보니
+`sha-127fbff…`부터 `sha-bda7f7e…`까지 다섯 이미지의 `created`가 모두 `2026-11-23T16:01:14Z`였다.
+
+Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 모든 레이어가 캐시다. 이때 BuildKit은
+처음 빌드한 시각을 `created`로 그대로 쓴다. `NewestBuild`는 `created`로 최신을 고르므로 같은 시각의
+이미지 중 이미 Freight가 된 것에 머물렀다.
+
+앱 CI가 빌드할 때 `SOURCE_DATE_EPOCH`를 커밋 시각(`git log -1 --format=%ct`)으로 넘기도록 했다.
+캐시된 빌드에서도 `created`가 이 값을 따른다(로컬 buildx 0.33으로 확인). develop 커밋은 시간 순으로
+쌓이므로 새 커밋 이미지가 항상 최신이 된다. 앱 코드가 같아도 이미지 digest는 label(revision)이 달라
+서로 다르다.
+
 ## 검증
 
 ### 정적 검증
