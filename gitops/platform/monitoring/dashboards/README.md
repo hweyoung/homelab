@@ -15,6 +15,7 @@ Application `platform-grafana-dashboards`(wave -4)가 배포하고, kube-prometh
 | 02 Cluster | 클러스터 · Ingress · Edge (`homelab-ingress-edge`) | Traefik, cloudflared, cert-manager | 외부 접속 문제 |
 | 03 Application | 애플리케이션 (`homelab-application`) | Traefik, cAdvisor, 앱 지표, Loki | 서비스 하나를 깊게 볼 때 |
 | 10 Common Backend | api-common-dev (`common-backend-api-common-dev`) | 03 애플리케이션과 같음, namespace 고정 | common-backend 팀 전용 |
+| 10 Common Backend | api-common-prod (`common-backend-api-common-prod`) | 03 애플리케이션과 같음, namespace 고정 | common-backend 팀 전용 |
 | 99 Kubernetes (chart 기본) | kube-prometheus-stack 기본 대시보드 | - | 세부 참고용 |
 
 모든 대시보드에 공통으로 적용한 것:
@@ -36,10 +37,16 @@ Application `platform-grafana-dashboards`(wave -4)가 배포하고, kube-prometh
 - **플랫폼 서비스**: OpenBao(`:8210`), Garage(`:3903`) 지표는 각 컴포넌트 옆의 ServiceMonitor가 수집한다. OpenBao는 sealed 상태에서 target이 사라져 `수집 안 됨`으로 보인다.
 - **Ingress · Edge**: Traefik Gateway provider의 service 이름은 `<namespace>-<service>-<port>` 형태라
   애플리케이션 대시보드는 service 이름에 namespace가 포함된 것을 골라 쓴다.
+  Traefik ServiceMonitor에 `honorLabels: true`가 없으면 이 label이 target Service 이름(`platform-traefik-metrics`)으로
+  덮이고 원래 값은 `exported_service`로 밀려나 트래픽 패널이 모두 비어 보인다.
 - **애플리케이션**: Namespace를 하나 고르면 Traefik 기준 RED, Pod 리소스, 로그를 바로 볼 수 있다.
   런타임(JVM) 행은 앱이 지표를 노출해야 채워진다.
   - Spring Boot(api-common): `spring-boot-starter-actuator`, `micrometer-registry-prometheus` 추가,
-    `management.endpoints.web.exposure.include=health,prometheus` 설정 후 ServiceMonitor 추가
+    `management.endpoints.web.exposure.include=health,prometheus` 설정 후 ServiceMonitor 추가.
+    현재 `/api/v1/actuator/prometheus`가 Spring Security에 막혀 401을 반환하고 ServiceMonitor도 없어 비어 있다.
+    `management.server.port`를 HTTPRoute가 가리키지 않는 별도 포트로 두고 그 포트에서만 인증 없이 열어야 외부에 노출되지 않는다.
+- **10 Common Backend**: `api-common-dev.json`과 `api-common-prod.json`은 uid, title, `namespace` 상수만 다르다.
+  패널을 고치면 두 파일에 같이 반영한다. 팀원 Viewer 권한은 폴더 단위라 대시보드를 추가해도 따로 설정할 것이 없다.
   - Jira Data Center: Helm `monitoring.exposeJmxMetrics: true`, `monitoring.serviceMonitor.create: true`
   - 패널은 Micrometer 이름(`jvm_memory_used_bytes`, `hikaricp_*`, `tomcat_threads_*`)과 JMX exporter 이름
     (`jvm_memory_bytes_used`, `Catalina_*`, `com_atlassian_jira_*`)을 모두 조회한다.

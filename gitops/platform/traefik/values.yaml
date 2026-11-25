@@ -41,6 +41,9 @@ metrics:
       enabled: true
     serviceMonitor:
       enabled: true
+      # Traefik 지표의 service label(라우팅 대상)이 target Service 이름으로 덮여
+      # exported_service로 밀려나지 않게 한다. 대시보드와 알림 rule이 service label을 쓴다.
+      honorLabels: true
 
 # prod/dev Worker taint 를 모두 tolerate 하고, 두 Worker 에 분산 배치한다.
 tolerations:
