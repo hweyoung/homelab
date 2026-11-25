@@ -34,3 +34,27 @@ spec:
 
             - secretRef:
                 name: api-common-secret
+
+          # Spring Boot actuator health group. 앱 context-path(/api/v1) 아래에 있다.
+          # 시작이 끝날 때까지 liveness를 보류한다(5초 x 30 = 최대 150초).
+          startupProbe:
+            httpGet:
+              path: /api/v1/actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+
+          # Ready가 되기 전에는 Service에 붙지 않아, 새 Pod가 뜨지 못하면 이전 Pod가 남는다.
+          readinessProbe:
+            httpGet:
+              path: /api/v1/actuator/health/readiness
+              port: http
+            periodSeconds: 10
+
+          # liveness는 DB 같은 외부 상태를 보지 않아, DB 장애로 Pod가 재시작되지 않는다.
+          livenessProbe:
+            httpGet:
+              path: /api/v1/actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
