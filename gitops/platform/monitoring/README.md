@@ -73,7 +73,9 @@ listener `:8210`에서만 허용한다. 차트가 8202를 replication 포트로 
 `openbao-active` Service만 고르므로 sealed 상태에서는 target이 사라진다.
 
 cert-manager와 ESO 지표는 대상 리소스의 `namespace` label을 가지므로 두 ServiceMonitor에
-`honorLabels: true`를 둬서 target namespace로 덮이지 않게 한다.
+`honorLabels: true`를 둬서 target namespace로 덮이지 않게 한다. Traefik도 같은 이유로 `honorLabels: true`를 둔다.
+Traefik 지표의 `service` label(라우팅 대상)이 target Service 이름 `platform-traefik-metrics`로 덮이면
+원래 값이 `exported_service`로 밀려나 대시보드와 Traefik 5xx 알림이 서비스별로 나뉘지 않는다.
 
 이 리소스는 Prometheus Operator CRD가 있어야 적용된다. 새 클러스터 bootstrap에서는
 kube-prometheus-stack(wave -7)보다 앞 wave의 Application이 CRD 설치 전까지 sync 실패 후
