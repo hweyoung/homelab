@@ -372,6 +372,31 @@ Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 
 쌓이므로 새 커밋 이미지가 항상 최신이 된다. 앱 코드가 같아도 이미지 digest는 label(revision)이 달라
 서로 다르다.
 
+### api-common health probe
+
+`api-common` Deployment에 probe가 없어, Argo CD Healthy와 Promotion `Succeeded`가 Pod Running만
+뜻했다. probe가 없으면 컨테이너가 시작되자마자 Ready로 보므로, replicas 1에서 시작에 실패하는 이미지가
+들어와도 이전 Pod가 내려가 prod가 중단될 수 있었다.
+
+앱은 이미 actuator를 쓰고 있었다. 앱 `context-path`가 `/api/v1`이라 health 경로는
+`/api/v1/actuator/health`다(`/actuator/health`는 404). Spring Boot가 Kubernetes에서 만드는
+`liveness`, `readiness` group은 401이었다. 앱 인증 제외 경로를 `/actuator/health/**`로 넓히고
+(Organization #183, release #184), prod 배포를 확인한 뒤 probe를 추가했다(hweyoung/homelab#350).
+probe가 먼저 들어가면 401로 새 Pod가 Ready가 되지 않으므로 이 순서를 지켰다.
+
+| probe | 경로 | 설정 |
+| --- | --- | --- |
+| startup | `/api/v1/actuator/health/liveness` | 5초 간격, 30회(최대 150초) |
+| readiness | `/api/v1/actuator/health/readiness` | 10초 간격 |
+| liveness | `/api/v1/actuator/health/liveness` | 10초 간격, 3회 실패 시 재시작 |
+
+liveness group은 DB 같은 외부 상태를 보지 않아 DB 장애로 Pod가 재시작되지 않는다. RollingUpdate
+기본값(replicas 1에서 maxUnavailable 0, maxSurge 1)이라 새 Pod가 Ready가 되기 전까지 이전 Pod가 남는다.
+
+2026-11-25 #350 merge 후 prod 새 Pod가 `1/1 Running`, 재시작 0이 됐다. 시작 직후 약 25초 동안 startup
+probe가 `connection refused`로 6번 실패한 뒤 통과했다. 앱이 8080을 열기 전의 실패라 정상이며, 시작에
+약 30초가 걸려 150초 제한까지 여유가 있다.
+
 ## 검증
 
 ### 정적 검증
@@ -401,6 +426,7 @@ Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 
 | prod 첫 배포 | Kargo UI에서 `mouthy-lynx` Promote(`d78ee57`) 후 replicas 1(#337) |
 | Organization `deploy-dev` | `127fbff`에서 첫 성공. Organization #178 이후 약 30초 |
 | Organization `Deploy Prod` | release #173 실패(연동 적용 기록 6, 7번) 후 release #181에서 성공(`sha-fc96db5…`) |
+| api-common probe | prod 새 Pod `1/1 Running`, 재시작 0, startup 약 30초(#350). dev는 확인 전 |
 
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
@@ -411,7 +437,9 @@ Dockerfile은 Gradle 파일과 `src`만 복사하므로 앱 코드가 같으면 
 - #329 이후 Promotion에서 dev Stage가 Healthy로 남는지 확인해야 한다. health 설정은 Promotion 때 등록되므로
   같은 Freight를 다시 Promote하거나 다음 이미지 승격을 기다린다.
 - Kargo CLI(`kargo login --sso --port 8085`) 로그인은 확인하지 않았다.
-- dev 배포 뒤 HTTP smoke test(verification)가 없다.
+- dev 배포 뒤 HTTP smoke test(verification)가 없다. probe로 시작 실패는 막지만, 배포 결과를 CI에서 따로
+  확인하지 않는다.
+- dev에서 probe 적용 결과(Pod Ready, 재시작 0)를 확인해야 한다.
 - 팀 운영 규칙 1번의 dev 기능 확인과 release PR 리뷰 내용은 ruleset이 강제하지 못한다. 승인자가 확인해야 한다.
 - Kargo API token은 만료 기간이 문서에 없다. 교체 주기를 정해야 한다.
 - prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. 첫 배포 스키마는 직접 준비했으며,
