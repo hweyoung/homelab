@@ -12,7 +12,7 @@ Proxmox 위에 Kubernetes 클러스터를 구성하고, 인프라 생성부터 �
 - Secret, 인증서, 외부 트래픽의 흐름을 끝까지 추적할 수 있는가?
 - Kubernetes 업그레이드와 노드 장애 후 상태를 안전하게 복구할 수 있는가?
 
-> 이 문서는 `2026-10-28` 현재 저장소에 선언된 구성을 기준으로 합니다.
+> 이 문서는 `2026-11-25` 현재 저장소에 선언된 구성을 기준으로 합니다.
 
 ## 현재 상태
 
@@ -22,12 +22,15 @@ Proxmox 위에 Kubernetes 클러스터를 구성하고, 인프라 생성부터 �
 | OS 및 네트워크 자동화 | 구성됨 | Rocky Linux, SSH, `/etc/hosts`, Tailscale |
 | Kubernetes | 구성됨 | Kubespray 기반 설치, 노드 후처리, 기존 클러스터 순차 업그레이드 |
 | Argo CD bootstrap | 구성됨 | Helm 설치, private repository 인증, root Application |
-| GitOps 플랫폼 | 구성됨 | Namespace, StorageClass, Gateway API, cert-manager, Traefik, cloudflared, CNPG, Garage |
-| Secret 플랫폼 | 부분 적용 | OpenBao·ESO 설치, api-common dev, Grafana admin, Alertmanager Discord webhook을 ExternalSecret으로 동기화 |
-| Promotion | 구성 중 | Kargo controller와 api-common dev 자동 승격 파이프라인 선언, prod Stage와 승인 정책은 후속 범위 |
+| GitOps 플랫폼 | 구성됨 | Namespace, StorageClass, Gateway API, cert-manager, Traefik, cloudflared, CNPG, Garage, Garage 관리 UI |
+| 인증과 접근 | 구성됨 | Dex OIDC(GitHub Team)로 Argo CD, Grafana, OpenBao, Kargo, Garage UI 로그인, 관리 도구 앞단은 Cloudflare Access |
+| Secret 플랫폼 | 부분 적용 | api-common dev/prod 앱 Secret·GHCR pull·DB 계정, Kargo credential, Grafana admin, Alertmanager webhook을 OpenBao + ESO로 동기화. bootstrap 성격 Secret은 SOPS 유지 |
+| Promotion | 구성됨 | Kargo로 api-common dev 자동 승격, Organization 저장소 release PR merge 시 같은 Freight를 prod로 승격 |
 | 데이터베이스 | 구성됨 | dev/prod CloudNativePG Cluster, `local-path` 영속 볼륨 |
-| 애플리케이션 | 부분 구성 | test-nginx dev/prod, CommonPlant API dev |
-| Observability | 구성됨 | kube-prometheus-stack(Prometheus, Alertmanager, Grafana), Loki, Alloy, Discord 알림 |
+| 애플리케이션 | 구성됨 | test-nginx dev/prod, CommonPlant API dev/prod |
+| Observability | 구성됨 | kube-prometheus-stack(Prometheus, Alertmanager, Grafana), Loki, Alloy, 대시보드, Discord 알림 |
+| 검증 | 부분 적용 | PR에서 GitOps 렌더링과 SOPS 암호화 검사. Ansible CI와 로컬 hook은 없고 클러스터 반영 결과는 수동으로 확인 |
+| 백업과 복구 | 보류 | CNPG 백업, OpenBao snapshot, 복구 리허설은 추가 하드웨어 확보 후 착수 |
 
 완료 여부는 리소스가 한 번 생성됐는지가 아니라 재실행, 상태 확인, 장애 복구 기준까지
 검증됐는지를 기준으로 판단합니다.
@@ -52,6 +55,7 @@ flowchart TB
         PLATFORM["Gateway · TLS · Storage · CNPG"]
         OBS["Prometheus · Grafana · Loki · Alertmanager"]
         SECRETS["OpenBao · ESO"]
+        DEX["Dex OIDC"]
         KARGO["Kargo"]
         APPS["dev / prod workloads"]
     end
@@ -59,7 +63,7 @@ flowchart TB
     TF -->|"Proxmox API"| proxmox
     B -->|"SSH · Ansible"| CP & PROD & DEV
     B -->|"bootstrap only"| ARGO
-    ARGO -->|"reconcile"| PLATFORM & SECRETS & KARGO & OBS & APPS
+    ARGO -->|"reconcile"| PLATFORM & SECRETS & DEX & KARGO & OBS & APPS
 ```
 
 ### 관리 영역의 소유권
@@ -167,11 +171,22 @@ flowchart LR
 - `cloudflared`가 외부로 연결을 시작하고 Traefik ClusterIP로 요청을 전달합니다.
 - Traefik은 Kubernetes Gateway provider만 사용하고 Gateway/HTTPRoute는 Git이 소유합니다.
 - cert-manager는 Cloudflare DNS-01로 wildcard 인증서를 발급합니다.
-- 관리용 접근은 Tailscale을 기본 경로로 사용합니다.
+- bastion SSH는 Tailscale로 접근합니다. 웹 관리 도구는 공개 HTTPRoute 앞에 Cloudflare Access를
+  두고, 각 도구 안에서는 Dex OIDC로 로그인합니다. Tailscale 경로로 옮기는 작업은 아직 적용하지
+  않아 Access와 도구 로그인을 두 번 거칩니다.
 
-외부에 공개하는 HTTPRoute는 Argo CD, OpenBao, Garage 이미지, Garage 관리 UI, Grafana입니다. OpenBao route는
-초기화와 unseal, 인증 정책 구성을 마친 뒤 root-app에 등록했습니다. 초기화 전에 외부에서
-초기화 API에 접근하지 못하게 하기 위한 순서입니다.
+외부에 공개하는 HTTPRoute는 Argo CD, Dex, OpenBao, Kargo, Garage 이미지, Garage 관리 UI, Grafana,
+CommonPlant dev/prod입니다. Dex issuer는 각 도구의 Pod가 OIDC discovery를 해야 하므로 Cloudflare
+Access 없이 공개합니다. OpenBao route는 초기화와 unseal, 인증 정책 구성을 마친 뒤 root-app에
+등록했습니다. 초기화 전에 외부에서 초기화 API에 접근하지 못하게 하기 위한 순서입니다.
+
+### 인증과 권한
+
+관리 도구 로그인은 GitHub org `homelab-platform-org`의 Team을 사용자 원본으로 하는 Dex로
+통합했습니다. Dex는 Team을 `groups` claim으로 전달만 하고, 권한은 도구마다 `platform-admin`과
+`common-backend` 그룹 기준으로 따로 정합니다. Argo CD와 Grafana의 로컬 admin 계정, OpenBao 복구
+수단은 Dex와 GitHub 장애에 대비한 비상 접근용으로 남깁니다. 도구별 권한은
+[관리 도구 접근 권한](docs/gitops/access-control.md)에 정리했습니다.
 
 ## Secret 설계
 
@@ -192,8 +207,10 @@ flowchart LR
 - policy는 각 애플리케이션 KV 경로의 읽기 권한만 부여합니다.
 - 초기 root token과 unseal key는 Git과 Kubernetes Secret에 저장하지 않습니다.
 - bootstrap 값과 전환 전 Secret은 SOPS/age/KSOPS로 유지합니다.
-- 현재 api-common dev 앱 Secret, Grafana admin, Alertmanager Discord webhook이 ExternalSecret으로
-  동기화되며, GHCR pull Secret과 DB 계정 등 나머지는 SOPS/KSOPS를 유지합니다.
+- 현재 api-common dev/prod 앱 Secret, GHCR pull Secret, DB 계정, Kargo credential, Garage UI,
+  Grafana admin, Alertmanager Discord webhook이 ExternalSecret으로 동기화됩니다.
+- PostgreSQL superuser, Dex, cert-manager, cloudflared, Argo CD OIDC client는 SOPS/KSOPS를
+  유지합니다. Dex처럼 OpenBao 장애와 무관하게 떠야 하는 구성 요소가 여기에 해당합니다.
 
 OpenBao는 prod Worker의 단일 Raft replica와 10Gi `local-path` PVC를 사용합니다. 자원
 제약을 고려한 선택이지만 HA가 아니므로 외부 snapshot과 수동 unseal 절차가 필요합니다.
@@ -204,15 +221,21 @@ CloudNativePG Operator와 실제 PostgreSQL Cluster의 소유권을 분리합니
 
 - `platform-cloudnative-pg`: CRD와 Operator
 - `databases-postgres-dev`: dev Cluster와 CommonPlant DB role
-- `databases-postgres-prod`: prod Cluster
+- `databases-postgres-prod`: prod Cluster와 CommonPlant DB role
 - StorageClass: 단일 `local-path`
 - PVC는 특정 Worker에 결합되므로 노드 손실 시 자동 복구를 보장하지 않음
+
+현재 선언된 sync 정책은 모두 automated sync와 prune을 켜 둡니다. api-common dev DB는 테스트
+단계라 Git에서 빠지면 함께 지워지는 동작을 의도적으로 유지합니다. 운영 데이터를 Retain으로
+전환하는 기준은 아직 정하지 않았습니다.
 
 | Application | Namespace | 용도 |
 | --- | --- | --- |
 | `apps-nginx-dev` | `api-nginx-dev` | Gateway와 dev 배치 검증 |
 | `apps-nginx-prod` | `api-nginx-prod` | Gateway와 prod 배치 검증 |
 | `apps-api-common-dev` | `api-common-dev` | CommonPlant Spring Boot dev workload |
+| `apps-api-common-prod` | `api-common-prod` | CommonPlant Spring Boot prod workload |
+| `apps-api-common-kargo` | `kargo-api-common` | api-common Kargo Project, Warehouse, Stage, credential |
 
 ### 이미지 빌드와 환경 승격
 
@@ -236,10 +259,14 @@ flowchart LR
 
 빌드는 한 번만 수행하고 환경별로 다시 빌드하지 않습니다. 승격 단위는 mutable tag가 아니라
 Freight가 가리키는 image digest이며, ConfigMap·Secret·DB endpoint·domain은 각 overlay에
-남깁니다. 현재는 api-common dev Stage까지 구성했습니다. 앱별 파이프라인은
-`gitops/apps/<앱>/kargo/`에 두고, GHCR·Git credential은 앱마다 OpenBao + ESO로 받습니다.
-UI는 `kargo.okbear.dev`에서 Dex 로그인으로 씁니다. 외부 webhook, prod Stage와 승인 정책은
-후속 변경으로 구성합니다.
+남깁니다. 앱별 파이프라인은 `gitops/apps/<앱>/kargo/`에 두고, GHCR·Git credential은 앱마다
+OpenBao + ESO로 받습니다. UI는 `kargo.okbear.dev`에서 Dex 로그인으로 씁니다.
+
+api-common은 develop merge로 빌드한 이미지가 dev Stage에 자동 승격되고, develop → main release
+PR이 merge되면 앱 CI의 `Deploy Prod`가 dev를 통과한 같은 Freight를 prod Stage로 Promote합니다.
+prod 승인은 Organization 저장소의 release PR 승인 규칙이 맡습니다. 앱 CI는 Freight 조회,
+Warehouse refresh, prod Promote만 허용된 Kargo role token을 쓰고 홈랩 저장소 권한은 갖지
+않습니다. 자세한 흐름과 적용 기록은 [Promotion 문서](docs/gitops/promotion.md)에 있습니다.
 
 ## 선언된 버전
 
@@ -268,6 +295,8 @@ UI는 `kargo.okbear.dev`에서 Dex 로그인으로 씁니다. 외부 webhook, pr
 | OpenBao | chart `0.29.2`, image `2.6.2` | single Raft |
 | External Secrets Operator | chart `2.9.0` | namespaced Store만 처리 |
 | Kargo | chart `1.11.0` | UI는 Dex OIDC 로그인, 로컬 admin 비활성화 |
+| Dex | app `2.46.0`, chart `0.26.0` | GitHub Team 기반 OIDC |
+| Garage 관리 UI | image `noooste/garage-ui:v0.14.0` | bucket 단위 권한 |
 | kube-prometheus-stack | chart `92.14.0` | Prometheus, Alertmanager, Grafana, operator |
 | Loki | app `3.6.16`, chart `7.5.0` | SingleBinary |
 | Alloy | app `1.21.2`, chart `1.14.3` | Pod 로그 수집 |
@@ -454,11 +483,12 @@ KSOPS overlay는 age key와 plugin이 준비된 Argo CD repo-server 또는 별�
 
 - 단일 물리 호스트와 단일 Control Plane이므로 HA가 아닙니다.
 - `local-path` PVC는 노드에 결합되며 자동 원격 복제를 제공하지 않습니다.
-- OpenBao audit, 외부 Raft snapshot, 복구 테스트가 필요합니다.
-- 나머지 workload Secret의 ExternalSecret 전환과 prod OpenBao role 구성이 필요합니다.
-- Kargo는 api-common dev 자동 승격만 있고 prod Stage와 승인 정책은 아직 없습니다.
-- CommonPlant prod overlay와 CI/CD 승격 흐름은 아직 완성되지 않았습니다.
-- 알림 경로 자체의 장애를 감지하는 외부 dead man's switch와 Grafana SSO는 후속 범위입니다.
+- CNPG 백업, OpenBao audit과 외부 Raft snapshot, 복구 리허설은 추가 하드웨어 확보 후로
+  보류했습니다. 그 전까지 데이터 손실에 대한 복구 수단이 없습니다.
+- prod 승격은 release PR 승인에 의존하고, Kargo Stage의 자동 verification(smoke test)은 아직 없습니다.
+- NetworkPolicy와 Pod Security Admission이 없어 Namespace 사이 트래픽과 Pod 권한을 제한하지 않습니다.
+- 웹 관리 도구는 Cloudflare Access와 Dex 로그인을 두 번 거칩니다. Tailscale 경로 전환은 후속 범위입니다.
+- 알림 경로 자체의 장애를 감지하는 외부 dead man's switch와 외부 가용성 감시는 후속 범위입니다.
 - Git 목표 버전과 실제 클러스터 버전의 drift를 자동 보고하는 검증이 필요합니다.
 
 ## 관련 문서
@@ -470,6 +500,8 @@ KSOPS overlay는 age key와 plugin이 준비된 Argo CD repo-server 또는 별�
 - [GitOps 운영](docs/gitops/README.md)
 - [Secret 관리](docs/gitops/secrets.md)
 - [GitOps 상세 아키텍처](docs/gitops/architecture.md)
+- [Promotion](docs/gitops/promotion.md)
+- [Dex OIDC](docs/gitops/dex-oidc.md)와 [관리 도구 접근 권한](docs/gitops/access-control.md)
 - [Observability 구성](docs/gitops/observability.md)
 
 ## Contact
