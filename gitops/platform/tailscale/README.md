@@ -55,4 +55,20 @@ curl -sI --resolve grafana.okbear.dev:443:<TAILSCALE_IP> https://grafana.okbear.
 4. Cloudflare Access 앱을 제거하고 HTTPRoute에서 `public-gateway`를 뺍니다.
 
 Tunnel hostname을 지우기 전에 Access를 제거하면 관리 도구가 인증 없이 공개될 수 있습니다.
-Dex, 이미지, 앱 API는 공개 경로를 유지합니다.
+
+## 공개 경로 유지
+
+| 대상 | 이유 |
+| --- | --- |
+| Dex | 앱과 CLI의 OIDC 로그인 기준점 |
+| 이미지(`images.okbear.dev`), 앱 API | 외부 사용자가 쓰는 서비스 |
+| Kargo | 앱 CI가 GitHub 호스팅 러너에서 Kargo API를 호출함. UI는 Dex 로그인, API는 token으로 보호 |
+
+Kargo는 아래 방법도 검토했지만 적용하지 않았습니다.
+
+- 경로 분리(API만 공개, UI는 tailnet): DNS는 호스트 이름 단위라 호스트 이름을 둘로 나눠야 합니다.
+  UI도 같은 API 경로를 호출하므로 UI를 숨겨도 공개되는 API 범위는 그대로입니다.
+- tailnet 접속 시 Dex 자동 로그인: Dex에는 Tailscale 커넥터가 없습니다. tsidp를 upstream으로 붙여야 하고,
+  GitHub Team 그룹을 다시 매핑해야 합니다. 공개 노출은 그대로라 보안 이점이 없습니다.
+- 앱 CI 러너를 tailnet에 연결(`tailscale/github-action`): 가장 깔끔하지만 앱 저장소 workflow와 tailnet 정책을
+  함께 바꿔야 합니다. Kargo를 tailnet으로 옮길 때 이 방법을 씁니다.
