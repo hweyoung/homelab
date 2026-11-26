@@ -401,7 +401,7 @@
     {
       "type": "stat",
       "title": "5xx 비율",
-      "description": "",
+      "description": "최근 5분 동안 요청이 없으면 계산할 값이 없어 '요청 없음'으로 표시한다. 지표 수집 여부는 '요청 / 초'로 확인한다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -444,7 +444,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "수집 안 됨"
+          "noValue": "요청 없음"
         },
         "overrides": []
       },
@@ -475,7 +475,7 @@
     {
       "type": "stat",
       "title": "p95 지연",
-      "description": "",
+      "description": "최근 5분 동안 요청이 없으면 계산할 값이 없어 '요청 없음'으로 표시한다. 지표 수집 여부는 '요청 / 초'로 확인한다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -517,7 +517,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "수집 안 됨"
+          "noValue": "요청 없음"
         },
         "overrides": []
       },

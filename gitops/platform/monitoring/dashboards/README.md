@@ -26,6 +26,8 @@ Application `platform-grafana-dashboards`(wave -4)가 배포하고, kube-prometh
 - Shared crosshair: 한 그래프의 시점이 모든 그래프에 같이 표시된다.
 - 데이터소스는 변수(`datasource`, `loki`)로 받는다. 기본값은 chart가 만든 uid `prometheus`, `loki`다.
 - 수집되지 않는 지표는 "No data" 대신 `수집 안 됨`으로 표시해 설정 누락과 정상 0을 구분한다.
+  애플리케이션 대시보드의 `5xx 비율`, `p95 지연`은 요청이 없으면 값을 계산할 수 없으므로 `요청 없음`으로 표시하고,
+  수집 여부는 옆의 `요청 / 초`(수집되면 0, 안 되면 `수집 안 됨`)로 확인한다.
 
 ## 대시보드별 메모
 
