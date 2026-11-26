@@ -1,6 +1,6 @@
 # garage-ui v0.14.0 설정. 비밀값은 Deployment env(ExternalSecret)로 넣는다.
-# admin token: GARAGE_UI_GARAGE_ADMIN_TOKEN
-# OIDC client secret: GARAGE_UI_AUTH_OIDC_CLIENT_SECRET
+# admin token은 GARAGE_UI_GARAGE_ADMIN_TOKEN 환경변수로 넣는다.
+# OIDC client secret은 GARAGE_UI_AUTH_OIDC_CLIENT_SECRET 환경변수로 넣는다.
 server:
   host: "::"
   port: 8080
