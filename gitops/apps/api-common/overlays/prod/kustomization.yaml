@@ -14,4 +14,4 @@ patches:
 - path: patch-deployment.yaml
 images:
 - name: ghcr.io/umc-commonplant/api-common
-  digest: sha256:0106da5d706f4aba743776f9ec8a1ff465bcc69903befd6d5daf84fdb1e22f93
+  digest: sha256:bb003df646194695b7c3a734bbbbe69bd2d5e0d715a911aeb58c5551b3c2ccca
