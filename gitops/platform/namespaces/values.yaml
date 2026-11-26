@@ -30,7 +30,7 @@ namespaces:
     environment: prod
     gatewayAccess: private
 
-  # kargo-route(kargo.okbear.dev)가 public-gateway에 붙으려면 public이어야 한다.
+  # kargo-route(kargo.okbear.dev)가 internal-gateway에 붙으려면 public이어야 한다.
   - name: kargo
     environment: prod
     gatewayAccess: public
