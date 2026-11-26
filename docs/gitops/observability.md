@@ -410,8 +410,8 @@ rule을 만들 때의 기준은 다음과 같다.
 
 ## Grafana 접근과 Secret
 
-- `grafana.okbear.dev` HTTPRoute가 공용 `public-gateway`의 http/https listener에 붙는다. TLS는
-  Gateway의 `*.okbear.dev` wildcard 인증서가 종료한다.
+- `grafana.okbear.dev` HTTPRoute는 tailnet 전용 `internal-gateway`의 https listener에만 붙는다.
+  DNS는 `homelab-gateway`의 tailnet IP를 가리키고, TLS는 Gateway의 `*.okbear.dev` wildcard 인증서가 종료한다.
 - 익명 접근과 회원 가입은 끄고, admin 계정 하나로 로그인한다.
 - admin 계정은 OpenBao KV v2 `secret/platform/monitoring/grafana`에 저장하고 ESO가 `grafana-admin`
   Secret으로 동기화한다.
@@ -532,4 +532,4 @@ kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090
   - Loki ruler를 Alertmanager에 연결하지 않아 로그 기반 알림이 없다.
   - Kubernetes 이벤트는 수집하지 않는다.
   - Alloy는 읽은 위치(positions)를 컨테이너 내부 `/tmp/alloy`에 두므로 Pod가 재시작되면 일부 로그를 다시 보낼 수 있다.
-- Grafana는 admin 계정 하나만 쓰고 공개 route로 노출된다. SSO나 Cloudflare Access 같은 접근 제한은 후속 범위다.
+- Grafana는 tailnet 안에서만 열리므로 팀원도 tailnet에 참여해야 한다.
