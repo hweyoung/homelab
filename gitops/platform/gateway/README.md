@@ -6,9 +6,9 @@
 | --- | --- |
 | `gatewayclass.yaml` | GatewayClass `traefik` (controller `traefik.io/gateway-controller`) |
 | `certificate.yaml` | wildcard 인증서 `okbear.dev`, `*.okbear.dev` → Secret `wildcard-okbear-tls` |
-| `gateway.yaml` | Gateway `public` (HTTP 8000 / HTTPS 8443 listener) |
+| `gateway.yaml` | Gateway `public` (HTTP 8000 / HTTPS 8443 listener), `internal-gateway` (tailnet HTTPS 8444 listener) |
 
-* listener port 는 Traefik entryPoint(`web` 8000 / `websecure` 8443)와 일치한다.
+* listener port 는 Traefik entryPoint(`web` 8000 / `websecure` 8443 / `tailnet` 8444)와 일치한다.
 * HTTPRoute 는 각 앱 namespace 에서 `parentRefs` 로 `gateway/public` 을 참조한다
   (`allowedRoutes.namespaces.from: All`). 필요 시 라벨 셀렉터로 좁힐 수 있다.
 * 인증서 발급에는 `cert-manager-config` 의 `letsencrypt-prod` ClusterIssuer 와
