@@ -397,6 +397,9 @@ liveness group은 DB 같은 외부 상태를 보지 않아 DB 장애로 Pod가 �
 probe가 `connection refused`로 6번 실패한 뒤 통과했다. 앱이 8080을 열기 전의 실패라 정상이며, 시작에
 약 30초가 걸려 150초 제한까지 여유가 있다.
 
+2026-11-26 dev도 같은 probe 세 개가 적용되어 Pod가 15시간째 `1/1 Running`, 재시작 0이다. Pod가 뜬 지
+오래되어 시작 때 이벤트는 남아 있지 않아, dev 시작 시간은 확인하지 못했다.
+
 ## 검증
 
 ### 정적 검증
@@ -426,7 +429,7 @@ probe가 `connection refused`로 6번 실패한 뒤 통과했다. 앱이 8080을
 | prod 첫 배포 | Kargo UI에서 `mouthy-lynx` Promote(`d78ee57`) 후 replicas 1(#337) |
 | Organization `deploy-dev` | `127fbff`에서 첫 성공. Organization #178 이후 약 30초 |
 | Organization `Deploy Prod` | release #173 실패(연동 적용 기록 6, 7번) 후 release #181에서 성공(`sha-fc96db5…`) |
-| api-common probe | prod 새 Pod `1/1 Running`, 재시작 0, startup 약 30초(#350). dev는 확인 전 |
+| api-common probe | prod 새 Pod `1/1 Running`, 재시작 0, startup 약 30초(#350). dev도 `1/1 Running`, 재시작 0 |
 
 배포 후 확인 순서와 완료 기준은 [Kargo README](../../gitops/platform/kargo/README.md)의 api-common 배포 후 확인을
 따른다. SecretStore와 ExternalSecret Ready → Warehouse Freight 생성 → dev Promotion
@@ -439,7 +442,6 @@ probe가 `connection refused`로 6번 실패한 뒤 통과했다. 앱이 8080을
 - Kargo CLI(`kargo login --sso --port 8085`) 로그인은 확인하지 않았다.
 - dev 배포 뒤 HTTP smoke test(verification)가 없다. probe로 시작 실패는 막지만, 배포 결과를 CI에서 따로
   확인하지 않는다.
-- dev에서 probe 적용 결과(Pod Ready, 재시작 0)를 확인해야 한다.
 - 팀 운영 규칙 1번의 dev 기능 확인과 release PR 리뷰 내용은 ruleset이 강제하지 못한다. 승인자가 확인해야 한다.
 - Kargo API token은 만료 기간이 문서에 없다. 교체 주기를 정해야 한다.
 - prod 앱은 `ddl-auto: validate`인데 마이그레이션 도구가 없다. 첫 배포 스키마는 직접 준비했으며,
