@@ -26,6 +26,7 @@ spec:
     - https://charts.external-secrets.io
     - https://openbao.github.io/openbao-helm
     - ghcr.io/akuity/kargo-charts
+    - https://pkgs.tailscale.com/helmcharts
   
   destinations:
     - server: https://kubernetes.default.svc
@@ -88,6 +89,9 @@ spec:
 
     - server: https://kubernetes.default.svc
       namespace: kargo-shared-resources
+
+    - server: https://kubernetes.default.svc
+      namespace: tailscale
 
   clusterResourceWhitelist:
     - group: '*'

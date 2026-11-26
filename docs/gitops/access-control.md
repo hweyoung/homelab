@@ -12,6 +12,8 @@ GitHub Team을 Dex가 `groups` claim(`homelab-platform-org:<team slug>`)으로 �
 | Garage 관리 UI | 모든 bucket·key 관리 | `common-dev` 조회·업로드·삭제, `common-prod` 조회 | `gitops/platform/garage/ui/config.yaml` `access_control` |
 | bastion SSH | Tailscale SSH | 불가 | Tailscale 정책 (Dex와 무관) |
 
+tailnet 접근 경로와 전환 절차는 [tailscale README](../../gitops/platform/tailscale/README.md)에 있다.
+
 Argo CD와 Grafana의 로컬 admin 계정, OpenBao 복구 수단은 Dex와 GitHub 장애에 대비한 비상 접근용으로 유지한다.
 
 ## OpenBao

@@ -32,3 +32,29 @@ spec:
           selector:
             matchLabels:
               homelab.okbear.dev/gateway-access: public
+---
+# tailnet 전용 진입점. listener port는 Traefik entryPoint tailnet과 일치한다.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: internal-gateway
+  namespace: traefik
+spec:
+  gatewayClassName: traefik
+
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 8444
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: okbear-wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              homelab.okbear.dev/gateway-access: public
