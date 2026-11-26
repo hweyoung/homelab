@@ -1,7 +1,7 @@
 # 팀원 로그인 안내
 
-관리 도구는 GitHub 계정으로 로그인한다. Argo CD, Grafana, OpenBao, Garage 관리 UI는 Tailscale에 연결된
-상태에서만 열린다. 권한은 GitHub Team에 따라 정해진다([접근 권한](access-control.md)).
+관리 도구는 GitHub 계정으로 로그인한다. 모든 관리 도구(Argo CD, Grafana, OpenBao, Garage 관리 UI, Kargo)는
+Tailscale에 연결된 상태에서만 열린다. 권한은 GitHub Team에 따라 정해진다([접근 권한](access-control.md)).
 
 ## 처음 한 번
 
@@ -19,7 +19,7 @@
 | Grafana | https://grafana.okbear.dev | tailnet | `Sign in with GitHub` |
 | OpenBao | https://openbao.okbear.dev | tailnet | Method `OIDC`, Role 비우면 `common-backend` |
 | Garage 관리 UI | https://garage.okbear.dev | tailnet | `GitHub`로 로그인 |
-| Kargo | https://kargo.okbear.dev | 공개 | SSO 로그인 |
+| Kargo | https://kargo.okbear.dev | tailnet | SSO 로그인 |
 
 처음 로그인하면 Dex를 거쳐 GitHub 권한 승인 화면이 나온다. `homelab-platform-org`의 `platform-admin`,
 `common-backend` 팀 멤버만 로그인할 수 있고, 그 밖의 계정은 Dex에서 거절된다.
@@ -40,7 +40,7 @@ kargo login https://kargo.okbear.dev --sso --port 8085
 BAO_ADDR=https://openbao.okbear.dev bao login -method=oidc role=common-backend
 ```
 
-Argo CD와 OpenBao CLI도 Tailscale이 연결되어 있어야 한다. Kargo CLI는 포트를 `8085`로 고정해야 Dex가
+CLI도 모두 Tailscale이 연결되어 있어야 한다. Kargo CLI는 포트를 `8085`로 고정해야 Dex가
 redirect를 받아 준다.
 
 ## 문제 해결

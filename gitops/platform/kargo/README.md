@@ -161,11 +161,10 @@ kubectl get validatingwebhookconfiguration,mutatingwebhookconfiguration \
 | 권한 | `platform-admin` → admin, `common-backend` → viewer |
 | Secret 관리 | 끔(`secretManagementEnabled: false`). credential은 GitOps와 OpenBao로만 관리 |
 
-`kargo` namespace는 HTTPRoute가 `public-gateway`에 붙도록 `gatewayAccess: public`입니다.
-다른 관리 도구와 달리 tailnet으로 옮기지 않습니다. 앱 저장소 CI가 GitHub 호스팅 러너에서
-이 주소로 Warehouse refresh, dev 승격 대기, prod 승격을 호출하기 때문입니다. UI는 Dex 로그인, API는 token으로 보호합니다.
-Cloudflare Tunnel의 public hostname은 Git으로 관리하지 않으므로 배포 전에 `kargo.okbear.dev`를
-다른 관리 도구 경로와 같은 Service로 추가합니다.
+`kargo` namespace는 HTTPRoute가 `internal-gateway`에 붙도록 `gatewayAccess: public`입니다.
+다른 관리 도구처럼 tailnet에서만 열립니다. 앱 저장소 CI는 `setup-kargo` action에서 임시 노드(`tag:ci`)로
+tailnet에 접속한 뒤 Warehouse refresh, dev 승격 대기, prod 승격을 호출합니다.
+Cloudflare DNS에는 `kargo.okbear.dev`를 tailnet 주소의 A 레코드(DNS only)로 등록합니다.
 Dex client 설정과 권한 근거는 [Dex OIDC 문서](../../../docs/gitops/dex-oidc.md#kargo)에 있습니다.
 
 ```bash
