@@ -204,7 +204,7 @@ kubectl -n openbao exec -it platform-openbao-0 -- bao login
    kubectl -n dex rollout restart deploy/dex && kubectl -n dex rollout status deploy/dex --timeout=5m
    ```
 
-6. Cloudflare Tunnel Public Hostname에 `garage.okbear.dev`를 다른 관리 도구와 같은 Traefik 서비스로 추가합니다.
+6. Cloudflare DNS에 `garage.okbear.dev`를 tailnet 주소의 A 레코드(DNS only)로 등록합니다. 관리 UI는 tailnet에서만 열립니다.
 
 `platform-admin`으로 로그인해 모든 bucket이 보이는지, `common-backend` 계정은 `common-dev`, `common-prod`만
 보이고 `common-prod`에 업로드가 거부되는지 확인합니다. 팀 계정의 해석된 권한은 로그인 상태에서
