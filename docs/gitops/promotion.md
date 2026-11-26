@@ -53,7 +53,8 @@ flowchart LR
 처음에는 API/UI를 끄고 controller만 설치했다. 이후 `https://kargo.okbear.dev`로 UI를 열고 Dex
 OIDC로만 로그인하게 했다. Kargo는 PKCE를 쓰므로 Dex client는 secret이 없는 public client이고,
 로컬 admin 계정과 UI의 Secret 관리 기능은 끈다. `platform-admin`은 admin, `common-backend`는
-viewer다. external webhook은 계속 끈다.
+viewer다. external webhook은 계속 끈다. 앱 CI가 GitHub 호스팅 러너에서 Kargo API를 호출하므로
+다른 관리 도구와 달리 tailnet으로 옮기지 않고 공개 경로를 유지한다.
 
 ### dev Stage 단계
 
